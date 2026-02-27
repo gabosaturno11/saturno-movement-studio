@@ -6079,11 +6079,33 @@ function showSummary() {
   html += '</div>';
   html += '</div>';
 
+  // Estimated workout time
+  var estSec = 0;
+  clips.forEach(function(c) {
+    var st = parseInt(c.dataset.sets) || 3;
+    var rp = parseInt(c.dataset.reps) || 8;
+    var tp = parseFloat(c.dataset.tempo) || 3;
+    var rs = parseInt(c.dataset.rest) || 60;
+    estSec += st * (rp * tp + rs) - rs;
+  });
+  var estMin = Math.floor(estSec / 60);
+  // Unique disciplines
+  var disciplines = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex && ex.discipline) disciplines[ex.discipline] = true;
+  });
+  var discCount = Object.keys(disciplines).length;
+
   html += '<div class="summary-stats">';
   html += '<div class="summary-stat"><div class="summary-stat-val">' + totalEx + '</div><div class="summary-stat-label">Exercises</div></div>';
   html += '<div class="summary-stat"><div class="summary-stat-val">' + totalSets + '</div><div class="summary-stat-label">Total Sets</div></div>';
   html += '<div class="summary-stat"><div class="summary-stat-val">' + totalReps + '</div><div class="summary-stat-label">Total Reps</div></div>';
+  html += '<div class="summary-stat"><div class="summary-stat-val">' + estMin + '</div><div class="summary-stat-label">Est. Minutes</div></div>';
   html += '</div>';
+  if (discCount > 0) {
+    html += '<div style="text-align:center;font-size:9px;color:var(--micro);margin-bottom:16px;letter-spacing:0.06em">' + Object.keys(disciplines).join(' / ') + '</div>';
+  }
 
   var trackOrder = ['push','pull','legs','core','skills'];
   trackOrder.forEach(function(trackId) {
@@ -6158,7 +6180,17 @@ function copyWorkoutText() {
   if (clips.length === 0) { toast('No exercises to copy'); return; }
   var lines = [];
   var name = workoutName && workoutName !== 'Untitled' ? workoutName : 'Workout';
+  var txtEstSec = 0;
+  clips.forEach(function(c) {
+    var st = parseInt(c.dataset.sets) || 3;
+    var rp = parseInt(c.dataset.reps) || 8;
+    var tp = parseFloat(c.dataset.tempo) || 3;
+    var rs = parseInt(c.dataset.rest) || 60;
+    txtEstSec += st * (rp * tp + rs) - rs;
+  });
+  var txtEstMin = Math.floor(txtEstSec / 60);
   lines.push(name + ' | ' + bpm + ' BPM | ' + document.getElementById('bpm-mode').textContent);
+  lines.push(clips.length + ' exercises | ~' + txtEstMin + ' min');
   lines.push('');
   var trackNames = {push:'PUSH',pull:'PULL',core:'CORE',legs:'LEGS',skills:'SKILLS'};
   var trackOrder = ['push','pull','legs','core','skills'];
@@ -7095,6 +7127,7 @@ var CMD_ACTIONS = [
   {label:'Clear Track Clips', key:'', icon:'\u2716', action: function() { clearTrackClips(); }},
   {label:'Stage Up', key:'PgUp', icon:'\u25B2', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage+1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage+1)+': '+sib.name);}else{toast('Max stage');} }},
   {label:'Stage Down', key:'PgDn', icon:'\u25BC', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage-1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage-1)+': '+sib.name);}else{toast('Min stage');} }},
+  {label:'Auto-Name Workout', key:'', icon:'\u270E', action: function() { autoNameWorkout(); }},
 ];
 
 function openCmdPalette() {
@@ -7633,6 +7666,26 @@ function clearTrackClips() {
   updateStats(); saveSession();
   sfx('delete');
   toast(count + ' track clips cleared');
+}
+
+function autoNameWorkout() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add clips first'); return; }
+  var famCounts = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) famCounts[ex.family] = (famCounts[ex.family] || 0) + 1;
+  });
+  var dominant = '';
+  var maxCount = 0;
+  Object.keys(famCounts).forEach(function(f) {
+    if (famCounts[f] > maxCount) { maxCount = famCounts[f]; dominant = f; }
+  });
+  var mode = document.getElementById('bpm-mode').textContent;
+  var name = dominant + ' ' + mode + ' (' + clips.length + ' exercises)';
+  setWorkoutName(name);
+  saveSession();
+  toast('Named: ' + name);
 }
 
 /* ===== CLIP GROUPS — Cmd+G to group, Cmd+Shift+G to ungroup ===== */
