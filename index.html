@@ -7980,6 +7980,13 @@ var CMD_ACTIONS = [
   {label:'Show Training Cycle', key:'', icon:'\u21bb', action: function() { showCycleTracker(); }},
   {label:'Advance Cycle Week', key:'', icon:'\u2192', action: function() { advanceCycleWeek(); }},
   {label:'Reset Training Cycle', key:'', icon:'\u21ba', action: function() { resetCycle(); }},
+  {label:'Create Exercise Combo', key:'', icon:'\u2726', action: function() { createCombo(); }},
+  {label:'Show Saved Combos', key:'', icon:'\u2726', action: function() { showComboList(); }},
+  {label:'Workout Comparison Matrix', key:'', icon:'\u2261', action: function() { showComparisonMatrix(); }},
+  {label:'Auto-Periodize Workout', key:'', icon:'\u21c4', action: function() { autoPeriodize(); }},
+  {label:'Search Coaching Notes', key:'', icon:'\u2315', action: function() { searchExerciseNotes(); }},
+  {label:'Create Workout Variant', key:'', icon:'\u2234', action: function() { createWorkoutVariant(); }},
+  {label:'Focus Timer (Pomodoro)', key:'', icon:'\u23f2', action: function() { showFocusTimer(); }},
 ];
 
 function openCmdPalette() {
@@ -16133,6 +16140,542 @@ function resetCycle() {
   showToast('Cycle reset to Week 1 Build');
 }
 loadCycle();
+
+// Batch 364: Exercise Combo Creator
+var _combos = [];
+function loadCombos() {
+  try { _combos = JSON.parse(localStorage.getItem('sms_combos') || '[]'); } catch(e) { _combos = []; }
+}
+function saveCombos() {
+  try { localStorage.setItem('sms_combos', JSON.stringify(_combos)); } catch(e) {}
+}
+function createCombo() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length < 2) { showToast('Select 2+ clips to create a combo'); return; }
+  var exercises = [];
+  sel.forEach(function(c) {
+    exercises.push({
+      name: c.dataset.exercise || c.querySelector('.clip-name').textContent,
+      family: c.dataset.family || '',
+      sets: parseInt(c.dataset.sets) || 3,
+      reps: parseInt(c.dataset.reps) || 10,
+      stage: c.dataset.stage || 'S1'
+    });
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:400px;max-height:80vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Create Combo</div>';
+  html += '<input id="sms-combo-name" placeholder="Combo name..." style="width:100%;padding:10px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:8px;font-family:Sora,sans-serif;font-size:14px;margin-bottom:12px;box-sizing:border-box">';
+  exercises.forEach(function(ex, i) {
+    html += '<div style="padding:8px 12px;background:rgba(34,211,238,0.05);border-radius:6px;margin-bottom:6px;color:#94a3b8;font-size:13px">' + (i+1) + '. ' + ex.name + ' <span style="color:#22d3ee">' + ex.sets + 'x' + ex.reps + '</span></div>';
+  });
+  html += '<div style="display:flex;gap:8px;margin-top:16px">';
+  html += '<button onclick="saveNewCombo()" style="flex:1;padding:10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Save Combo</button>';
+  html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="flex:1;padding:10px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Cancel</button>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  overlay.dataset.exercises = JSON.stringify(exercises);
+  document.body.appendChild(overlay);
+  document.getElementById('sms-combo-name').focus();
+}
+function saveNewCombo() {
+  var nameInput = document.getElementById('sms-combo-name');
+  var name = nameInput ? nameInput.value.trim() : '';
+  if (!name) { showToast('Enter a combo name'); return; }
+  var overlay = nameInput.closest('div[style*="fixed"]');
+  var exercises = JSON.parse(overlay.dataset.exercises || '[]');
+  loadCombos();
+  _combos.push({ name: name, exercises: exercises, created: new Date().toISOString() });
+  if (_combos.length > 30) _combos = _combos.slice(-30);
+  saveCombos();
+  overlay.remove();
+  showToast('Combo "' + name + '" saved (' + exercises.length + ' exercises)');
+}
+function showComboList() {
+  loadCombos();
+  if (_combos.length === 0) { showToast('No combos saved yet'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:80vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Saved Combos (' + _combos.length + ')</div>';
+  _combos.forEach(function(combo, i) {
+    html += '<div style="padding:12px;background:rgba(34,211,238,0.05);border-radius:8px;margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    html += '<span style="color:#22d3ee;font-weight:600;font-size:14px">' + combo.name + '</span>';
+    html += '<div style="display:flex;gap:6px">';
+    html += '<button onclick="applyCombo(' + i + ')" style="padding:4px 10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Apply</button>';
+    html += '<button onclick="deleteCombo(' + i + ')" style="padding:4px 10px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Del</button>';
+    html += '</div></div>';
+    combo.exercises.forEach(function(ex) {
+      html += '<div style="color:#94a3b8;font-size:12px;padding:2px 0">' + ex.name + ' ' + ex.sets + 'x' + ex.reps + ' (' + ex.stage + ')</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function applyCombo(idx) {
+  loadCombos();
+  var combo = _combos[idx];
+  if (!combo) return;
+  var playheadPos = playheadX || 0;
+  var trackMap = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills'};
+  combo.exercises.forEach(function(ex, i) {
+    var found = null;
+    EXERCISES.forEach(function(e) { if(e.name === ex.name) found = e; });
+    if (!found) return;
+    var trackId = trackMap[found.family] || 'push';
+    var track = document.querySelector('.track[data-family="' + trackId + '"] .track-clips');
+    if (!track) return;
+    var clip = document.createElement('div');
+    clip.className = 'clip';
+    clip.dataset.exercise = found.name;
+    clip.dataset.family = found.family;
+    clip.dataset.pattern = found.pattern || '';
+    clip.dataset.stage = ex.stage || found.stage || 'S1';
+    clip.dataset.discipline = found.discipline || '';
+    clip.dataset.sets = ex.sets;
+    clip.dataset.reps = ex.reps;
+    clip.dataset.tempo = found.tempo || 3;
+    clip.dataset.rest = found.rest || 60;
+    clip.dataset.rpe = found.rpe || 7;
+    var w = (ex.sets * 40);
+    clip.style.width = w + 'px';
+    clip.style.left = (playheadPos + (i * (w + 10))) + 'px';
+    clip.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--' + trackId + '-color') || '#22d3ee';
+    clip.innerHTML = '<div class="clip-name">' + found.name + '</div><div class="clip-params">' + ex.sets + 'x' + ex.reps + '</div>';
+    track.appendChild(clip);
+    initClipDrag(clip);
+    if (typeof logChange === 'function') logChange('add', found.name + ' (combo: ' + _combos[idx].name + ')');
+  });
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  captureUndo();
+  showToast('Applied combo: ' + combo.name);
+}
+function deleteCombo(idx) {
+  loadCombos();
+  var name = _combos[idx] ? _combos[idx].name : '';
+  _combos.splice(idx, 1);
+  saveCombos();
+  showToast('Deleted combo: ' + name);
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showComboList();
+}
+loadCombos();
+
+// Batch 365: Workout Comparison Matrix
+function showComparisonMatrix() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length < 2) { showToast('Need 2+ saved workouts to compare'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:700px;max-height:85vh;overflow:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Workout Comparison Matrix</div>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<tr><th style="text-align:left;padding:8px;color:#94a3b8;border-bottom:1px solid rgba(34,211,238,0.1)">Metric</th>';
+  var displayWorkouts = saved.slice(0, 5);
+  displayWorkouts.forEach(function(w) {
+    html += '<th style="text-align:center;padding:8px;color:#22d3ee;border-bottom:1px solid rgba(34,211,238,0.1);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (w.name || 'Untitled') + '</th>';
+  });
+  html += '</tr>';
+  var metrics = ['Clips', 'Exercises', 'Total Sets', 'Total Reps', 'Families', 'Avg RPE', 'BPM'];
+  metrics.forEach(function(metric) {
+    html += '<tr>';
+    html += '<td style="padding:8px;color:#94a3b8;border-bottom:1px solid rgba(34,211,238,0.05)">' + metric + '</td>';
+    displayWorkouts.forEach(function(w) {
+      var clips = w.clips || [];
+      var val = '';
+      if (metric === 'Clips') val = clips.length;
+      else if (metric === 'Exercises') {
+        var names = {};
+        clips.forEach(function(c) { names[c.exercise || c.name || ''] = 1; });
+        val = Object.keys(names).length;
+      }
+      else if (metric === 'Total Sets') {
+        var s = 0; clips.forEach(function(c) { s += parseInt(c.sets) || 3; }); val = s;
+      }
+      else if (metric === 'Total Reps') {
+        var r = 0; clips.forEach(function(c) { r += (parseInt(c.sets)||3) * (parseInt(c.reps)||10); }); val = r;
+      }
+      else if (metric === 'Families') {
+        var fams = {};
+        clips.forEach(function(c) { if(c.family) fams[c.family] = 1; });
+        val = Object.keys(fams).length;
+      }
+      else if (metric === 'Avg RPE') {
+        if (clips.length === 0) { val = '-'; }
+        else {
+          var sum = 0; clips.forEach(function(c) { sum += parseFloat(c.rpe) || 7; });
+          val = (sum / clips.length).toFixed(1);
+        }
+      }
+      else if (metric === 'BPM') val = w.bpm || '-';
+      var best = false;
+      if (typeof val === 'number') {
+        var allVals = displayWorkouts.map(function(wk) {
+          var cl = wk.clips || [];
+          if (metric === 'Clips') return cl.length;
+          if (metric === 'Total Sets') { var s=0; cl.forEach(function(c){s+=parseInt(c.sets)||3;}); return s; }
+          if (metric === 'Total Reps') { var r=0; cl.forEach(function(c){r+=(parseInt(c.sets)||3)*(parseInt(c.reps)||10);}); return r; }
+          return 0;
+        });
+        best = (val === Math.max.apply(null, allVals) && val > 0);
+      }
+      html += '<td style="text-align:center;padding:8px;color:' + (best ? '#22d3ee' : '#e2e8f0') + ';font-weight:' + (best ? '700' : '400') + ';border-bottom:1px solid rgba(34,211,238,0.05)">' + val + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</table>';
+  // Family breakdown per workout
+  html += '<div style="margin-top:16px;color:#94a3b8;font-size:13px;font-weight:600;margin-bottom:8px">Family Breakdown</div>';
+  var allFamilies = ['Push','Pull','Core','Legs','Skills'];
+  html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html += '<tr><th style="text-align:left;padding:6px;color:#94a3b8">Family</th>';
+  displayWorkouts.forEach(function(w) {
+    html += '<th style="text-align:center;padding:6px;color:#22d3ee;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (w.name || 'Untitled') + '</th>';
+  });
+  html += '</tr>';
+  allFamilies.forEach(function(fam) {
+    html += '<tr><td style="padding:6px;color:#94a3b8">' + fam + '</td>';
+    displayWorkouts.forEach(function(w) {
+      var count = 0;
+      (w.clips || []).forEach(function(c) { if(c.family === fam) count++; });
+      html += '<td style="text-align:center;padding:6px;color:#e2e8f0">' + count + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</table></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 366: Auto-Periodize (Generate 4-week plan from current workout)
+function autoPeriodize() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Build a workout first, then auto-periodize'); return; }
+  var baseWorkout = [];
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    baseWorkout.push({
+      name: c.dataset.exercise || c.querySelector('.clip-name').textContent,
+      family: c.dataset.family || '',
+      sets: parseInt(c.dataset.sets) || 3,
+      reps: parseInt(c.dataset.reps) || 10,
+      rpe: parseFloat(c.dataset.rpe) || 7,
+      rest: parseInt(c.dataset.rest) || 60,
+      stage: c.dataset.stage || 'S1'
+    });
+  });
+  var phases = [
+    { name: 'Week 1: Accumulation', setsMulti: 1.0, repsMulti: 1.0, rpeAdj: 0, restAdj: 0, desc: 'Base volume, moderate intensity' },
+    { name: 'Week 2: Intensification', setsMulti: 1.0, repsMulti: 0.85, rpeAdj: 1, restAdj: 15, desc: 'Fewer reps, higher RPE, more rest' },
+    { name: 'Week 3: Overreach', setsMulti: 1.2, repsMulti: 0.9, rpeAdj: 1.5, restAdj: 10, desc: 'More sets, push limits' },
+    { name: 'Week 4: Deload', setsMulti: 0.6, repsMulti: 1.0, rpeAdj: -2, restAdj: -15, desc: 'Reduced volume, recovery focus' }
+  ];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:650px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Auto-Periodize</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">4-week plan based on your current ' + baseWorkout.length + ' exercises</div>';
+  phases.forEach(function(phase) {
+    html += '<div style="padding:14px;background:rgba(34,211,238,0.05);border-radius:8px;margin-bottom:10px">';
+    html += '<div style="color:#22d3ee;font-weight:600;font-size:14px;margin-bottom:2px">' + phase.name + '</div>';
+    html += '<div style="color:#64748b;font-size:11px;margin-bottom:10px">' + phase.desc + '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 60px 50px 40px 50px;gap:4px;font-size:11px;color:#64748b;margin-bottom:6px">';
+    html += '<div>Exercise</div><div>Sets x Reps</div><div>RPE</div><div>Rest</div><div>Stage</div></div>';
+    baseWorkout.forEach(function(ex) {
+      var sets = Math.max(1, Math.round(ex.sets * phase.setsMulti));
+      var reps = Math.max(1, Math.round(ex.reps * phase.repsMulti));
+      var rpe = Math.min(10, Math.max(1, Math.round((ex.rpe + phase.rpeAdj) * 10) / 10));
+      var rest = Math.max(15, ex.rest + phase.restAdj);
+      html += '<div style="display:grid;grid-template-columns:1fr 60px 50px 40px 50px;gap:4px;padding:3px 0;color:#e2e8f0;font-size:12px">';
+      html += '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + ex.name + '</div>';
+      html += '<div style="color:#22d3ee">' + sets + 'x' + reps + '</div>';
+      html += '<div>' + rpe + '</div>';
+      html += '<div>' + rest + 's</div>';
+      html += '<div style="color:#a78bfa">' + ex.stage + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  html += '<div style="display:flex;gap:8px;margin-top:16px">';
+  html += '<button onclick="exportPeriodization()" style="flex:1;padding:10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Copy as Text</button>';
+  html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="flex:1;padding:10px;background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Close</button>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function exportPeriodization() {
+  var clips = document.querySelectorAll('.clip');
+  var baseWorkout = [];
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    baseWorkout.push({
+      name: c.dataset.exercise || c.querySelector('.clip-name').textContent,
+      sets: parseInt(c.dataset.sets) || 3,
+      reps: parseInt(c.dataset.reps) || 10,
+      rpe: parseFloat(c.dataset.rpe) || 7,
+      rest: parseInt(c.dataset.rest) || 60,
+      stage: c.dataset.stage || 'S1'
+    });
+  });
+  var phases = [
+    { name: 'Week 1: Accumulation', setsMulti: 1.0, repsMulti: 1.0, rpeAdj: 0, restAdj: 0 },
+    { name: 'Week 2: Intensification', setsMulti: 1.0, repsMulti: 0.85, rpeAdj: 1, restAdj: 15 },
+    { name: 'Week 3: Overreach', setsMulti: 1.2, repsMulti: 0.9, rpeAdj: 1.5, restAdj: 10 },
+    { name: 'Week 4: Deload', setsMulti: 0.6, repsMulti: 1.0, rpeAdj: -2, restAdj: -15 }
+  ];
+  var text = 'PERIODIZED TRAINING PLAN\n========================\n\n';
+  phases.forEach(function(phase) {
+    text += phase.name + '\n' + '-'.repeat(phase.name.length) + '\n';
+    baseWorkout.forEach(function(ex) {
+      var sets = Math.max(1, Math.round(ex.sets * phase.setsMulti));
+      var reps = Math.max(1, Math.round(ex.reps * phase.repsMulti));
+      var rpe = Math.min(10, Math.max(1, Math.round((ex.rpe + phase.rpeAdj) * 10) / 10));
+      var rest = Math.max(15, ex.rest + phase.restAdj);
+      text += '  ' + ex.name + ' - ' + sets + 'x' + reps + ' @ RPE ' + rpe + ' | Rest: ' + rest + 's\n';
+    });
+    text += '\n';
+  });
+  text += 'Generated by Saturno Movement Studio';
+  try {
+    navigator.clipboard.writeText(text);
+    showToast('Periodization plan copied to clipboard');
+  } catch(e) {
+    showToast('Could not copy to clipboard');
+  }
+}
+
+// Batch 367: Exercise Notes Search
+function searchExerciseNotes() {
+  var allNotes = {};
+  try { allNotes = JSON.parse(localStorage.getItem('sms_coaching_notes') || '{}'); } catch(e) {}
+  var entries = Object.keys(allNotes).filter(function(k) { return allNotes[k] && allNotes[k].trim(); });
+  if (entries.length === 0) { showToast('No coaching notes saved yet'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:12px">Search Coaching Notes</div>';
+  html += '<input id="sms-note-search" placeholder="Search notes..." oninput="filterNoteResults()" style="width:100%;padding:10px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:8px;font-family:Sora,sans-serif;font-size:14px;margin-bottom:12px;box-sizing:border-box">';
+  html += '<div id="sms-note-results">';
+  entries.forEach(function(name) {
+    html += '<div class="note-result-item" style="padding:10px;background:rgba(34,211,238,0.05);border-radius:6px;margin-bottom:6px">';
+    html += '<div style="color:#22d3ee;font-weight:600;font-size:13px;margin-bottom:4px">' + name + '</div>';
+    html += '<div style="color:#94a3b8;font-size:12px;white-space:pre-wrap;word-break:break-word">' + allNotes[name].replace(/</g, '&lt;') + '</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+  document.getElementById('sms-note-search').focus();
+}
+function filterNoteResults() {
+  var q = (document.getElementById('sms-note-search').value || '').toLowerCase();
+  var items = document.querySelectorAll('.note-result-item');
+  items.forEach(function(item) {
+    var text = item.textContent.toLowerCase();
+    item.style.display = (!q || text.indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+
+// Batch 368: Workout A/B Variants
+function createWorkoutVariant() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Build a workout first'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Workout';
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:420px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Create Workout Variant</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Generate an A/B version of "' + workoutName + '"</div>';
+  var variants = [
+    { id: 'swap-stages', label: 'Stage Swap', desc: 'Swap all exercises to next progression stage' },
+    { id: 'volume-up', label: 'Volume Up', desc: '+1 set per exercise, same reps' },
+    { id: 'intensity-up', label: 'Intensity Up', desc: '-2 reps, +1 RPE per exercise' },
+    { id: 'time-crunch', label: 'Time Crunch', desc: '-1 set, -15s rest per exercise' },
+    { id: 'randomize-order', label: 'Random Order', desc: 'Shuffle exercise positions' },
+    { id: 'alt-exercises', label: 'Alt Exercises', desc: 'Swap to random same-family exercises' }
+  ];
+  variants.forEach(function(v) {
+    html += '<button onclick="applyVariant(\'' + v.id + '\')" style="display:block;width:100%;padding:12px;margin-bottom:6px;background:rgba(34,211,238,0.05);color:#e2e8f0;border:1px solid rgba(34,211,238,0.15);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;text-align:left">';
+    html += '<div style="font-size:13px;font-weight:600;color:#22d3ee">' + v.label + '</div>';
+    html += '<div style="font-size:11px;color:#94a3b8">' + v.desc + '</div>';
+    html += '</button>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function applyVariant(type) {
+  captureUndo();
+  var clips = document.querySelectorAll('.clip');
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    if (c.closest('.track[data-family="music"]')) return;
+    if (type === 'swap-stages') {
+      var stage = c.dataset.stage || 'S1';
+      var next = stage === 'S1' ? 'S2' : stage === 'S2' ? 'S3' : 'S1';
+      var pattern = c.dataset.pattern || '';
+      var found = null;
+      EXERCISES.forEach(function(e) { if (e.pattern === pattern && e.stage === next) found = e; });
+      if (found) {
+        c.dataset.exercise = found.name;
+        c.dataset.stage = next;
+        var nameEl = c.querySelector('.clip-name');
+        if (nameEl) nameEl.textContent = found.name;
+      }
+    } else if (type === 'volume-up') {
+      c.dataset.sets = Math.min(10, (parseInt(c.dataset.sets)||3) + 1);
+      if (typeof updateClipInfo === 'function') updateClipInfo(c);
+    } else if (type === 'intensity-up') {
+      c.dataset.reps = Math.max(1, (parseInt(c.dataset.reps)||10) - 2);
+      c.dataset.rpe = Math.min(10, (parseFloat(c.dataset.rpe)||7) + 1);
+      if (typeof updateClipInfo === 'function') updateClipInfo(c);
+    } else if (type === 'time-crunch') {
+      c.dataset.sets = Math.max(1, (parseInt(c.dataset.sets)||3) - 1);
+      c.dataset.rest = Math.max(15, (parseInt(c.dataset.rest)||60) - 15);
+      if (typeof updateClipInfo === 'function') updateClipInfo(c);
+    } else if (type === 'randomize-order') {
+      var track = c.closest('.track-clips');
+      if (track) {
+        var allClips = Array.from(track.querySelectorAll('.clip'));
+        var positions = allClips.map(function(cl) { return parseInt(cl.style.left) || 0; });
+        for (var i = positions.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var tmp = positions[i]; positions[i] = positions[j]; positions[j] = tmp;
+        }
+        allClips.forEach(function(cl, idx) { cl.style.left = positions[idx] + 'px'; });
+      }
+    } else if (type === 'alt-exercises') {
+      var fam = c.dataset.family || '';
+      var currentName = c.dataset.exercise || '';
+      var alternatives = [];
+      EXERCISES.forEach(function(e) { if (e.family === fam && e.name !== currentName) alternatives.push(e); });
+      if (alternatives.length > 0) {
+        var alt = alternatives[Math.floor(Math.random() * alternatives.length)];
+        c.dataset.exercise = alt.name;
+        c.dataset.pattern = alt.pattern || '';
+        c.dataset.stage = alt.stage || 'S1';
+        var nameEl = c.querySelector('.clip-name');
+        if (nameEl) nameEl.textContent = alt.name;
+      }
+    }
+  });
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showToast('Variant applied: ' + type.replace(/-/g, ' '));
+  if (typeof logChange === 'function') logChange('variant', type);
+}
+
+// Batch 369: Session Focus Timer (Pomodoro)
+var _focusTimer = { active: false, interval: null, remaining: 0, mode: 'work', workMin: 25, breakMin: 5, sessions: 0 };
+function showFocusTimer() {
+  var overlay = document.createElement('div');
+  overlay.id = 'sms-focus-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.97);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  var html = '<div style="text-align:center;max-width:400px">';
+  html += '<div style="color:#e2e8f0;font-size:20px;font-weight:700;margin-bottom:8px">Session Focus Timer</div>';
+  html += '<div id="focus-mode-label" style="color:' + (_focusTimer.mode === 'work' ? '#22d3ee' : '#4ade80') + ';font-size:14px;margin-bottom:24px;text-transform:uppercase;letter-spacing:2px">' + (_focusTimer.mode === 'work' ? 'Work' : 'Break') + '</div>';
+  var min = Math.floor(_focusTimer.remaining / 60);
+  var sec = _focusTimer.remaining % 60;
+  html += '<div id="focus-time-display" style="color:#e2e8f0;font-size:72px;font-weight:200;letter-spacing:4px;margin-bottom:8px">' + String(min).padStart(2,'0') + ':' + String(sec).padStart(2,'0') + '</div>';
+  html += '<div id="focus-sessions" style="color:#94a3b8;font-size:12px;margin-bottom:24px">Sessions: ' + _focusTimer.sessions + '</div>';
+  // Progress ring
+  var pct = 0;
+  var totalSec = (_focusTimer.mode === 'work' ? _focusTimer.workMin : _focusTimer.breakMin) * 60;
+  if (totalSec > 0) pct = (1 - _focusTimer.remaining / totalSec) * 100;
+  html += '<div style="margin-bottom:24px">';
+  html += '<div style="width:200px;height:6px;background:rgba(34,211,238,0.1);border-radius:3px;margin:0 auto;overflow:hidden">';
+  html += '<div id="focus-progress" style="height:100%;width:' + pct + '%;background:' + (_focusTimer.mode === 'work' ? '#22d3ee' : '#4ade80') + ';border-radius:3px;transition:width 1s linear"></div>';
+  html += '</div></div>';
+  html += '<div style="display:flex;gap:8px;justify-content:center">';
+  if (!_focusTimer.active) {
+    html += '<button onclick="startFocusWork()" style="padding:10px 20px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Start 25 min</button>';
+    html += '<button onclick="startFocusWork(50)" style="padding:10px 20px;background:rgba(34,211,238,0.1);color:#22d3ee;border:1px solid rgba(34,211,238,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">50 min</button>';
+  } else {
+    html += '<button onclick="pauseFocusTimer()" style="padding:10px 20px;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Pause</button>';
+  }
+  html += '<button onclick="resetFocusTimer()" style="padding:10px 20px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Reset</button>';
+  html += '<button onclick="closeFocusTimer()" style="padding:10px 20px;background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Close</button>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function startFocusWork(mins) {
+  _focusTimer.workMin = mins || 25;
+  _focusTimer.breakMin = Math.round(_focusTimer.workMin / 5);
+  _focusTimer.mode = 'work';
+  _focusTimer.remaining = _focusTimer.workMin * 60;
+  _focusTimer.active = true;
+  clearInterval(_focusTimer.interval);
+  _focusTimer.interval = setInterval(tickFocusTimer, 1000);
+  closeFocusTimer();
+  showFocusTimer();
+}
+function tickFocusTimer() {
+  if (!_focusTimer.active) return;
+  _focusTimer.remaining--;
+  if (_focusTimer.remaining <= 0) {
+    if (_focusTimer.mode === 'work') {
+      _focusTimer.sessions++;
+      _focusTimer.mode = 'break';
+      _focusTimer.remaining = _focusTimer.breakMin * 60;
+      showToast('Work session done! Take a ' + _focusTimer.breakMin + ' min break');
+      if (typeof playUISound === 'function') playUISound('success');
+    } else {
+      _focusTimer.mode = 'work';
+      _focusTimer.remaining = _focusTimer.workMin * 60;
+      showToast('Break over! Ready for session ' + (_focusTimer.sessions + 1));
+      if (typeof playUISound === 'function') playUISound('snap');
+    }
+  }
+  var display = document.getElementById('focus-time-display');
+  if (display) {
+    var min = Math.floor(_focusTimer.remaining / 60);
+    var sec = _focusTimer.remaining % 60;
+    display.textContent = String(min).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  }
+  var label = document.getElementById('focus-mode-label');
+  if (label) {
+    label.textContent = _focusTimer.mode === 'work' ? 'Work' : 'Break';
+    label.style.color = _focusTimer.mode === 'work' ? '#22d3ee' : '#4ade80';
+  }
+  var prog = document.getElementById('focus-progress');
+  if (prog) {
+    var totalSec = (_focusTimer.mode === 'work' ? _focusTimer.workMin : _focusTimer.breakMin) * 60;
+    prog.style.width = ((1 - _focusTimer.remaining / totalSec) * 100) + '%';
+    prog.style.background = _focusTimer.mode === 'work' ? '#22d3ee' : '#4ade80';
+  }
+  var sessEl = document.getElementById('focus-sessions');
+  if (sessEl) sessEl.textContent = 'Sessions: ' + _focusTimer.sessions;
+}
+function pauseFocusTimer() {
+  _focusTimer.active = false;
+  clearInterval(_focusTimer.interval);
+  closeFocusTimer();
+  showFocusTimer();
+}
+function resetFocusTimer() {
+  _focusTimer.active = false;
+  clearInterval(_focusTimer.interval);
+  _focusTimer.remaining = 0;
+  _focusTimer.mode = 'work';
+  _focusTimer.sessions = 0;
+  closeFocusTimer();
+  showFocusTimer();
+}
+function closeFocusTimer() {
+  var el = document.getElementById('sms-focus-overlay');
+  if (el) el.remove();
+}
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
