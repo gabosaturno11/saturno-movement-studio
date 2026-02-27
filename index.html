@@ -499,6 +499,11 @@ body {
   text-transform: uppercase; letter-spacing: 0.05em;
   font-weight: 400;
 }
+.clip.clip-playing {
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06),
+              0 0 12px rgba(255,255,255,0.15), 0 0 4px currentColor;
+  border-color: rgba(255,255,255,0.2);
+}
 .clip-resize {
   position: absolute; right: 0; top: 0; bottom: 0;
   width: 5px; cursor: ew-resize;
@@ -1329,6 +1334,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <span id="footer-pos" style="color:var(--muted)">1.1.1</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
+      <span id="save-indicator" style="color:var(--accent-green);opacity:0;transition:opacity 0.3s;font-size:7px;text-transform:uppercase;letter-spacing:0.1em">Saved</span>
       <div class="footer-quote">Saturno Movement Studio</div>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
@@ -2384,6 +2390,12 @@ function stopPlayback() {
   updateTimeDisplay();
   updatePlayheadPosition();
   updatePlayheadClass();
+  // Clear all clip playing states and progress
+  document.querySelectorAll('.clip').forEach(function(c) {
+    c.classList.remove('clip-playing');
+    var p = c.querySelector('.clip-progress');
+    if (p) p.style.width = '0';
+  });
   document.getElementById('status-text').textContent = 'Ready';
   sfx('stop');
 }
@@ -2442,20 +2454,23 @@ function updatePlayheadPosition() {
     if (pos > visibleRight - 60) {
       container.scrollLeft = pos - 200;
     }
-    // Update clip progress overlays
+    // Update clip progress overlays and playing state
     document.querySelectorAll('.clip').forEach(function(clip) {
       var clipLeft = parseInt(clip.style.left) + 100;
       var clipW = parseInt(clip.style.width);
       var clipRight = clipLeft + clipW;
       var progressEl = clip.querySelector('.clip-progress');
-      if (!progressEl) return;
       if (pos >= clipLeft && pos <= clipRight) {
-        var pct = ((pos - clipLeft) / clipW) * 100;
-        progressEl.style.width = pct + '%';
-      } else if (pos > clipRight) {
-        progressEl.style.width = '100%';
+        if (progressEl) {
+          var pct = ((pos - clipLeft) / clipW) * 100;
+          progressEl.style.width = pct + '%';
+        }
+        clip.classList.add('clip-playing');
       } else {
-        progressEl.style.width = '0';
+        if (progressEl) {
+          progressEl.style.width = pos > clipRight ? '100%' : '0';
+        }
+        clip.classList.remove('clip-playing');
       }
     });
   }
@@ -2967,6 +2982,12 @@ function saveSession() {
       session.faders[f.dataset.fader] = parseFloat(fill.style.height) || 50;
     });
     localStorage.setItem('sms_session', JSON.stringify(session));
+    // Flash save indicator
+    var si = document.getElementById('save-indicator');
+    if (si) {
+      si.style.opacity = '1';
+      setTimeout(function() { si.style.opacity = '0'; }, 1200);
+    }
   } catch(e) {}
 }
 
@@ -3059,20 +3080,35 @@ function printWorkout() {
     });
   });
   var mode = document.getElementById('bpm-mode').textContent;
+  var totalClips = clips.length;
+  var totalSets = 0, totalReps = 0;
+  clips.forEach(function(c) { totalSets += parseInt(c.dataset.sets) || 3; totalReps += (parseInt(c.dataset.sets) || 3) * (parseInt(c.dataset.reps) || 8); });
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Workout - Saturno Movement Studio</title>';
-  html += '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;padding:24px;max-width:700px;margin:0 auto}';
-  html += 'h1{font-size:18px;margin-bottom:4px}h2{font-size:14px;margin-top:16px;margin-bottom:8px;padding:4px 8px;background:#f0f0f0}';
-  html += '.meta{font-size:11px;color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px}';
-  html += 'th,td{text-align:left;padding:4px 8px;border-bottom:1px solid #ddd}th{background:#f8f8f8;font-weight:600}';
-  html += '.footer{margin-top:24px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:8px}';
-  html += '@media print{body{padding:12px}}</style></head><body>';
-  html += '<h1>Saturno Movement Studio</h1>';
-  html += '<div class="meta">' + bpm + ' BPM / ' + mode + ' / ' + new Date().toLocaleDateString() + '</div>';
+  html += '<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">';
+  html += '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Sora,sans-serif;padding:32px;max-width:700px;margin:0 auto;background:#050711;color:#e2e8f0}';
+  html += 'h1{font-size:20px;font-weight:700;letter-spacing:0.05em;margin-bottom:2px}';
+  html += '.subtitle{font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px}';
+  html += '.stats{display:flex;gap:16px;margin-bottom:20px;padding:12px;background:#0a0e1a;border:1px solid #1e293b;border-radius:4px}';
+  html += '.stat{text-align:center;flex:1}.stat-val{font-size:20px;font-weight:700;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}.stat-label{font-size:7px;color:#64748b;text-transform:uppercase;letter-spacing:0.2em;margin-top:2px}';
+  html += 'h2{font-size:11px;font-weight:600;margin-top:20px;margin-bottom:8px;padding:6px 10px;background:#0a0e1a;border-left:3px solid;text-transform:uppercase;letter-spacing:0.1em;border-radius:2px}';
+  html += '.meta{font-size:10px;color:#64748b;margin-bottom:16px;display:flex;gap:12px}';
+  html += 'table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px}';
+  html += 'th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #1e293b}th{background:#0d1117;font-weight:600;font-size:8px;text-transform:uppercase;letter-spacing:0.1em;color:#64748b}';
+  html += 'td{color:#8b94a5}td:nth-child(2){color:#e2e8f0;font-weight:500}';
+  html += '.footer{margin-top:32px;font-size:8px;color:#475569;text-align:center;border-top:1px solid #1e293b;padding-top:12px;text-transform:uppercase;letter-spacing:0.15em}';
+  html += '@media print{body{padding:16px;background:#fff;color:#111}h2{background:#f0f0f0;border-left-width:3px}th{background:#f8f8f8;color:#333}td{color:#555}td:nth-child(2){color:#111}.stat-val{background:none;-webkit-text-fill-color:#111;color:#111}.stats{background:#f8f8f8;border-color:#ddd}.footer{color:#999;border-top-color:#ddd}}</style></head><body>';
+  html += '<h1>SATURNO MOVEMENT STUDIO</h1>';
+  html += '<div class="subtitle">The Ableton of Movement</div>';
+  html += '<div class="meta"><span>' + bpm + ' BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString() + '</span></div>';
+  html += '<div class="stats"><div class="stat"><div class="stat-val">' + totalClips + '</div><div class="stat-label">Exercises</div></div>';
+  html += '<div class="stat"><div class="stat-val">' + totalSets + '</div><div class="stat-label">Sets</div></div>';
+  html += '<div class="stat"><div class="stat-val">' + totalReps + '</div><div class="stat-label">Reps</div></div></div>';
   var trackNames = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
+  var trackColors = {push:'#3b82f6',pull:'#8b5cf6',core:'#f97316',legs:'#22c55e',skills:'#06b6d4'};
   Object.keys(groups).forEach(function(trackId) {
     var exercises = groups[trackId];
     exercises.sort(function(a,b) { return a.startTime - b.startTime; });
-    html += '<h2>' + (trackNames[trackId] || trackId) + '</h2>';
+    html += '<h2 style="border-left-color:' + (trackColors[trackId] || '#3b82f6') + ';color:' + (trackColors[trackId] || '#e2e8f0') + '">' + (trackNames[trackId] || trackId) + '</h2>';
     html += '<table><tr><th>#</th><th>Exercise</th><th>Sets</th><th>Reps</th><th>Tempo</th><th>Rest</th><th>RPE</th><th>Notes</th></tr>';
     exercises.forEach(function(ex, i) {
       html += '<tr><td>'+(i+1)+'</td><td>'+ex.name+'</td><td>'+ex.sets+'</td><td>'+ex.reps+'</td><td>'+ex.tempo+'s</td><td>'+ex.rest+'s</td><td>'+ex.rpe+'</td><td></td></tr>';
