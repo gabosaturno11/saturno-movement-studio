@@ -7852,6 +7852,9 @@ var CMD_ACTIONS = [
   {label:'Toggle Library (Mobile)', key:'', icon:'\u266B', action: function() { if(isMobileView()) toggleMobileLibrary(); else toast('Desktop: library always visible'); }},
   {label:'Toggle Mixer (Mobile)', key:'', icon:'\u2699', action: function() { if(isMobileView()) toggleMobileInspector(); else toast('Desktop: mixer always visible'); }},
   {label:'Close All Drawers (Mobile)', key:'', icon:'\u2715', action: function() { closeMobileDrawers(); }},
+  {label:'Cinematic Workout Intro', key:'', icon:'\u2728', action: function() { showWorkoutIntro(); }},
+  {label:'View Achievements', key:'', icon:'\u2605', action: function() { showAllAchievements(); }},
+  {label:'Smart Workout Suggestions', key:'', icon:'\u2139', action: function() { suggestWorkoutImprovements(); }},
 ];
 
 function openCmdPalette() {
@@ -11412,6 +11415,299 @@ function initLongPressContext() {
     initBatch294();
   }
 })();
+
+/* ===== BATCH 295: CINEMATIC WORKOUT INTRO ===== */
+function showWorkoutIntro(callback) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { if (callback) callback(); return; }
+  /* Gather workout stats for the intro */
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Untitled';
+  var bpm = document.getElementById('bpm-input') ? document.getElementById('bpm-input').value : '120';
+  var mode = document.getElementById('bpm-mode') ? document.getElementById('bpm-mode').textContent : 'Standard';
+  var clipCount = clips.length;
+  var families = {};
+  clips.forEach(function(c) {
+    var fam = c.getAttribute('data-family') || 'Unknown';
+    families[fam] = (families[fam] || 0) + 1;
+  });
+  var dominantFamily = '';
+  var maxCount = 0;
+  for (var f in families) { if (families[f] > maxCount) { maxCount = families[f]; dominantFamily = f; } }
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:#050711;display:flex;align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity 0.5s';
+
+  var inner = '<div style="text-align:center;opacity:0;transform:translateY(20px);transition:opacity 0.8s 0.3s,transform 0.8s 0.3s">';
+  inner += '<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.3em;color:var(--accent-cyan);margin-bottom:16px;font-weight:600">Saturno Movement Studio</div>';
+  inner += '<div style="font-size:28px;font-weight:800;color:#fff;margin-bottom:8px;letter-spacing:-0.02em">' + workoutName + '</div>';
+  inner += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">' + clipCount + ' exercises | ' + bpm + ' BPM | ' + mode + '</div>';
+  inner += '<div style="display:flex;gap:12px;justify-content:center;margin-bottom:24px">';
+  for (var fam in families) {
+    var colors = {Push:'#3b82f6',Pull:'#22c55e',Core:'#f97316',Legs:'#ef4444',Skills:'#8b5cf6',Flow:'#ec4899'};
+    var col = colors[fam] || '#06b6d4';
+    inner += '<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:' + col + '">' + families[fam] + '</div><div style="font-size:8px;text-transform:uppercase;letter-spacing:0.1em;color:' + col + ';opacity:0.7">' + fam + '</div></div>';
+  }
+  inner += '</div>';
+  inner += '<div style="width:120px;height:2px;background:var(--border);margin:0 auto;border-radius:1px;overflow:hidden"><div style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-blue));transition:width 2s linear;border-radius:1px" id="intro-progress"></div></div>';
+  inner += '</div>';
+  overlay.innerHTML = inner;
+  document.body.appendChild(overlay);
+
+  requestAnimationFrame(function() {
+    overlay.style.opacity = '1';
+    var content = overlay.querySelector('div > div');
+    if (content) { content.style.opacity = '1'; content.style.transform = 'translateY(0)'; }
+    var bar = document.getElementById('intro-progress');
+    if (bar) setTimeout(function() { bar.style.width = '100%'; }, 100);
+  });
+
+  setTimeout(function() {
+    overlay.style.opacity = '0';
+    setTimeout(function() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (callback) callback();
+    }, 500);
+  }, 2500);
+}
+
+/* Wire intro into workout timer */
+var _origStartWorkoutTimer = typeof startWorkoutTimer === 'function' ? startWorkoutTimer : null;
+(function() {
+  function patchTimer() {
+    if (!window.startWorkoutTimer) return;
+    var orig = window.startWorkoutTimer;
+    window.startWorkoutTimer = function() {
+      showWorkoutIntro(function() { orig(); });
+    };
+  }
+  if (document.readyState === 'complete') setTimeout(patchTimer, 200);
+  else window.addEventListener('load', function() { setTimeout(patchTimer, 200); });
+})();
+
+/* ===== BATCH 296: ACHIEVEMENT SYSTEM ===== */
+var ACHIEVEMENTS = [
+  {id:'first_workout',name:'First Composition',desc:'Save your first workout',icon:'\u2605',check:function(){return getSavedWorkoutCount()>=1;}},
+  {id:'composer_5',name:'Prolific Composer',desc:'Save 5 workouts',icon:'\u2605\u2605',check:function(){return getSavedWorkoutCount()>=5;}},
+  {id:'full_spectrum',name:'Full Spectrum',desc:'Use all 5 movement families in one workout',icon:'\u2606',check:function(){return getActiveFamilyCount()>=5;}},
+  {id:'speed_demon',name:'Speed Demon',desc:'Set BPM to 160+',icon:'\u26A1',check:function(){var b=document.getElementById('bpm-input');return b&&parseInt(b.value)>=160;}},
+  {id:'monk',name:'Monk Mode',desc:'Use BPM under 70',icon:'\u2638',check:function(){var b=document.getElementById('bpm-input');return b&&parseInt(b.value)<70;}},
+  {id:'mega_session',name:'Marathon Session',desc:'Spend 30+ minutes in one session',icon:'\u23F0',check:function(){return getSessionMinutes()>=30;}},
+  {id:'clip_master',name:'Clip Master',desc:'Have 20+ clips in one workout',icon:'\u2630',check:function(){return document.querySelectorAll('.clip').length>=20;}},
+  {id:'superset_king',name:'Superset King',desc:'Create 3+ supersets',icon:'\u26D3',check:function(){var ss=document.getElementById('footer-supersets');return ss&&parseInt(ss.textContent)>=3;}},
+  {id:'rpe_warrior',name:'RPE Warrior',desc:'Have a clip with RPE 10',icon:'\u2694',check:function(){var clips=document.querySelectorAll('.clip');for(var i=0;i<clips.length;i++){if(parseInt(clips[i].getAttribute('data-rpe'))>=10)return true;}return false;}},
+  {id:'rated_10',name:'Critic',desc:'Rate 10 workouts',icon:'\u272A',check:function(){try{var r=JSON.parse(localStorage.getItem('sms_ratings')||'[]');return r.length>=10;}catch(e){return false;}}}
+];
+
+function getSavedWorkoutCount() {
+  try { var s = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); return s.length; } catch(e) { return 0; }
+}
+
+function getActiveFamilyCount() {
+  var families = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var f = c.getAttribute('data-family');
+    if (f) families[f] = true;
+  });
+  return Object.keys(families).length;
+}
+
+function getSessionMinutes() {
+  var el = document.getElementById('session-timer');
+  if (!el) return 0;
+  var text = el.textContent || '';
+  var parts = text.split(':');
+  if (parts.length === 2) return parseInt(parts[0]) || 0;
+  return 0;
+}
+
+function getUnlockedAchievements() {
+  try { return JSON.parse(localStorage.getItem('sms_achievements') || '[]'); } catch(e) { return []; }
+}
+
+function saveAchievement(id) {
+  try {
+    var unlocked = getUnlockedAchievements();
+    if (unlocked.indexOf(id) === -1) {
+      unlocked.push(id);
+      localStorage.setItem('sms_achievements', JSON.stringify(unlocked));
+    }
+  } catch(e) {}
+}
+
+function checkAchievements() {
+  var unlocked = getUnlockedAchievements();
+  ACHIEVEMENTS.forEach(function(a) {
+    if (unlocked.indexOf(a.id) === -1 && a.check()) {
+      saveAchievement(a.id);
+      showAchievementToast(a);
+    }
+  });
+}
+
+function showAchievementToast(achievement) {
+  haptic('heavy');
+  var el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-20px);z-index:600;background:linear-gradient(135deg,rgba(6,182,212,0.15),rgba(59,130,246,0.15));border:1px solid rgba(6,182,212,0.3);padding:12px 20px;border-radius:8px;text-align:center;opacity:0;transition:opacity 0.4s,transform 0.4s;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);pointer-events:none;min-width:200px';
+  el.innerHTML = '<div style="font-size:20px;margin-bottom:4px">' + achievement.icon + '</div><div style="font-size:10px;font-weight:700;color:var(--accent-cyan);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:2px">Achievement Unlocked</div><div style="font-size:12px;font-weight:600;color:#fff">' + achievement.name + '</div><div style="font-size:9px;color:var(--text-secondary);margin-top:2px">' + achievement.desc + '</div>';
+  document.body.appendChild(el);
+  requestAnimationFrame(function() {
+    el.style.opacity = '1';
+    el.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(function() {
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(-50%) translateY(-20px)';
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+  }, 3500);
+}
+
+function showAllAchievements() {
+  var unlocked = getUnlockedAchievements();
+  var html = '<div style="max-width:400px;margin:0 auto;padding:20px">';
+  html += '<div style="text-align:center;margin-bottom:20px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:4px">Achievements</div><div style="font-size:24px;font-weight:700;color:#fff">' + unlocked.length + ' / ' + ACHIEVEMENTS.length + '</div></div>';
+  ACHIEVEMENTS.forEach(function(a) {
+    var isUnlocked = unlocked.indexOf(a.id) !== -1;
+    html += '<div style="display:flex;gap:12px;align-items:center;padding:10px;margin-bottom:4px;border-radius:6px;background:' + (isUnlocked ? 'rgba(6,182,212,0.06)' : 'rgba(255,255,255,0.02)') + ';border:1px solid ' + (isUnlocked ? 'rgba(6,182,212,0.15)' : 'rgba(255,255,255,0.04)') + '">';
+    html += '<div style="font-size:20px;opacity:' + (isUnlocked ? '1' : '0.2') + ';min-width:28px;text-align:center">' + a.icon + '</div>';
+    html += '<div><div style="font-size:11px;font-weight:600;color:' + (isUnlocked ? '#fff' : 'var(--micro)') + '">' + a.name + '</div>';
+    html += '<div style="font-size:9px;color:' + (isUnlocked ? 'var(--text-secondary)' : 'var(--micro)') + '">' + a.desc + '</div></div>';
+    if (isUnlocked) html += '<div style="margin-left:auto;font-size:8px;color:var(--accent-cyan)">UNLOCKED</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  var w = window.open('', '_blank');
+  if (!w) { toast('Enable popups for achievements'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>Achievements - Saturno Movement Studio</title><link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#050711;color:#e2e8f0;font-family:Sora,sans-serif;padding:40px 20px}</style></head><body>' + html + '</body></html>');
+  w.document.close();
+  toast('Achievements: ' + unlocked.length + '/' + ACHIEVEMENTS.length);
+}
+
+/* Check achievements periodically (every 30s) */
+(function() {
+  setInterval(function() { try { checkAchievements(); } catch(e) {} }, 30000);
+  /* Also check on save */
+  if (document.readyState === 'complete') {
+    setTimeout(function() { try { checkAchievements(); } catch(e) {} }, 5000);
+  } else {
+    window.addEventListener('load', function() { setTimeout(function() { try { checkAchievements(); } catch(e) {} }, 5000); });
+  }
+})();
+
+/* ===== BATCH 297: SMART WORKOUT SUGGESTIONS ===== */
+function suggestWorkoutImprovements() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add exercises first'); return; }
+
+  var suggestions = [];
+  var families = {};
+  var patterns = {};
+  var stages = {};
+  var totalRPE = 0;
+  var rpeCount = 0;
+
+  clips.forEach(function(c) {
+    var fam = c.getAttribute('data-family') || 'Unknown';
+    var pat = c.getAttribute('data-pattern') || '';
+    var stage = parseInt(c.getAttribute('data-stage')) || 1;
+    var rpe = parseInt(c.getAttribute('data-rpe')) || 7;
+    families[fam] = (families[fam] || 0) + 1;
+    if (pat) patterns[pat] = (patterns[pat] || 0) + 1;
+    stages[stage] = (stages[stage] || 0) + 1;
+    totalRPE += rpe;
+    rpeCount++;
+  });
+
+  var avgRPE = rpeCount > 0 ? (totalRPE / rpeCount).toFixed(1) : 0;
+  var famKeys = Object.keys(families);
+  var allFamilies = ['Push','Pull','Core','Legs','Skills'];
+  var missingFams = allFamilies.filter(function(f) { return !families[f]; });
+
+  /* Balance check */
+  if (missingFams.length > 0) {
+    suggestions.push({type:'balance',text:'Missing families: ' + missingFams.join(', ') + '. Add exercises from these groups for full coverage.'});
+  }
+
+  /* Push/Pull ratio */
+  var pushCount = families['Push'] || 0;
+  var pullCount = families['Pull'] || 0;
+  if (pushCount > 0 && pullCount > 0) {
+    var ratio = pushCount / pullCount;
+    if (ratio > 1.5) suggestions.push({type:'ratio',text:'Push/Pull imbalance (' + pushCount + ':' + pullCount + '). Consider adding more pull exercises.'});
+    else if (ratio < 0.67) suggestions.push({type:'ratio',text:'Pull-heavy (' + pushCount + ':' + pullCount + '). Consider adding more push exercises.'});
+  }
+
+  /* RPE distribution */
+  if (parseFloat(avgRPE) > 8) {
+    suggestions.push({type:'intensity',text:'Average RPE is ' + avgRPE + ' (very high). Consider mixing in lower-intensity exercises for recovery.'});
+  } else if (parseFloat(avgRPE) < 5) {
+    suggestions.push({type:'intensity',text:'Average RPE is ' + avgRPE + ' (low). Consider adding challenging exercises to stimulate adaptation.'});
+  }
+
+  /* Stage diversity */
+  var stageKeys = Object.keys(stages);
+  if (stageKeys.length === 1) {
+    var onlyStage = stageKeys[0];
+    if (onlyStage === '1') suggestions.push({type:'progression',text:'All exercises are Stage 1 (beginner). Mix in some S2/S3 for progressive overload.'});
+    else if (onlyStage === '3') suggestions.push({type:'progression',text:'All exercises are Stage 3 (advanced). Consider S1/S2 exercises for warm-up or active recovery.'});
+  }
+
+  /* Clip count */
+  if (clips.length < 4) {
+    suggestions.push({type:'volume',text:'Only ' + clips.length + ' exercises. A balanced session typically has 6-12 exercises.'});
+  } else if (clips.length > 15) {
+    suggestions.push({type:'volume',text:clips.length + ' exercises is quite dense. Consider splitting into 2 sessions or reducing volume.'});
+  }
+
+  /* No rest between exercises warning */
+  var bpm = parseInt(document.getElementById('bpm-input').value) || 120;
+  if (bpm >= 140) {
+    suggestions.push({type:'tempo',text:'High BPM (' + bpm + '). Make sure rest periods are adequate for recovery between explosive efforts.'});
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push({type:'perfect',text:'Great workout composition! Balanced families, good RPE distribution, and appropriate volume.'});
+  }
+
+  /* Display */
+  var msg = 'WORKOUT ANALYSIS\n';
+  msg += clips.length + ' exercises | Avg RPE: ' + avgRPE + ' | ' + famKeys.length + '/5 families\n\n';
+  suggestions.forEach(function(s, i) {
+    var prefix = s.type === 'perfect' ? '  ' : '  ';
+    msg += prefix + s.text + '\n';
+  });
+
+  toast('Analysis complete');
+
+  /* Show in a modal-like overlay */
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(3,5,9,0.8);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer';
+  overlay.onclick = function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(10,14,26,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto;cursor:default;box-shadow:0 25px 80px rgba(0,0,0,0.6)';
+  card.onclick = function(e) { e.stopPropagation(); };
+
+  var html = '<div style="text-align:center;margin-bottom:16px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:4px">Smart Analysis</div><div style="font-size:18px;font-weight:700;color:#fff">Workout Suggestions</div></div>';
+  html += '<div style="display:flex;justify-content:center;gap:20px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06)">';
+  html += '<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--accent-cyan)">' + clips.length + '</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro)">Exercises</div></div>';
+  html += '<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--accent-orange)">' + avgRPE + '</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro)">Avg RPE</div></div>';
+  html += '<div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--accent-green)">' + famKeys.length + '/5</div><div style="font-size:7px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro)">Families</div></div>';
+  html += '</div>';
+
+  suggestions.forEach(function(s) {
+    var typeColor = s.type === 'perfect' ? 'var(--accent-green)' : s.type === 'balance' ? 'var(--accent-orange)' : s.type === 'intensity' ? 'var(--accent-red)' : 'var(--accent-blue)';
+    html += '<div style="padding:10px;margin-bottom:6px;border-radius:6px;background:rgba(255,255,255,0.02);border-left:2px solid ' + typeColor + '">';
+    html += '<div style="font-size:7px;text-transform:uppercase;letter-spacing:0.1em;color:' + typeColor + ';margin-bottom:2px">' + s.type + '</div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);line-height:1.4">' + s.text + '</div>';
+    html += '</div>';
+  });
+
+  html += '<div style="text-align:center;margin-top:16px"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro);background:none;border:1px solid var(--border);border-radius:4px;padding:8px 20px;cursor:pointer;font-family:Sora,sans-serif">Close</button></div>';
+
+  card.innerHTML = html;
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
