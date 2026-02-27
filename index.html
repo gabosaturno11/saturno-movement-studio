@@ -4146,6 +4146,18 @@ function updateMinimap() {
     var color = ex ? (FAMILY_MAP[ex.family] || {color:'#666'}).color : '#666';
     html += '<div class="minimap-clip" style="left:'+x+'px;width:'+w+'px;top:'+top+'px;background:'+color+'"></div>';
   });
+  // Loop region overlay on minimap
+  if (loopEnabled) {
+    var ppsM = 80 / 15;
+    var lLeft = (100 + loopStart * ppsM) * scale;
+    var lWidth = (loopEnd - loopStart) * ppsM * scale;
+    html += '<div style="position:absolute;top:0;bottom:0;left:'+lLeft+'px;width:'+lWidth+'px;background:rgba(59,130,246,0.12);border-left:1px solid rgba(59,130,246,0.4);border-right:1px solid rgba(59,130,246,0.4);pointer-events:none;z-index:1"></div>';
+  }
+  // Marker dots on minimap
+  markers.forEach(function(m) {
+    var mX = (100 + m.time * (80 / 15)) * scale;
+    html += '<div style="position:absolute;top:0;width:1px;height:100%;background:rgba(249,115,22,0.5);left:'+mX+'px;pointer-events:none;z-index:2"></div>';
+  });
   // Keep viewport indicator
   var container = document.getElementById('timeline-container');
   var vpLeft = container.scrollLeft * scale;
