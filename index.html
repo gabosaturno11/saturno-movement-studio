@@ -7910,6 +7910,10 @@ var CMD_ACTIONS = [
   {label:'Timer Presets (Tabata/EMOM/AMRAP)', key:'', icon:'\u23F1', action: function() { showTimerPresets(); }},
   {label:'Stop Timer', key:'', icon:'\u25A0', action: function() { stopTimerPresetOverlay(); }},
   {label:'Export to Calendar (.ics)', key:'', icon:'\u2709', action: function() { exportToCalendar(); }},
+  {label:'Movement Journal: New Entry', key:'', icon:'\u270E', action: function() { addJournalEntry(); }},
+  {label:'Movement Journal: History', key:'', icon:'\u270E', action: function() { showJournalHistory(); }},
+  {label:'Workout Streak Badge', key:'', icon:'\u2B50', action: function() { showStreakBadge(); }},
+  {label:'Quick Swap Exercise', key:'', icon:'\u21C4', action: function() { showQuickSwap(); }},
 ];
 
 function openCmdPalette() {
@@ -14099,6 +14103,195 @@ function exportToCalendar() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('Calendar event downloaded');
+}
+
+// Batch 328: Movement Journal
+var _movementJournal = [];
+function loadJournal() {
+  try { var d = localStorage.getItem('sms_movement_journal'); if (d) _movementJournal = JSON.parse(d); } catch(e) {}
+}
+function saveJournal() {
+  try { localStorage.setItem('sms_movement_journal', JSON.stringify(_movementJournal)); } catch(e) {}
+}
+function addJournalEntry() {
+  var clips = document.querySelectorAll('.clip');
+  var workoutName = '';
+  var nameEl = document.getElementById('workout-name') || document.querySelector('.breadcrumb-name');
+  if (nameEl) workoutName = nameEl.textContent || '';
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:480px;width:90%">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:4px">Movement Journal</span>';
+  html += '<span style="color:#64748b;font-size:9px;display:block;margin-bottom:16px">' + new Date().toLocaleDateString() + (workoutName ? ' | ' + workoutName : '') + ' | ' + clips.length + ' exercises</span>';
+  html += '<textarea id="journal-entry" placeholder="How did the session feel? Energy level, focus, breakthroughs, struggles..." style="width:100%;height:120px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:11px;resize:vertical;box-sizing:border-box;line-height:1.6"></textarea>';
+  html += '<div style="display:flex;gap:6px;margin:12px 0;flex-wrap:wrap">';
+  var moods = ['Energized', 'Focused', 'Tired', 'Strong', 'Struggled', 'Flow State'];
+  moods.forEach(function(m) {
+    html += '<button class="journal-mood-btn" onclick="this.classList.toggle(\'active\');this.style.borderColor=this.classList.contains(\'active\')?\'rgba(34,211,238,0.5)\':\'rgba(255,255,255,0.1)\';this.style.color=this.classList.contains(\'active\')?\'#22d3ee\':\'#64748b\'" style="padding:4px 10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:9px">' + m + '</button>';
+  });
+  html += '</div>';
+  html += '<button onclick="saveJournalEntry()" style="width:100%;padding:10px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:600">Save Entry</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function saveJournalEntry() {
+  var text = document.getElementById('journal-entry');
+  if (!text || !text.value.trim()) { showToast('Write something first'); return; }
+  var moods = [];
+  document.querySelectorAll('.journal-mood-btn.active').forEach(function(b) { moods.push(b.textContent); });
+  var clips = document.querySelectorAll('.clip');
+  var workoutName = '';
+  var nameEl = document.getElementById('workout-name') || document.querySelector('.breadcrumb-name');
+  if (nameEl) workoutName = nameEl.textContent || '';
+  _movementJournal.push({
+    date: new Date().toISOString(),
+    text: text.value.trim(),
+    moods: moods,
+    workout: workoutName,
+    clipCount: clips.length,
+    bpm: typeof _bpm !== 'undefined' ? _bpm : 100
+  });
+  if (_movementJournal.length > 100) _movementJournal = _movementJournal.slice(-100);
+  saveJournal();
+  var modal = text.closest('div[style*="fixed"]');
+  if (modal) modal.remove();
+  showToast('Journal entry saved');
+}
+function showJournalHistory() {
+  loadJournal();
+  if (!_movementJournal.length) { showToast('No journal entries yet'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Movement Journal (' + _movementJournal.length + ' entries)</span>';
+  _movementJournal.slice().reverse().forEach(function(entry) {
+    var d = new Date(entry.date);
+    html += '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<span style="color:#22d3ee;font-size:10px;font-weight:600">' + d.toLocaleDateString() + '</span>';
+    html += '<span style="color:#475569;font-size:9px">' + (entry.workout || 'Untitled') + ' | ' + (entry.clipCount || 0) + ' clips</span></div>';
+    html += '<p style="color:#cbd5e1;font-size:11px;margin:0 0 6px;line-height:1.5;white-space:pre-wrap">' + entry.text + '</p>';
+    if (entry.moods && entry.moods.length) {
+      html += '<div style="display:flex;gap:4px;flex-wrap:wrap">';
+      entry.moods.forEach(function(m) { html += '<span style="color:#64748b;font-size:8px;padding:2px 6px;border:1px solid rgba(255,255,255,0.05);border-radius:8px">' + m + '</span>'; });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+loadJournal();
+
+// Batch 329: Workout Streaks Gamification
+function getWorkoutStreak() {
+  var dates = {};
+  try {
+    var ratings = localStorage.getItem('sms_workout_ratings');
+    if (ratings) {
+      JSON.parse(ratings).forEach(function(r) {
+        if (r.date) dates[r.date.split('T')[0]] = true;
+      });
+    }
+    var journal = localStorage.getItem('sms_movement_journal');
+    if (journal) {
+      JSON.parse(journal).forEach(function(j) {
+        if (j.date) dates[j.date.split('T')[0]] = true;
+      });
+    }
+  } catch(e) {}
+  var sortedDates = Object.keys(dates).sort().reverse();
+  if (!sortedDates.length) return { current: 0, best: 0, total: sortedDates.length };
+  var streak = 0;
+  var today = new Date().toISOString().split('T')[0];
+  var checkDate = new Date(today);
+  if (!dates[today]) {
+    checkDate.setDate(checkDate.getDate() - 1);
+    if (!dates[checkDate.toISOString().split('T')[0]]) return { current: 0, best: 0, total: sortedDates.length };
+  }
+  while (dates[checkDate.toISOString().split('T')[0]]) {
+    streak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+  var best = streak;
+  var tempStreak = 0;
+  for (var i = 0; i < sortedDates.length; i++) {
+    if (i === 0) { tempStreak = 1; continue; }
+    var prev = new Date(sortedDates[i - 1]);
+    var curr = new Date(sortedDates[i]);
+    var diff = (prev - curr) / 86400000;
+    if (diff <= 1) { tempStreak++; if (tempStreak > best) best = tempStreak; }
+    else { tempStreak = 1; }
+  }
+  return { current: streak, best: best, total: sortedDates.length };
+}
+function showStreakBadge() {
+  var s = getWorkoutStreak();
+  var fire = '';
+  if (s.current >= 30) fire = ' LEGENDARY';
+  else if (s.current >= 14) fire = ' ON FIRE';
+  else if (s.current >= 7) fire = ' HOT';
+  else if (s.current >= 3) fire = ' WARMING UP';
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:16px;padding:32px;text-align:center;max-width:320px;width:90%">';
+  html += '<div style="color:#fbbf24;font-size:48px;font-weight:700;line-height:1">' + s.current + '</div>';
+  html += '<div style="color:#fbbf24;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.15em;margin-top:4px">Day Streak' + fire + '</div>';
+  html += '<div style="display:flex;justify-content:center;gap:24px;margin-top:20px">';
+  html += '<div><div style="color:#e2e8f0;font-size:20px;font-weight:600">' + s.best + '</div><div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:0.1em">Best Streak</div></div>';
+  html += '<div><div style="color:#e2e8f0;font-size:20px;font-weight:600">' + s.total + '</div><div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:0.1em">Total Days</div></div>';
+  html += '</div>';
+  if (s.current >= 7) {
+    var badges = [];
+    if (s.current >= 30) badges.push('30-Day Legend');
+    if (s.current >= 14) badges.push('2-Week Warrior');
+    if (s.current >= 7) badges.push('Week Champion');
+    html += '<div style="margin-top:16px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">';
+    badges.forEach(function(b) { html += '<span style="padding:4px 10px;border:1px solid rgba(251,191,36,0.3);border-radius:12px;color:#fbbf24;font-size:9px;font-weight:600">' + b + '</span>'; });
+    html += '</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 330: Quick Exercise Swap
+function showQuickSwap(clip) {
+  if (!clip) { var sel = document.querySelector('.clip.selected'); if (!sel) { showToast('Select a clip first'); return; } clip = sel; }
+  var currentEx = clip.dataset.exercise || '';
+  var currentFam = clip.dataset.family || '';
+  var currentPattern = clip.dataset.pattern || '';
+  var alternatives = [];
+  if (typeof EXERCISES !== 'undefined') {
+    EXERCISES.forEach(function(ex) {
+      if (ex.name === currentEx) return;
+      var match = false;
+      if (currentPattern && ex.pattern === currentPattern) match = true;
+      else if (currentFam && ex.family === currentFam) match = true;
+      if (match) alternatives.push(ex);
+    });
+  }
+  if (!alternatives.length) { showToast('No alternatives found'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:420px;width:90%;max-height:70vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:4px">Quick Swap</span>';
+  html += '<span style="color:#64748b;font-size:9px;display:block;margin-bottom:16px">Current: ' + currentEx + ' | ' + alternatives.length + ' alternatives</span>';
+  alternatives.forEach(function(ex) {
+    var stageLabel = ex.stages ? Object.keys(ex.stages).join('/') : '';
+    html += '<button onclick="executeQuickSwap(\'' + ex.name.replace(/'/g, "\\'") + '\',\'' + (ex.family || currentFam) + '\',\'' + (ex.pattern || '') + '\');this.closest(\'div[style*=fixed]\').remove()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:6px;color:#e2e8f0;cursor:pointer;font-family:Sora,sans-serif;text-align:left">';
+    html += '<span style="font-size:11px">' + ex.name + '</span>';
+    html += '<span style="color:#475569;font-size:8px;flex-shrink:0;margin-left:8px">' + (ex.pattern || '') + (stageLabel ? ' ' + stageLabel : '') + '</span></button>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function executeQuickSwap(newName, newFamily, newPattern) {
+  var clip = document.querySelector('.clip.selected');
+  if (!clip) return;
+  if (typeof captureUndo === 'function') captureUndo();
+  clip.dataset.exercise = newName;
+  if (newFamily) clip.dataset.family = newFamily;
+  if (newPattern) clip.dataset.pattern = newPattern;
+  var label = clip.querySelector('.clip-name') || clip.querySelector('span');
+  if (label) label.textContent = newName;
+  if (typeof updateClipInfo === 'function') updateClipInfo(clip);
+  showToast('Swapped to: ' + newName);
 }
 
 function selectClipsByStage(stage) {
