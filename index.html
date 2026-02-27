@@ -7440,6 +7440,9 @@ var CMD_ACTIONS = [
   {label:'Rating History', key:'', icon:'\u2606', action: function() { showRatingHistory(); }},
   {label:'Show Substitutions', key:'', icon:'\u21C4', action: function() { showSubstitutions(); }},
   {label:'Undo History', key:'', icon:'\u238C', action: function() { showUndoHistory(); }},
+  {label:'Muscle Group Coverage', key:'', icon:'\u2694', action: function() { showMuscleGroupCoverage(); }},
+  {label:'Workout Calendar', key:'', icon:'\u2610', action: function() { showWorkoutCalendar(); }},
+  {label:'Add Crossfades', key:'', icon:'\u223C', action: function() { addCrossfadeBetweenClips(); }},
 ];
 
 function openCmdPalette() {
@@ -9946,6 +9949,109 @@ function showUndoHistory() {
     msg += 'No undo states available';
   }
   toast(msg);
+}
+
+/* ===== BATCH 274: MUSCLE GROUP COVERAGE ===== */
+function showMuscleGroupCoverage() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var muscleMap = {
+    'Horizontal Push': ['Chest', 'Triceps', 'Shoulders'],
+    'Horizontal Pull': ['Back', 'Biceps', 'Rear Delts'],
+    'Downward Press': ['Chest', 'Shoulders', 'Triceps'],
+    'Vertical Pull': ['Lats', 'Biceps', 'Forearms'],
+    'Overhead Press': ['Shoulders', 'Triceps', 'Upper Chest'],
+    'Knee-Dominant': ['Quads', 'Glutes', 'Calves'],
+    'Hip-Dominant': ['Hamstrings', 'Glutes', 'Lower Back'],
+    'Core': ['Abs', 'Obliques', 'Lower Back'],
+    'Mobility': ['Flexibility', 'Joint Health']
+  };
+  var muscleHits = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex) return;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var muscles = muscleMap[ex.pattern] || [];
+    muscles.forEach(function(m) {
+      muscleHits[m] = (muscleHits[m] || 0) + sets;
+    });
+  });
+  var sorted = Object.keys(muscleHits).sort(function(a, b) { return muscleHits[b] - muscleHits[a]; });
+  var maxHits = sorted.length > 0 ? muscleHits[sorted[0]] : 1;
+  var msg = 'Muscle Group Coverage\n';
+  sorted.forEach(function(m) {
+    var pct = Math.round((muscleHits[m] / maxHits) * 100);
+    var bar = '';
+    for (var i = 0; i < Math.round(pct / 10); i++) bar += '\u2588';
+    msg += m + ': ' + muscleHits[m] + ' sets ' + bar + '\n';
+  });
+  var missing = ['Chest','Back','Shoulders','Biceps','Triceps','Quads','Hamstrings','Glutes','Abs','Calves'].filter(function(m) { return !muscleHits[m]; });
+  if (missing.length > 0) msg += '\nMissing: ' + missing.join(', ');
+  toast(msg);
+}
+
+/* ===== BATCH 275: WORKOUT CALENDAR ===== */
+function showWorkoutCalendar() {
+  try {
+    var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+    var saved = [];
+    try {
+      var sw = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]');
+      sw.forEach(function(w) { if (w.timestamp) saved.push({date: w.timestamp, name: w.name}); });
+    } catch(e) {}
+    var allDates = {};
+    ratings.forEach(function(r) {
+      var d = new Date(r.date).toLocaleDateString();
+      allDates[d] = (allDates[d] || []);
+      allDates[d].push(r.name + ' (' + r.rating + '/5)');
+    });
+    saved.forEach(function(s) {
+      var d = new Date(s.date).toLocaleDateString();
+      allDates[d] = (allDates[d] || []);
+      allDates[d].push(s.name + ' [saved]');
+    });
+    var dates = Object.keys(allDates).sort().reverse();
+    if (dates.length === 0) { toast('No workout history'); return; }
+    var msg = 'Workout Calendar (last 14 days):\n\n';
+    dates.slice(0, 14).forEach(function(d) {
+      msg += d + ':\n';
+      allDates[d].forEach(function(w) { msg += '  ' + w + '\n'; });
+    });
+    msg += '\nTotal: ' + dates.length + ' workout days';
+    toast(msg);
+  } catch(e) { toast('Error loading calendar'); }
+}
+
+/* ===== BATCH 276: CLIP CROSSFADE ===== */
+function addCrossfadeBetweenClips() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('No active track'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips on active track'); return; }
+  clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  pushUndo();
+  var count = 0;
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var fadeAmount = beatPx;
+  for (var i = 0; i < clips.length - 1; i++) {
+    if (clips[i].classList.contains('clip-locked') || clips[i + 1].classList.contains('clip-locked')) continue;
+    var aR = parseInt(clips[i].style.left) + parseInt(clips[i].style.width);
+    var bL = parseInt(clips[i + 1].style.left);
+    var gap = bL - aR;
+    if (gap > fadeAmount * 2) continue;
+    if (gap > 0) {
+      clips[i + 1].style.left = (bL - Math.min(gap, fadeAmount)) + 'px';
+    }
+    clips[i].dataset.fadeOut = String(fadeAmount);
+    clips[i + 1].dataset.fadeIn = String(fadeAmount);
+    if (typeof updateFadeOverlay === 'function') {
+      updateFadeOverlay(clips[i]);
+      updateFadeOverlay(clips[i + 1]);
+    }
+    count++;
+  }
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' crossfade' + (count !== 1 ? 's' : '') + ' applied');
 }
 
 function selectClipsByStage(stage) {
