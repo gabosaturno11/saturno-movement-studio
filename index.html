@@ -2318,10 +2318,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <span class="snap-badge" id="snap-badge" onclick="toggleSnap()" data-tip="Snap to grid (S)">SNAP</span>
         <div class="transport-sep"></div>
         <div class="transport-buttons">
-          <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
-          <button class="transport-btn" id="loop-btn" onclick="toggleLoop()" title="Loop region (L)" style="font-size:8px;letter-spacing:0.04em;border-radius:0 3px 3px 0;width:auto;padding:0 8px;border-left:none">LOOP</button>
+          <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" data-tip="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
+          <button class="transport-btn" id="loop-btn" onclick="toggleLoop()" data-tip="Loop (L)" style="font-size:8px;letter-spacing:0.04em;border-radius:0 3px 3px 0;width:auto;padding:0 8px;border-left:none">LOOP</button>
         </div>
-        <button class="locate-btn" onclick="scrollToPlayhead()" title="Scroll to playhead position">LOC</button>
+        <button class="locate-btn" onclick="scrollToPlayhead()" data-tip="Scroll to playhead">LOC</button>
         <div class="time-display" id="time-display">
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
         </div>
@@ -2337,17 +2337,17 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <div class="bpm-pulse" id="bpm-pulse" title="Tempo pulse"></div>
           <input type="number" class="bpm-input" id="bpm-input" value="120" min="40" max="200" onchange="updateBPM()">
           <span class="bpm-mode" id="bpm-mode">Standard</span>
-          <span class="tempo-link" id="tempo-link" onclick="toggleTempoLink()" title="Link BPM to exercise tempo">LINK</span>
-          <span class="tempo-link" id="tap-tempo" onclick="tapTempo()" title="Tap rhythm to set BPM (or press T)">TAP</span>
-          <span id="time-sig" style="font-size:8px;font-weight:700;color:var(--micro);padding:0 4px;letter-spacing:0.04em;cursor:pointer;font-variant-numeric:tabular-nums" onclick="cycleTimeSig()" title="Time signature">4/4</span>
+          <span class="tempo-link" id="tempo-link" onclick="toggleTempoLink()" data-tip="Link BPM to tempo">LINK</span>
+          <span class="tempo-link" id="tap-tempo" onclick="tapTempo()" data-tip="Tap tempo (T)">TAP</span>
+          <span id="time-sig" style="font-size:8px;font-weight:700;color:var(--micro);padding:0 4px;letter-spacing:0.04em;cursor:pointer;font-variant-numeric:tabular-nums" onclick="cycleTimeSig()" data-tip="Time signature">4/4</span>
           <div class="transport-sep"></div>
           <span class="bpm-label">Zoom</span>
-          <button class="transport-btn" onclick="zoomOut()" title="Zoom out" style="width:22px;height:22px;font-size:10px;border-radius:2px">-</button>
+          <button class="transport-btn" onclick="zoomOut()" data-tip="Zoom out (Cmd+-)" style="width:22px;height:22px;font-size:10px;border-radius:2px">-</button>
           <span id="zoom-level" style="font-size:8px;color:var(--muted);min-width:28px;text-align:center">100%</span>
-          <button class="transport-btn" onclick="zoomIn()" title="Zoom in" style="width:22px;height:22px;font-size:10px;border-radius:2px">+</button>
-          <button class="transport-btn" onclick="zoomToFit()" title="Zoom to fit all clips" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FIT</button>
+          <button class="transport-btn" onclick="zoomIn()" data-tip="Zoom in (Cmd+=)" style="width:22px;height:22px;font-size:10px;border-radius:2px">+</button>
+          <button class="transport-btn" onclick="zoomToFit()" data-tip="Zoom to fit" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FIT</button>
           <div class="transport-sep"></div>
-          <button class="transport-btn" id="auto-scroll-btn" onclick="toggleAutoScrollFromTransport()" title="Auto-scroll follows playhead" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FOLLOW</button>
+          <button class="transport-btn" id="auto-scroll-btn" onclick="toggleAutoScrollFromTransport()" data-tip="Auto-scroll" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FOLLOW</button>
         </div>
       </div>
 
@@ -2601,7 +2601,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="footer-quote" id="footer-hint">Saturno Movement Studio</div>
       <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
       <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
-      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v2.1</span>
+      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v3.0</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
   </footer>
