@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~7,650 lines). No build step. No framework.
+Single-file HTML app (index.html, ~8,050 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-111)
+### Features (Batches 1-135)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -146,8 +146,28 @@ saturno-movement-studio/
 - **Library stage filter** (S1/S2/S3/All buttons to filter by exercise difficulty)
 - **Library discipline filter** (dropdown to filter by Calisthenics/Power-Free/etc.)
 - **Copy workout as text** (COPY TEXT button in summary, clipboard-ready plain text)
-- **Command palette** (Cmd+K, 47 commands including Group/Ungroup)
-- **Keyboard shortcuts panel** (?, 41 shortcuts including Cmd+G, Alt+Drag)
+- **Minimap seek** (click minimap to jump playhead)
+- **Workout share via URL** (#share= base64 encoded, clipboard copy)
+- **Playback speed control** (0.5x-2x, transport button, SPEED_STEPS cycle)
+- **BPM mode ambient tint** (subtle box-shadow on timeline from mode color)
+- **Settings persistence** (snap, grid res, SFX, metro vol, auto-scroll, playback speed, zoom, time sig)
+- **Playhead time persistence** (survives page reload)
+- **Auto-inspect during playback** (inspector follows clip under playhead)
+- **Knob persistence** (knob positions saved/restored in session)
+- **Clear all markers** (command palette, with undo)
+- **Reverse track clip order** (mirrors positions on active track)
+- **Faders + knobs in export/import** (JSON round-trip)
+- **Workout difficulty badge** (Beginner/Intermediate/Advanced in footer)
+- **Knob double-click reset** (reset to 50% center)
+- **Fader double-click reset** (reset to 50%)
+- **Undo/redo count toast** ("Undo (3 left)" feedback)
+- **Reset all faders/knobs** (command palette actions)
+- **Clip lock system** (Cmd+L, context menu, visual lock indicator, persists all 6 state paths)
+- **Humanize clips** (random position jitter for organic feel)
+- **Export CSV** (tabular spreadsheet export)
+- **Invert selection** (Cmd+I toggles selected/unselected)
+- **Command palette** (Cmd+K, 57 commands including lock/humanize/CSV)
+- **Keyboard shortcuts panel** (?, 43 shortcuts including Cmd+L, Cmd+I)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
