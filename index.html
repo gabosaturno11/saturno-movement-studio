@@ -385,7 +385,16 @@ body {
 }
 
 /* Timeline — Logic Pro Grid */
-.timeline-container { flex: 1; overflow: auto; background: var(--bg-deep); }
+.timeline-container {
+  flex: 1; overflow: auto; background: var(--bg-deep);
+  position: relative;
+}
+.timeline-container::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 60px;
+  background: linear-gradient(180deg, rgba(59,130,246,0.02) 0%, transparent 100%);
+  pointer-events: none; z-index: 0;
+}
 .timeline-ruler {
   height: 22px;
   background: rgba(10,14,26,0.8);
@@ -1228,9 +1237,10 @@ button:focus-visible, .transport-btn:focus-visible {
 .track-resize-handle:hover::after { opacity: 1; }
 
 /* Focus mode — hide panels for full-width timeline */
-.main.focus-mode .panel-left { display: none; }
-.main.focus-mode .panel-right { display: none; }
-.main.focus-mode { grid-template-columns: 1fr; }
+.panel-left, .panel-right { transition: width 0.2s, opacity 0.2s, padding 0.2s; }
+.main.focus-mode .panel-left { width: 0; overflow: hidden; opacity: 0; padding: 0; border: none; }
+.main.focus-mode .panel-right { width: 0; overflow: hidden; opacity: 0; padding: 0; border: none; }
+.main.focus-mode { grid-template-columns: 0fr 1fr 0fr; }
 .focus-indicator {
   display: none; position: fixed; top: 44px; right: 8px;
   font-size: 7px; color: var(--accent-cyan); background: rgba(6,182,212,0.1);
@@ -2680,7 +2690,7 @@ function getExercise(id) {
 }
 
 /* ===== CLIPS ===== */
-function drawClipWaveform(canvas, color, width) {
+function drawClipWaveform(canvas, color, width, opacity) {
   if (!canvas || !canvas.getContext) return;
   var w = parseInt(width) || 80;
   canvas.width = w - 8;
@@ -2688,7 +2698,7 @@ function drawClipWaveform(canvas, color, width) {
   var ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = color;
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = opacity || 0.35;
   var mid = canvas.height / 2;
   var seed = w * 7 + canvas.width;
   for (var x = 0; x < canvas.width; x += 1) {
@@ -2770,10 +2780,11 @@ function createClipElement(exercise, left, width, dna) {
   var canvas = document.createElement('canvas');
   canvas.className = 'clip-waveform';
   clip.appendChild(canvas);
-  // Waveform intensity varies by stage (more complex = denser waveform)
-  var waveOpacity = exercise.stage === 1 ? 0.4 : exercise.stage === 2 ? 0.55 : 0.7;
+  // Waveform: family color + stage-based density
+  var waveOpacity = exercise.stage === 1 ? 0.35 : exercise.stage === 2 ? 0.5 : 0.65;
+  var waveColor = baseColor || '#fff';
   setTimeout(function() {
-    drawClipWaveform(canvas, 'rgba(255,255,255,' + waveOpacity + ')', clip.style.width);
+    drawClipWaveform(canvas, waveColor, clip.style.width, waveOpacity);
     addBeatMarkers(clip, clip.style.width);
   }, 10);
 
