@@ -757,6 +757,51 @@ body {
 .panel-tab-content { display: none; }
 .panel-tab-content.active { display: block; }
 
+/* Custom Clip Tooltip */
+.clip-tip {
+  position: fixed; z-index: 300;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 6px 10px;
+  font-size: 9px; font-family: 'Sora', sans-serif;
+  color: var(--text); pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  white-space: nowrap;
+  opacity: 0; transition: opacity 0.12s;
+  border-radius: 2px;
+}
+.clip-tip.show { opacity: 1; }
+.clip-tip-name {
+  font-weight: 600; font-size: 10px;
+  margin-bottom: 3px; letter-spacing: 0.02em;
+}
+.clip-tip-detail {
+  font-size: 8px; color: var(--text-secondary);
+  display: flex; gap: 8px; letter-spacing: 0.03em;
+}
+.clip-tip-detail span { color: var(--muted); }
+
+/* Track Header Context Menu */
+.track-ctx {
+  position: fixed; z-index: 200;
+  background: var(--surface2); border: 1px solid var(--border);
+  min-width: 140px; padding: 4px 0;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  font-family: 'Sora', sans-serif;
+  border-radius: 3px;
+  display: none;
+}
+.track-ctx.open { display: block; }
+.track-ctx-item {
+  padding: 6px 14px; font-size: 9px;
+  color: var(--text-secondary); cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  transition: background 0.08s, color 0.08s;
+}
+.track-ctx-item:hover { background: rgba(59,130,246,0.1); color: var(--text); }
+.track-ctx-item.danger { color: var(--error); }
+.track-ctx-item.danger:hover { background: rgba(239,68,68,0.1); }
+.track-ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
 /* Snap grid indicator */
 .snap-indicator {
   position: absolute; top: 0; bottom: 0;
@@ -1541,10 +1586,27 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Shift+Click</kbd><span>Multi-Select</span></div>
       <div class="shortcut-item"><kbd>Tab</kbd><span>Cycle Clips</span></div>
       <div class="shortcut-item"><kbd>Enter</kbd><span>Add from Search</span></div>
+      <div class="shortcut-item"><kbd>1-6</kbd><span>Select Track</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
   </div>
+</div>
+<div class="clip-tip" id="clip-tip">
+  <div class="clip-tip-name" id="tip-name"></div>
+  <div class="clip-tip-detail">
+    <span id="tip-pattern"></span>
+    <span id="tip-stage"></span>
+    <span id="tip-dna"></span>
+  </div>
+</div>
+<div class="track-ctx" id="track-ctx">
+  <div class="track-ctx-item" data-action="solo">Solo Track</div>
+  <div class="track-ctx-item" data-action="mute">Mute Track</div>
+  <div class="track-ctx-sep"></div>
+  <div class="track-ctx-item" data-action="select-all">Select All Clips</div>
+  <div class="track-ctx-sep"></div>
+  <div class="track-ctx-item danger" data-action="clear">Clear Track</div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -2220,13 +2282,12 @@ function createClipElement(exercise, left, width, dna) {
   var canvas = document.createElement('canvas');
   canvas.className = 'clip-waveform';
   clip.appendChild(canvas);
+  // Waveform intensity varies by stage (more complex = denser waveform)
+  var waveOpacity = exercise.stage === 1 ? 0.4 : exercise.stage === 2 ? 0.55 : 0.7;
   setTimeout(function() {
-    drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', clip.style.width);
+    drawClipWaveform(canvas, 'rgba(255,255,255,' + waveOpacity + ')', clip.style.width);
     addBeatMarkers(clip, clip.style.width);
   }, 10);
-
-  // Tooltip with exercise details
-  clip.title = exercise.name + ' | ' + exercise.pattern + ' | S' + exercise.stage + ' | ' + exercise.discipline + ' | ' + clip.dataset.sets + 'x' + clip.dataset.reps;
 
   var progress = document.createElement('div');
   progress.className = 'clip-progress';
@@ -3684,6 +3745,9 @@ document.addEventListener('DOMContentLoaded', function() {
     header.addEventListener('dblclick', function() {
       header.closest('.track').classList.toggle('track-collapsed');
     });
+    header.addEventListener('contextmenu', function(e) {
+      showTrackCtx(e, header.closest('.track'));
+    });
   });
   /* Click on empty timeline area to seek */
   var tracks = document.getElementById('timeline-tracks');
@@ -3746,6 +3810,77 @@ function renderAllMarkers() {
   document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
   markers.forEach(function(m) { renderMarker(m); });
 }
+
+/* ===== CUSTOM CLIP TOOLTIP ===== */
+var tipTimer = null;
+document.addEventListener('mouseover', function(e) {
+  var clipEl = e.target.closest('.clip');
+  if (!clipEl) return;
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(function() {
+    var ex = getExercise(clipEl.dataset.exerciseId);
+    if (!ex) return;
+    var tip = document.getElementById('clip-tip');
+    document.getElementById('tip-name').textContent = ex.name;
+    document.getElementById('tip-pattern').textContent = ex.pattern;
+    document.getElementById('tip-stage').textContent = 'Stage ' + ex.stage;
+    document.getElementById('tip-dna').textContent = clipEl.dataset.sets + 'x' + clipEl.dataset.reps + ' @ RPE ' + clipEl.dataset.rpe;
+    var rect = clipEl.getBoundingClientRect();
+    tip.style.left = (rect.left + rect.width / 2) + 'px';
+    tip.style.top = (rect.top - 40) + 'px';
+    tip.style.transform = 'translateX(-50%)';
+    tip.classList.add('show');
+  }, 400);
+});
+document.addEventListener('mouseout', function(e) {
+  if (e.target.closest('.clip')) {
+    clearTimeout(tipTimer);
+    document.getElementById('clip-tip').classList.remove('show');
+  }
+});
+
+/* ===== TRACK HEADER CONTEXT MENU ===== */
+var trackCtxTarget = null;
+function showTrackCtx(e, trackEl) {
+  e.preventDefault();
+  trackCtxTarget = trackEl;
+  var ctx = document.getElementById('track-ctx');
+  ctx.style.left = e.clientX + 'px';
+  ctx.style.top = e.clientY + 'px';
+  ctx.classList.add('open');
+}
+function hideTrackCtx() {
+  document.getElementById('track-ctx').classList.remove('open');
+  trackCtxTarget = null;
+}
+document.addEventListener('click', function() { hideTrackCtx(); });
+document.getElementById('track-ctx').addEventListener('click', function(e) {
+  var item = e.target.closest('.track-ctx-item');
+  if (!item || !trackCtxTarget) return;
+  var action = item.dataset.action;
+  var content = trackCtxTarget.querySelector('.track-content');
+  if (action === 'solo') {
+    var btn = trackCtxTarget.querySelector('.track-btn:nth-child(2)');
+    if (btn) toggleSolo(btn);
+  } else if (action === 'mute') {
+    var btn = trackCtxTarget.querySelector('.track-btn:nth-child(1)');
+    if (btn) toggleMute(btn);
+  } else if (action === 'select-all') {
+    if (content) content.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
+    toast('Track clips selected');
+  } else if (action === 'clear') {
+    if (content) {
+      var clips = content.querySelectorAll('.clip');
+      if (clips.length === 0) { toast('Track is empty'); hideTrackCtx(); return; }
+      pushUndo();
+      clips.forEach(function(c) { c.remove(); });
+      updateStats(); saveSession();
+      sfx('delete');
+      toast(clips.length + ' clips cleared');
+    }
+  }
+  hideTrackCtx();
+});
 
 /* ===== RIGHT PANEL TABS ===== */
 function switchPanelTab(tabId) {
@@ -3879,6 +4014,19 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     document.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
     toast('All clips selected');
+  }
+  // Number keys 1-6 to select track
+  if (e.key >= '1' && e.key <= '6' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    var trackIds = ['music','push','pull','core','legs','skills'];
+    var idx = parseInt(e.key) - 1;
+    if (idx < trackIds.length) {
+      document.querySelectorAll('.track.track-active').forEach(function(t) { t.classList.remove('track-active'); });
+      var target = document.querySelector('.track[data-track="'+trackIds[idx]+'"]');
+      if (target) {
+        target.classList.add('track-active');
+        toast('Track: ' + trackIds[idx].charAt(0).toUpperCase() + trackIds[idx].slice(1));
+      }
+    }
   }
   // Tab to cycle through clips
   if (e.code === 'Tab' && !e.metaKey && !e.ctrlKey) {
