@@ -7337,6 +7337,9 @@ var CMD_ACTIONS = [
   {label:'Duplicate to Next Bar', key:'', icon:'\u25B8', action: function() { duplicateToNextBar(); }},
   {label:'Fill Track with Exercise', key:'', icon:'\u2593', action: function() { fillTrackWithExercise(); }},
   {label:'Mirror Workout', key:'', icon:'\u21C4', action: function() { mirrorWorkout(); }},
+  {label:'Swap Two Clips', key:'', icon:'\u21C4', action: function() { swapTwoClips(); }},
+  {label:'Align Clips to Playhead', key:'', icon:'\u25B8', action: function() { alignClipsToPlayhead(); }},
+  {label:'Trim Clip to Loop Region', key:'', icon:'\u2702', action: function() { trimClipToLoop(); }},
 ];
 
 function openCmdPalette() {
@@ -8119,6 +8122,63 @@ function mirrorWorkout() {
   updateStats(); saveSession();
   sfx('click');
   toast('Workout mirrored');
+}
+
+function swapTwoClips() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length !== 2) { toast('Select exactly 2 clips to swap'); return; }
+  if (sel[0].classList.contains('clip-locked') || sel[1].classList.contains('clip-locked')) {
+    toast('Cannot swap locked clips'); return;
+  }
+  pushUndo();
+  var leftA = sel[0].style.left;
+  var leftB = sel[1].style.left;
+  sel[0].style.left = leftB;
+  sel[1].style.left = leftA;
+  updateStats(); saveSession(); sfx('click');
+  toast('Clips swapped');
+}
+
+function alignClipsToPlayhead() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length === 0) { toast('Select clips first'); return; }
+  pushUndo();
+  var pps = 80 / 15;
+  var ho = 100;
+  var targetPx = ho + Math.round(currentTime * pps);
+  var count = 0;
+  var sorted = Array.from(sel).sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var offset = targetPx;
+  sorted.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var w = parseInt(c.style.width) || 80;
+    c.style.left = offset + 'px';
+    offset += w + 4;
+    count++;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips aligned to playhead');
+}
+
+function trimClipToLoop() {
+  if (!selectedClip) { toast('Select a clip'); return; }
+  if (!loopEnabled) { toast('Enable loop region first'); return; }
+  if (selectedClip.classList.contains('clip-locked')) { toast('Clip is locked'); return; }
+  pushUndo();
+  var pps = 80 / 15;
+  var ho = 100;
+  var loopLeftPx = ho + Math.round(loopStart * pps);
+  var loopRightPx = ho + Math.round(loopEnd * pps);
+  var clipLeft = parseInt(selectedClip.style.left);
+  var clipWidth = parseInt(selectedClip.style.width);
+  var clipRight = clipLeft + clipWidth;
+  var newLeft = Math.max(clipLeft, loopLeftPx);
+  var newRight = Math.min(clipRight, loopRightPx);
+  if (newRight <= newLeft) { toast('Clip outside loop region'); return; }
+  selectedClip.style.left = newLeft + 'px';
+  selectedClip.style.width = (newRight - newLeft) + 'px';
+  updateStats(); saveSession(); sfx('click');
+  toast('Clip trimmed to loop region');
 }
 
 function selectClipsByStage(stage) {
