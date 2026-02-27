@@ -1815,6 +1815,12 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   <div class="ctx-item" data-action="snap-start">Snap to Start</div>
   <div class="ctx-item" data-action="snap-next">Snap After Previous</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="move-push" style="font-size:8px;color:var(--accent-blue)">Move to Push</div>
+  <div class="ctx-item" data-action="move-pull" style="font-size:8px;color:var(--accent-purple)">Move to Pull</div>
+  <div class="ctx-item" data-action="move-core" style="font-size:8px;color:var(--accent-orange)">Move to Core</div>
+  <div class="ctx-item" data-action="move-legs" style="font-size:8px;color:var(--accent-green)">Move to Legs</div>
+  <div class="ctx-item" data-action="move-skills" style="font-size:8px;color:var(--accent-cyan)">Move to Skills</div>
+  <div class="ctx-sep"></div>
   <div class="ctx-item danger" data-action="delete">Delete<span class="ctx-key">Del</span></div>
 </div>
 <div class="shortcuts-overlay" id="shortcuts-overlay">
@@ -1872,6 +1878,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   <div class="track-ctx-item" data-action="mute">Mute Track</div>
   <div class="track-ctx-sep"></div>
   <div class="track-ctx-item" data-action="select-all">Select All Clips</div>
+  <div class="track-ctx-item" data-action="collapse">Toggle Collapse</div>
+  <div class="track-ctx-item" data-action="collapse-all">Collapse All Tracks</div>
   <div class="track-ctx-sep"></div>
   <div class="track-ctx-item danger" data-action="clear">Clear Track</div>
 </div>
@@ -4098,6 +4106,16 @@ document.addEventListener('DOMContentLoaded', function() {
       ctxClip.style.left = (maxRight + 2) + 'px';
       saveSession(); updateStats();
       toast('Snapped after previous');
+    } else if (action.indexOf('move-') === 0) {
+      var targetTrackId = action.replace('move-', '');
+      var targetTrack = document.querySelector('.track-content[data-track="'+targetTrackId+'"]');
+      if (targetTrack && ctxClip.parentElement !== targetTrack) {
+        pushUndo();
+        targetTrack.appendChild(ctxClip);
+        updateStats(); saveSession();
+        sfx('drop');
+        toast('Moved to ' + targetTrackId);
+      }
     } else if (action === 'delete') {
       pushUndo();
       ctxClip.remove();
@@ -4513,6 +4531,13 @@ document.getElementById('track-ctx').addEventListener('click', function(e) {
   } else if (action === 'select-all') {
     if (content) content.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
     toast('Track clips selected');
+  } else if (action === 'collapse') {
+    trackCtxTarget.classList.toggle('track-collapsed');
+  } else if (action === 'collapse-all') {
+    var allCollapsed = true;
+    document.querySelectorAll('.track').forEach(function(t) { if (!t.classList.contains('track-collapsed') && t.dataset.track !== 'music') allCollapsed = false; });
+    document.querySelectorAll('.track').forEach(function(t) { if (t.dataset.track !== 'music') t.classList.toggle('track-collapsed', !allCollapsed); });
+    toast(allCollapsed ? 'Tracks expanded' : 'Tracks collapsed');
   } else if (action === 'clear') {
     if (content) {
       var clips = content.querySelectorAll('.clip');
