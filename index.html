@@ -8024,6 +8024,9 @@ var CMD_ACTIONS = [
   {label:'Show Favorites', key:'', icon:'\u2605', action: function() { showFavorites(); }},
   {label:'About Saturno Movement Studio', key:'', icon:'\u24d8', action: function() { showAbout(); }},
   {label:'Workout DNA', key:'', icon:'\u2622', action: function() { showWorkoutDNA(); }},
+  {label:'Exercise History Graph', key:'', icon:'\ud83d\udcc8', action: function() { showExerciseHistoryGraph(); }},
+  {label:'Remix Workout', key:'', icon:'\ud83d\udd00', action: function() { remixWorkout(); }},
+  {label:'Progressive Overload Tracker', key:'', icon:'\ud83d\udcc8', action: function() { showOverloadTracker(); }},
 ];
 
 function openCmdPalette() {
@@ -18892,6 +18895,158 @@ function showWorkoutDNA() {
     html += '<span style="color:' + (famColors[fam]||'#22d3ee') + ';font-size:10px">' + fam + ' ' + Math.round(famCounts[fam]/data.length*100) + '%</span>';
   });
   html += '</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 401: Exercise History Graph
+function showExerciseHistoryGraph() {
+  var sel = document.querySelector('.clip.selected');
+  var targetName = sel ? (sel.dataset.exercise || '') : '';
+  if (!targetName) { showToast('Select a clip to see its exercise history'); return; }
+  // Collect from saved workouts
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var usageData = [];
+  saved.forEach(function(w) {
+    var count = 0;
+    var totalSets = 0;
+    (w.clips || []).forEach(function(c) {
+      if ((c.exercise || c.name) === targetName) { count++; totalSets += parseInt(c.sets) || 3; }
+    });
+    if (count > 0) usageData.push({ name: w.name || 'Untitled', count: count, sets: totalSets });
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Exercise History</div>';
+  html += '<div style="color:#22d3ee;font-size:14px;margin-bottom:16px">' + targetName + '</div>';
+  if (usageData.length === 0) {
+    html += '<div style="color:#64748b;font-size:13px;text-align:center;padding:20px">No saved workouts contain this exercise</div>';
+  } else {
+    var maxSets = Math.max.apply(null, usageData.map(function(d) { return d.sets; }).concat([1]));
+    usageData.forEach(function(d) {
+      var pct = Math.round(d.sets / maxSets * 100);
+      html += '<div style="margin-bottom:8px">';
+      html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+      html += '<span style="color:#e2e8f0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:250px">' + d.name + '</span>';
+      html += '<span style="color:#22d3ee;font-size:12px">' + d.count + 'x (' + d.sets + ' sets)</span>';
+      html += '</div>';
+      html += '<div style="height:6px;background:rgba(34,211,238,0.05);border-radius:3px;overflow:hidden">';
+      html += '<div style="height:100%;width:' + pct + '%;background:rgba(34,211,238,0.4);border-radius:3px"></div>';
+      html += '</div></div>';
+    });
+    html += '<div style="color:#64748b;font-size:11px;margin-top:8px">Found in ' + usageData.length + ' saved workout(s)</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 402: Workout Remix
+function remixWorkout() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  clips = clips.filter(function(c) { return !c.closest('.track[data-family="music"]') && !c.classList.contains('clip-locked'); });
+  if (clips.length < 2) { showToast('Need 2+ unlocked clips to remix'); return; }
+  captureUndo();
+  // Collect all exercises by family
+  var byFamily = {};
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || '';
+    if (!byFamily[fam]) byFamily[fam] = [];
+    byFamily[fam].push(c);
+  });
+  // For each family, shuffle exercises among clips (keep positions/sets/reps)
+  Object.keys(byFamily).forEach(function(fam) {
+    var famClips = byFamily[fam];
+    if (famClips.length < 2) return;
+    // Collect exercise names
+    var names = famClips.map(function(c) { return c.dataset.exercise || ''; });
+    // Fisher-Yates shuffle names
+    for (var i = names.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = names[i]; names[i] = names[j]; names[j] = tmp;
+    }
+    // Apply shuffled names back
+    famClips.forEach(function(c, idx) {
+      var newName = names[idx];
+      var found = null;
+      EXERCISES.forEach(function(e) { if(e.name === newName) found = e; });
+      if (found) {
+        c.dataset.exercise = found.name;
+        c.dataset.pattern = found.pattern || '';
+        c.dataset.stage = found.stage || 'S1';
+        c.dataset.discipline = found.discipline || '';
+        var nameEl = c.querySelector('.clip-name');
+        if (nameEl) nameEl.textContent = found.name;
+      }
+    });
+  });
+  showToast('Workout remixed! Same structure, shuffled exercises');
+  if (typeof logChange === 'function') logChange('remix', clips.length + ' clips');
+}
+
+// Batch 403: Progressive Overload Tracker
+function showOverloadTracker() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length < 2) { showToast('Save 2+ workouts to track progressive overload'); return; }
+  // Calculate volume per workout
+  var volumeHistory = saved.slice(-10).map(function(w) {
+    var vol = 0;
+    var sets = 0;
+    var reps = 0;
+    (w.clips || []).forEach(function(c) {
+      var s = parseInt(c.sets) || 3;
+      var r = parseInt(c.reps) || 10;
+      sets += s;
+      reps += s * r;
+      vol += s * r * (parseFloat(c.rpe) || 7) / 10;
+    });
+    return { name: w.name || 'Untitled', volume: Math.round(vol), sets: sets, reps: reps, clips: (w.clips || []).length };
+  });
+  var maxVol = Math.max.apply(null, volumeHistory.map(function(v) { return v.volume; }).concat([1]));
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Progressive Overload Tracker</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Volume = sets x reps x (RPE/10) across last ' + volumeHistory.length + ' workouts</div>';
+  // Volume graph
+  var graphH = 100;
+  var barW = Math.floor(360 / volumeHistory.length) - 4;
+  html += '<div style="display:flex;align-items:flex-end;gap:4px;height:' + graphH + 'px;margin-bottom:16px;padding:0 20px">';
+  volumeHistory.forEach(function(v, i) {
+    var h = Math.max(4, Math.round(v.volume / maxVol * graphH));
+    var isLast = (i === volumeHistory.length - 1);
+    var prev = i > 0 ? volumeHistory[i-1].volume : v.volume;
+    var color = v.volume >= prev ? '#4ade80' : '#f87171';
+    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">';
+    html += '<div style="color:#94a3b8;font-size:8px">' + v.volume + '</div>';
+    html += '<div style="width:100%;max-width:' + barW + 'px;height:' + h + 'px;background:' + (isLast ? '#22d3ee' : color) + ';border-radius:3px 3px 0 0;opacity:' + (isLast ? 1 : 0.7) + '"></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  // Detail table
+  volumeHistory.slice().reverse().forEach(function(v, i) {
+    html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(34,211,238,0.05);font-size:12px">';
+    html += '<span style="color:#e2e8f0;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + v.name + '</span>';
+    html += '<span style="color:#94a3b8">' + v.clips + ' clips | ' + v.sets + ' sets | ' + v.reps + ' reps</span>';
+    html += '</div>';
+  });
+  // Trend
+  if (volumeHistory.length >= 2) {
+    var first = volumeHistory[0].volume;
+    var last = volumeHistory[volumeHistory.length - 1].volume;
+    var trend = last - first;
+    var pct = first > 0 ? Math.round((trend / first) * 100) : 0;
+    html += '<div style="margin-top:16px;padding:12px;background:rgba(34,211,238,0.03);border-radius:8px;display:flex;justify-content:space-between;align-items:center">';
+    html += '<span style="color:#94a3b8;font-size:12px">Volume Trend</span>';
+    html += '<span style="color:' + (trend >= 0 ? '#4ade80' : '#f87171') + ';font-size:14px;font-weight:600">' + (trend >= 0 ? '+' : '') + pct + '%</span>';
+    html += '</div>';
+  }
   html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
