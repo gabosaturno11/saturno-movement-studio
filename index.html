@@ -2653,6 +2653,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span style="color:var(--border)">|</span>
       <span data-tip="Workout intensity score (0-100)" style="color:var(--muted)">Int: <span id="footer-intensity" style="font-variant-numeric:tabular-nums">0</span></span>
       <span id="footer-supersets" data-tip="Cross-track supersets" style="color:rgba(168,85,247,0.8);font-size:8px;font-weight:600"></span>
+      <span id="footer-difficulty" data-tip="Avg exercise difficulty" style="font-size:7px;font-weight:600;letter-spacing:0.04em"></span>
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
@@ -4213,6 +4214,21 @@ function updateStats() {
   var totalBars = Math.ceil(secs / (60 / bpm * bpbF));
   var barsEl = document.getElementById('footer-bars');
   if (barsEl) barsEl.textContent = totalBars + ' bar' + (totalBars !== 1 ? 's' : '');
+  // Workout difficulty badge
+  var diffEl = document.getElementById('footer-difficulty');
+  if (diffEl) {
+    if (clips.length > 0) {
+      var avgStage = 0;
+      clips.forEach(function(c) { var ex = getExercise(c.dataset.exerciseId); avgStage += ex ? ex.stage : 1; });
+      avgStage = avgStage / clips.length;
+      var diffLabel = avgStage < 1.5 ? 'BEGINNER' : avgStage < 2.5 ? 'INTERMEDIATE' : 'ADVANCED';
+      var diffColor = avgStage < 1.5 ? '#22c55e' : avgStage < 2.5 ? '#eab308' : '#ef4444';
+      diffEl.textContent = diffLabel;
+      diffEl.style.color = diffColor;
+    } else {
+      diffEl.textContent = '';
+    }
+  }
   // Update per-track clip counts
   TRACKS.forEach(function(t) {
     if (t.isMusic) return;
@@ -4925,7 +4941,7 @@ function buildKnobs() {
   KNOBS.forEach(function(k) {
     var deg = (k.value - 0.5) * 270;
     html += '<div class="knob" data-knob="'+k.id+'">';
-    html += '<div class="knob-dial" onmousedown="startKnobDrag(event,\''+k.id+'\')" ontouchstart="startKnobDrag(event,\''+k.id+'\')">';
+    html += '<div class="knob-dial" onmousedown="startKnobDrag(event,\''+k.id+'\')" ontouchstart="startKnobDrag(event,\''+k.id+'\')" ondblclick="resetKnob(\''+k.id+'\')">';
     html += '<div class="knob-indicator" style="transform:translateX(-50%) rotate('+deg+'deg)"></div>';
     html += '</div>';
     html += '<div class="knob-label">'+k.label+'</div>';
@@ -4933,6 +4949,17 @@ function buildKnobs() {
     html += '</div>';
   });
   container.innerHTML = html;
+}
+
+function resetKnob(knobId) {
+  var knob = document.querySelector('[data-knob="'+knobId+'"]');
+  if (!knob) return;
+  var indicator = knob.querySelector('.knob-indicator');
+  if (indicator) indicator.style.transform = 'translateX(-50%) rotate(0deg)';
+  var valEl = document.getElementById('knob-val-' + knobId);
+  if (valEl) valEl.textContent = '50%';
+  saveSession();
+  toast('Knob reset: 50%');
 }
 
 function startKnobDrag(e, knobId) {
@@ -5607,6 +5634,21 @@ function exportWorkout() {
   workout.groupCounter = _groupCounter;
   workout.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
   workout.loop = {enabled: loopEnabled, start: loopStart, end: loopEnd};
+  // Faders
+  workout.faders = {};
+  document.querySelectorAll('[data-fader]').forEach(function(f) {
+    var fill = f.querySelector('.fader-fill');
+    workout.faders[f.dataset.fader] = parseFloat(fill.style.height) || 50;
+  });
+  // Knobs
+  workout.knobs = {};
+  document.querySelectorAll('[data-knob]').forEach(function(k) {
+    var indicator = k.querySelector('.knob-indicator');
+    if (indicator) {
+      var m = indicator.style.transform.match(/rotate\(([^)]+)deg\)/);
+      workout.knobs[k.dataset.knob] = m ? parseFloat(m[1]) : 0;
+    }
+  });
   var blob = new Blob([JSON.stringify(workout, null, 2)], {type: 'application/json'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -5731,6 +5773,30 @@ function importWorkout() {
           markers = workout.markers;
           markerCounter = markers.reduce(function(max, m) { return Math.max(max, m.id); }, 0);
           renderAllMarkers();
+        }
+        // Import faders
+        if (workout.faders) {
+          Object.keys(workout.faders).forEach(function(key) {
+            var fader = document.querySelector('[data-fader="'+key+'"]');
+            if (!fader) return;
+            var v = workout.faders[key];
+            fader.querySelector('.fader-fill').style.height = v + '%';
+            fader.querySelector('.fader-handle').style.bottom = (v - 3) + '%';
+            fader.querySelector('.fader-value').textContent = (v / 10).toFixed(0);
+          });
+        }
+        // Import knobs
+        if (workout.knobs) {
+          Object.keys(workout.knobs).forEach(function(key) {
+            var knob = document.querySelector('[data-knob="'+key+'"]');
+            if (!knob) return;
+            var deg = workout.knobs[key];
+            var indicator = knob.querySelector('.knob-indicator');
+            if (indicator) indicator.style.transform = 'translateX(-50%) rotate('+deg+'deg)';
+            var val = ((deg + 135) / 270);
+            var valEl = document.getElementById('knob-val-' + key);
+            if (valEl) valEl.textContent = (val * 100).toFixed(0) + '%';
+          });
         }
         // Import loop
         if (workout.loop) {
