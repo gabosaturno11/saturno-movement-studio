@@ -1324,6 +1324,26 @@ button:focus-visible, .transport-btn:focus-visible {
   margin: 0;
 }
 
+/* Track number badge — large watermark number in header */
+.track-num {
+  position: absolute; right: 6px; bottom: 2px;
+  font-size: 18px; font-weight: 800;
+  color: rgba(255,255,255,0.025);
+  line-height: 1; pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Clip RPE velocity strip — thin gradient at top showing intensity */
+.clip-velocity {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px; z-index: 1; pointer-events: none;
+  border-radius: 3px 3px 0 0;
+}
+
+/* Timeline crosshair cursor */
+.track-content { cursor: crosshair; }
+.track-content .clip { cursor: move; }
+
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
   0% { transform: translateX(-100%); }
@@ -2755,10 +2775,10 @@ function buildTracks() {
   var container = document.getElementById('timeline-tracks');
   var ph = container.querySelector('.playhead');
   var html = '';
-  TRACKS.forEach(function(t) {
+  TRACKS.forEach(function(t, ti) {
     if (t.isMusic) {
       html += '<div class="track" data-track="'+t.id+'">';
-      html += '<div class="track-header"><div class="track-name" style="color:var(--accent-cyan)">'+t.name+'</div>';
+      html += '<div class="track-header"><div class="track-num">1</div><div class="track-name" style="color:var(--accent-cyan)">'+t.name+'</div>';
       html += '<select class="track-select" id="music-track-select" onchange="selectMusicTrack(this.value)" style="font-size:8px;padding:2px 4px;background:var(--bg-deep);border:1px solid var(--border);color:var(--text);width:88px;font-family:Sora,sans-serif;border-radius:2px">';
       html += '<option value="">--</option>';
       MUSIC_TRACKS.forEach(function(mt,i) { html += '<option value="'+i+'">'+mt.name+'</option>'; });
@@ -2767,10 +2787,10 @@ function buildTracks() {
     } else {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
-      html += '<div class="track-header"><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
+      html += '<div class="track-header"><div class="track-num">'+(ti+1)+'</div><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
       html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
       html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
-      if (!t.isMusic) html += '<div class="track-vu" id="vu-'+t.id+'"><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div></div>';
+      html += '<div class="track-vu" id="vu-'+t.id+'"><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div></div>';
       html += '</div>';
       html += '<div class="track-content" data-track="'+t.id+'"></div></div>';
     }
@@ -2995,6 +3015,15 @@ function createClipElement(exercise, left, width, dna) {
   clip.dataset.tempo = (dna && dna.tempo) || '3';
   clip.dataset.rest = (dna && dna.rest) || '60';
   clip.dataset.rpe = (dna && dna.rpe) || '7';
+
+  // RPE velocity strip — color-coded intensity bar at top
+  var velocity = document.createElement('div');
+  velocity.className = 'clip-velocity';
+  var rpeN = parseInt(clip.dataset.rpe);
+  var velColor = rpeN >= 9 ? '#ef4444' : rpeN >= 7 ? '#f97316' : rpeN >= 5 ? '#eab308' : '#22c55e';
+  var velAlpha = 0.3 + (rpeN / 10) * 0.5;
+  velocity.style.background = 'linear-gradient(90deg, ' + velColor + Math.round(velAlpha * 255).toString(16).padStart(2,'0') + ', transparent)';
+  clip.appendChild(velocity);
 
   var label = document.createElement('span');
   label.className = 'clip-name';
