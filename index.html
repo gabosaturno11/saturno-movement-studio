@@ -7861,6 +7861,8 @@ var CMD_ACTIONS = [
   {label:'Generate Share Card', key:'', icon:'\u2B06', action: function() { generateShareCard(); }},
   {label:'Show Favorites', key:'', icon:'\u2605', action: function() { updateFavoritePanel(); toast('Favorites updated'); }},
   {label:'Workout History Timeline', key:'', icon:'\u2195', action: function() { showWorkoutHistory(); }},
+  {label:'Cheat Sheet (Quick Reference)', key:'', icon:'\u2328', action: function() { showCheatSheet(); }},
+  {label:'View Auto-Backups', key:'', icon:'\u21BA', action: function() { showAutoBackups(); }},
 ];
 
 function openCmdPalette() {
@@ -12356,6 +12358,217 @@ function showWorkoutHistory() {
   w.document.close();
   toast('History opened');
 }
+
+/* ===== BATCH 304: QUICK REFERENCE CHEAT SHEET ===== */
+function showCheatSheet() {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(3,5,9,0.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer;overflow-y:auto;padding:20px';
+  overlay.onclick = function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(10,14,26,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;max-width:600px;width:95%;max-height:85vh;overflow-y:auto;cursor:default;box-shadow:0 25px 80px rgba(0,0,0,0.6)';
+  card.onclick = function(e) { e.stopPropagation(); };
+
+  var sections = [
+    {title:'Playback', items:['Space = Play/Pause','Esc = Deselect + Stop','0 = Reset to start','Left/Right = Scrub by beat','Shift+Left/Right = Scrub by bar','Home = Jump to start','End = Jump to end']},
+    {title:'Clips', items:['Click = Select clip','Shift+Click = Multi-select','Cmd+A = Select all','Cmd+I = Invert selection','Cmd+C = Copy','Cmd+V = Paste','Cmd+Shift+V = Paste at playhead','Cmd+D = Duplicate','Delete = Delete selected','B = Split at playhead','Cmd+L = Lock/Unlock','Cmd+G = Group','J/K = Next/Prev clip']},
+    {title:'Editing', items:['Alt+Arrow = Resize clip','Arrow Up/Down = Move to track','[ ] = Nudge sets','Shift+[ ] = Nudge reps',', . = Nudge tempo','Shift+, . = Nudge rest','Shift+Up/Down = RPE adjust','PgUp/PgDn = Stage up/down','Alt+Drag = Duplicate clip']},
+    {title:'Navigation', items:['Cmd+K = Command palette','? = Shortcuts panel','/ = Focus library search','F = Focus mode','P = Toggle presets','G = Generate random','S = Toggle snap','L = Toggle loop','T = Tap tempo','N/Shift+N = Next/Prev marker','Tab = Cycle clips','C = Collapse track']},
+    {title:'Zoom', items:['Cmd++ = Zoom in','Cmd+- = Zoom out','Scroll wheel = Zoom','R = Record mode']},
+    {title:'Mobile', items:['Tap exercise = Add to timeline','Swipe left on clip = Delete','Long-press clip = Context menu','Double-tap timeline = Commands','Swipe right from edge = Library']}
+  ];
+
+  var html = '<div style="text-align:center;margin-bottom:20px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:4px">Quick Reference</div><div style="font-size:18px;font-weight:700;color:#fff">Cheat Sheet</div></div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
+
+  sections.forEach(function(sec) {
+    html += '<div>';
+    html += '<div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--accent-cyan);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(6,182,212,0.15)">' + sec.title + '</div>';
+    sec.items.forEach(function(item) {
+      var parts = item.split(' = ');
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px">';
+      html += '<kbd style="padding:2px 6px;border:1px solid rgba(255,255,255,0.1);border-radius:3px;font-size:8px;color:var(--text-secondary);font-family:Sora,sans-serif;background:rgba(255,255,255,0.03);white-space:nowrap">' + parts[0] + '</kbd>';
+      html += '<span style="color:var(--muted);font-size:9px;text-align:right;margin-left:8px">' + (parts[1] || '') + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '</div>';
+  html += '<div style="text-align:center;margin-top:16px"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro);background:none;border:1px solid var(--border);border-radius:4px;padding:8px 20px;cursor:pointer;font-family:Sora,sans-serif">Close</button></div>';
+
+  card.innerHTML = html;
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+/* ===== BATCH 305: CLIP ENTRANCE ANIMATION ===== */
+(function() {
+  /* Add CSS animation for clip entrance */
+  var style = document.createElement('style');
+  style.textContent = '@keyframes clipEnter{0%{opacity:0;transform:scaleX(0.3) translateY(4px)}60%{opacity:1;transform:scaleX(1.02) translateY(-1px)}100%{transform:scaleX(1) translateY(0)}}' +
+    '@keyframes clipExit{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(0.8) translateY(8px)}}' +
+    '.clip-entering{animation:clipEnter 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards}' +
+    '.clip-exiting{animation:clipExit 0.15s ease-in forwards;pointer-events:none}';
+  document.head.appendChild(style);
+
+  /* Patch createClipElement to add entrance animation */
+  function patchClipCreation() {
+    if (!window.createClipElement) return;
+    var orig = window.createClipElement;
+    window.createClipElement = function() {
+      var clip = orig.apply(this, arguments);
+      if (clip && clip.classList) {
+        clip.classList.add('clip-entering');
+        clip.addEventListener('animationend', function handler() {
+          clip.classList.remove('clip-entering');
+          clip.removeEventListener('animationend', handler);
+        });
+      }
+      return clip;
+    };
+  }
+  if (document.readyState === 'complete') setTimeout(patchClipCreation, 300);
+  else window.addEventListener('load', function() { setTimeout(patchClipCreation, 300); });
+})();
+
+/* ===== BATCH 306: SESSION AUTO-BACKUP SYSTEM ===== */
+var _autoBackupInterval = null;
+var AUTO_BACKUP_INTERVAL = 120000; /* 2 minutes */
+var MAX_AUTO_BACKUPS = 5;
+
+function startAutoBackup() {
+  if (_autoBackupInterval) return;
+  _autoBackupInterval = setInterval(function() {
+    try {
+      var clips = document.querySelectorAll('.clip');
+      if (clips.length === 0) return; /* Don't backup empty sessions */
+      var backups = JSON.parse(localStorage.getItem('sms_auto_backups') || '[]');
+      var snapshot = {
+        timestamp: Date.now(),
+        date: new Date().toISOString(),
+        clipCount: clips.length,
+        workoutName: document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Untitled',
+        session: null
+      };
+      /* Try to capture session data */
+      if (typeof _doSaveSession === 'function') {
+        /* Build a minimal session snapshot */
+        var clipData = [];
+        clips.forEach(function(c) {
+          clipData.push({
+            exercise: c.getAttribute('data-exercise') || '',
+            family: c.getAttribute('data-family') || '',
+            track: c.closest('.track') ? c.closest('.track').getAttribute('data-track') : '',
+            left: c.style.left,
+            width: c.style.width,
+            sets: c.getAttribute('data-sets'),
+            reps: c.getAttribute('data-reps'),
+            rpe: c.getAttribute('data-rpe')
+          });
+        });
+        snapshot.clips = clipData;
+        snapshot.bpm = document.getElementById('bpm-input') ? document.getElementById('bpm-input').value : '120';
+      }
+      backups.push(snapshot);
+      /* Keep only last N backups */
+      while (backups.length > MAX_AUTO_BACKUPS) backups.shift();
+      localStorage.setItem('sms_auto_backups', JSON.stringify(backups));
+    } catch(e) {}
+  }, AUTO_BACKUP_INTERVAL);
+}
+
+function stopAutoBackup() {
+  if (_autoBackupInterval) { clearInterval(_autoBackupInterval); _autoBackupInterval = null; }
+}
+
+function showAutoBackups() {
+  var backups = [];
+  try { backups = JSON.parse(localStorage.getItem('sms_auto_backups') || '[]'); } catch(e) {}
+  if (backups.length === 0) { toast('No auto-backups yet (saved every 2 min)'); return; }
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(3,5,9,0.8);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer';
+  overlay.onclick = function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(10,14,26,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px;max-width:380px;width:92%;max-height:70vh;overflow-y:auto;cursor:default;box-shadow:0 25px 80px rgba(0,0,0,0.6)';
+  card.onclick = function(e) { e.stopPropagation(); };
+
+  var html = '<div style="text-align:center;margin-bottom:16px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-green);margin-bottom:4px">Recovery</div><div style="font-size:16px;font-weight:700;color:#fff">Auto-Backups</div><div style="font-size:9px;color:var(--micro);margin-top:4px">' + backups.length + ' snapshots (every 2 min)</div></div>';
+
+  backups.reverse().forEach(function(b, i) {
+    var date = new Date(b.timestamp || b.date);
+    var timeAgo = Math.round((Date.now() - date.getTime()) / 60000);
+    var agoText = timeAgo < 1 ? 'Just now' : timeAgo + ' min ago';
+    html += '<div style="padding:10px;margin-bottom:4px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s" onmouseenter="this.style.background=\'rgba(34,197,94,0.06)\'" onmouseleave="this.style.background=\'rgba(255,255,255,0.02)\'" onclick="restoreAutoBackup(' + (backups.length - 1 - i) + ');this.closest(\'div[style*=fixed]\').remove()">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '<div><div style="font-size:11px;font-weight:600;color:#fff">' + (b.workoutName || 'Untitled') + '</div>';
+    html += '<div style="font-size:9px;color:var(--text-secondary)">' + (b.clipCount || 0) + ' clips | ' + (b.bpm || 120) + ' BPM</div></div>';
+    html += '<div style="text-align:right"><div style="font-size:9px;color:var(--accent-green)">' + agoText + '</div>';
+    html += '<div style="font-size:8px;color:var(--micro)">' + date.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'}) + '</div></div>';
+    html += '</div></div>';
+  });
+
+  html += '<div style="text-align:center;margin-top:12px"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro);background:none;border:1px solid var(--border);border-radius:4px;padding:8px 20px;cursor:pointer;font-family:Sora,sans-serif">Close</button></div>';
+
+  card.innerHTML = html;
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+function restoreAutoBackup(index) {
+  try {
+    var backups = JSON.parse(localStorage.getItem('sms_auto_backups') || '[]');
+    var b = backups[index];
+    if (!b || !b.clips) { toast('Backup has no clip data'); return; }
+    if (typeof captureUndo === 'function') captureUndo();
+    /* Clear existing clips */
+    document.querySelectorAll('.clip').forEach(function(c) { if (c.parentNode) c.parentNode.removeChild(c); });
+    /* Restore BPM */
+    var bpmInput = document.getElementById('bpm-input');
+    if (bpmInput && b.bpm) { bpmInput.value = b.bpm; if (typeof updateBPM === 'function') updateBPM(); }
+    /* Restore workout name */
+    var nameEl = document.getElementById('workout-name');
+    var headerName = document.getElementById('header-workout-name');
+    if (nameEl && b.workoutName) nameEl.textContent = b.workoutName;
+    if (headerName && b.workoutName) headerName.textContent = b.workoutName;
+    /* Restore clips */
+    b.clips.forEach(function(cd) {
+      if (!cd.exercise || !cd.track) return;
+      var ex = null;
+      if (typeof EXERCISES !== 'undefined') {
+        for (var i = 0; i < EXERCISES.length; i++) {
+          if (EXERCISES[i].name === cd.exercise) { ex = EXERCISES[i]; break; }
+        }
+      }
+      if (!ex) return;
+      var track = document.querySelector('.track[data-track="' + cd.track + '"] .track-clips');
+      if (!track) return;
+      if (typeof createClipElement === 'function') {
+        var clip = createClipElement(ex, parseFloat(cd.left) || 0, parseFloat(cd.width) || 80);
+        if (cd.sets) clip.setAttribute('data-sets', cd.sets);
+        if (cd.reps) clip.setAttribute('data-reps', cd.reps);
+        if (cd.rpe) clip.setAttribute('data-rpe', cd.rpe);
+        track.appendChild(clip);
+      }
+    });
+    if (typeof updateStats === 'function') updateStats();
+    toast('Backup restored: ' + (b.workoutName || 'Untitled'));
+    haptic('medium');
+  } catch(e) {
+    toast('Error restoring backup');
+  }
+}
+
+/* Start auto-backup system */
+(function() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(startAutoBackup, 5000); });
+  } else {
+    setTimeout(startAutoBackup, 5000);
+  }
+})();
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
