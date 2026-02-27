@@ -697,6 +697,14 @@ body {
   background: var(--error); color: var(--bg); border-color: var(--error);
   animation: armPulse 1.5s ease-in-out infinite;
 }
+/* Track-level armed glow — entire track gets subtle red tint */
+.track:has(.track-btn.armed) .track-header {
+  background: rgba(239,68,68,0.04);
+  border-left: 2px solid rgba(239,68,68,0.3);
+}
+.track:has(.track-btn.armed) .track-content {
+  background: rgba(239,68,68,0.01);
+}
 
 /* Metronome active pulse */
 @keyframes metroPulse {
@@ -939,8 +947,9 @@ body {
 .panel-tab.active {
   color: var(--text); border-bottom-color: var(--blue);
 }
-.panel-tab-content { display: none; }
-.panel-tab-content.active { display: block; }
+.panel-tab-content { display: none; opacity: 0; }
+.panel-tab-content.active { display: block; opacity: 1; animation: panelFadeIn 0.15s ease; }
+@keyframes panelFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Custom Clip Tooltip */
 .clip-tip {
@@ -1394,6 +1403,8 @@ button:focus-visible, .transport-btn:focus-visible {
   .bpm-pulse { animation: none; opacity: 0.5; }
   .track-btn.armed { animation: none; }
   @keyframes emptyPulse { 0%, 100% { opacity: 0.1; } }
+  @keyframes panelFadeIn { from, to { opacity: 1; transform: none; } }
+  .snap-line { animation: none; }
   .toast { transition: none; }
   .playhead { transition: none; }
   .cmd-palette { backdrop-filter: none; }
@@ -2875,6 +2886,10 @@ function createClipElement(exercise, left, width, dna) {
   var alphaBot = Math.min(255, 130 + rpeBoost).toString(16).padStart(2, '0');
   clip.style.background = 'linear-gradient(180deg, ' + baseColor + alphaTop + ' 0%, ' + baseColor + alphaBot + ' 100%)';
   clip.style.borderTopColor = baseColor;
+  // Discipline bottom-border accent (subtle visual coding)
+  var discColors = {'Calisthenics':'#3b82f6','Power-Free':'#f97316','Bodybuilding':'#ef4444','Street Lifting':'#a855f7','Hand-Balancing':'#06b6d4','Freestyle':'#ec4899','Mobility':'#22c55e'};
+  var discColor = discColors[exercise.discipline] || baseColor;
+  clip.style.borderBottom = '1px solid ' + discColor + '40';
   clip.style.left = (typeof left === 'string' ? left : Math.max(0, left) + 'px');
   clip.style.width = (typeof width === 'string' ? width : (width || 80) + 'px');
   clip.style.color = 'rgba(255,255,255,0.9)';
