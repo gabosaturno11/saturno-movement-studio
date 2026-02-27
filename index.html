@@ -7970,6 +7970,10 @@ var CMD_ACTIONS = [
   {label:'Theme: Neon', key:'', icon:'\u2600', action: function() { applyTheme('neon'); }},
   {label:'Progression Tracker', key:'', icon:'\u2191', action: function() { showProgressionTracker(); }},
   {label:'Pin Command to Toolbar', key:'', icon:'\u2691', action: function() { showPinPicker(); }},
+  {label:'Stats Dashboard', key:'', icon:'\u2630', action: function() { showStatsDashboard(); }},
+  {label:'Log Workout Mastery', key:'', icon:'\u2191', action: function() { logCurrentWorkoutMastery(); }},
+  {label:'Mastery Overview', key:'', icon:'\u2191', action: function() { showMasteryOverview(); }},
+  {label:'Import Workout from Text', key:'', icon:'\u2709', action: function() { importFromText(); }},
 ];
 
 function openCmdPalette() {
@@ -15824,6 +15828,188 @@ function showPinPicker() {
 }
 loadQuickAccess();
 setTimeout(renderQuickAccessBar, 500);
+
+// Batch 358: Workout Stats Dashboard
+function showStatsDashboard() {
+  var debriefs = [];
+  try { var d = localStorage.getItem('sms_debriefs'); if (d) debriefs = JSON.parse(d); } catch(e) {}
+  var ratings = [];
+  try { var r = localStorage.getItem('sms_workout_ratings'); if (r) ratings = JSON.parse(r); } catch(e) {}
+  var journal = [];
+  try { var j = localStorage.getItem('sms_movement_journal'); if (j) journal = JSON.parse(j); } catch(e) {}
+  var streak = getWorkoutStreak();
+  var totalWorkouts = Math.max(debriefs.length, ratings.length, journal.length);
+  var avgRating = 0;
+  if (ratings.length) {
+    var sum = 0;
+    ratings.forEach(function(r) { sum += (r.rating || 0); });
+    avgRating = (sum / ratings.length).toFixed(1);
+  }
+  var moodCounts = {};
+  journal.forEach(function(j) { if (j.moods) j.moods.forEach(function(m) { moodCounts[m] = (moodCounts[m] || 0) + 1; }); });
+  var topMood = '-';
+  var topMoodCount = 0;
+  Object.keys(moodCounts).forEach(function(m) { if (moodCounts[m] > topMoodCount) { topMoodCount = moodCounts[m]; topMood = m; } });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.97);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;overflow-y:auto" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:16px;padding:32px;max-width:520px;width:95%;max-height:85vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:16px;font-weight:700;display:block;margin-bottom:20px">Stats Dashboard</span>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">';
+  var statCards = [
+    { label: 'Total Workouts', value: totalWorkouts, color: '#22d3ee' },
+    { label: 'Current Streak', value: streak.current + 'd', color: '#fbbf24' },
+    { label: 'Best Streak', value: streak.best + 'd', color: '#f87171' },
+    { label: 'Avg Rating', value: avgRating + '/5', color: '#4ade80' },
+    { label: 'Top Mood', value: topMood, color: '#c084fc' },
+    { label: 'Journal Entries', value: journal.length, color: '#60a5fa' }
+  ];
+  statCards.forEach(function(s) {
+    html += '<div style="text-align:center;padding:16px 8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);border-radius:10px">';
+    html += '<div style="color:' + s.color + ';font-size:20px;font-weight:700">' + s.value + '</div>';
+    html += '<div style="color:#475569;font-size:8px;text-transform:uppercase;letter-spacing:0.1em;margin-top:4px">' + s.label + '</div></div>';
+  });
+  html += '</div>';
+  if (ratings.length > 1) {
+    html += '<div style="margin-bottom:16px"><span style="color:#94a3b8;font-size:10px;font-weight:600;display:block;margin-bottom:8px">Rating Trend (last 10)</span>';
+    html += '<div style="display:flex;gap:4px;align-items:flex-end;height:60px">';
+    ratings.slice(-10).forEach(function(r) {
+      var h = Math.max(8, ((r.rating || 0) / 5) * 60);
+      var col = (r.rating || 0) >= 4 ? '#4ade80' : ((r.rating || 0) >= 3 ? '#fbbf24' : '#f87171');
+      html += '<div style="flex:1;height:' + h + 'px;background:' + col + '40;border-radius:3px 3px 0 0;border-top:2px solid ' + col + '" title="' + (r.rating || '?') + '/5"></div>';
+    });
+    html += '</div></div>';
+  }
+  if (Object.keys(moodCounts).length) {
+    html += '<div><span style="color:#94a3b8;font-size:10px;font-weight:600;display:block;margin-bottom:8px">Mood Distribution</span>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    Object.keys(moodCounts).sort(function(a, b) { return moodCounts[b] - moodCounts[a]; }).forEach(function(m) {
+      html += '<span style="padding:4px 10px;border:1px solid rgba(34,211,238,0.15);border-radius:12px;color:#94a3b8;font-size:9px">' + m + ' <strong style="color:#22d3ee">' + moodCounts[m] + '</strong></span>';
+    });
+    html += '</div></div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 359: Exercise Mastery System
+var _exerciseMastery = {};
+function loadMastery() {
+  try { var d = localStorage.getItem('sms_mastery'); if (d) _exerciseMastery = JSON.parse(d); } catch(e) {}
+}
+function saveMastery() {
+  try { localStorage.setItem('sms_mastery', JSON.stringify(_exerciseMastery)); } catch(e) {}
+}
+function logMastery(exercise, reps, holdTime) {
+  loadMastery();
+  if (!_exerciseMastery[exercise]) _exerciseMastery[exercise] = { sessions: 0, totalReps: 0, totalHold: 0, dates: [] };
+  _exerciseMastery[exercise].sessions++;
+  _exerciseMastery[exercise].totalReps += reps || 0;
+  _exerciseMastery[exercise].totalHold += holdTime || 0;
+  var today = new Date().toISOString().split('T')[0];
+  if (_exerciseMastery[exercise].dates.indexOf(today) < 0) _exerciseMastery[exercise].dates.push(today);
+  if (_exerciseMastery[exercise].dates.length > 100) _exerciseMastery[exercise].dates = _exerciseMastery[exercise].dates.slice(-100);
+  saveMastery();
+}
+function getMasteryLevel(exercise) {
+  var m = _exerciseMastery[exercise];
+  if (!m) return { level: 'New', score: 0 };
+  var score = m.sessions * 3 + m.dates.length * 5 + Math.floor(m.totalReps / 50);
+  if (score >= 100) return { level: 'Master', score: score };
+  if (score >= 50) return { level: 'Advanced', score: score };
+  if (score >= 20) return { level: 'Intermediate', score: score };
+  if (score >= 5) return { level: 'Beginner', score: score };
+  return { level: 'New', score: score };
+}
+function showMasteryOverview() {
+  loadMastery();
+  var exercises = Object.keys(_exerciseMastery);
+  if (!exercises.length) { showToast('No mastery data yet. Log workouts to build mastery.'); return; }
+  exercises.sort(function(a, b) { return getMasteryLevel(b).score - getMasteryLevel(a).score; });
+  var levelColors = { Master: '#fbbf24', Advanced: '#c084fc', Intermediate: '#4ade80', Beginner: '#60a5fa', New: '#475569' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Exercise Mastery (' + exercises.length + ')</span>';
+  exercises.forEach(function(ex) {
+    var m = _exerciseMastery[ex];
+    var lvl = getMasteryLevel(ex);
+    var col = levelColors[lvl.level] || '#475569';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03)">';
+    html += '<div><span style="color:#e2e8f0;font-size:11px">' + ex + '</span>';
+    html += '<div style="color:#475569;font-size:8px;margin-top:2px">' + m.sessions + ' sessions | ' + m.totalReps + ' reps | ' + m.dates.length + ' days</div></div>';
+    html += '<span style="color:' + col + ';font-size:9px;font-weight:700;flex-shrink:0">' + lvl.level + '</span></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function logCurrentWorkoutMastery() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips to log mastery for'); return; }
+  var count = 0;
+  clips.forEach(function(c) {
+    var ex = c.dataset.exercise || '';
+    var reps = (parseInt(c.dataset.sets) || 3) * (parseInt(c.dataset.reps) || 8);
+    if (ex) { logMastery(ex, reps, 0); count++; }
+  });
+  showToast('Mastery logged for ' + count + ' exercises');
+}
+loadMastery();
+
+// Batch 360: Import from Text
+function importFromText() {
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:480px;width:90%">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:4px">Import Workout from Text</span>';
+  html += '<span style="color:#64748b;font-size:9px;display:block;margin-bottom:12px">Paste exercise names (one per line, optional sets x reps)</span>';
+  html += '<textarea id="import-text" placeholder="Push-ups 3x12\nPull-ups 4x8\nSquats 3x10\nPlank 3x30s\nDips" style="width:100%;height:140px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:11px;resize:vertical;box-sizing:border-box;line-height:1.6"></textarea>';
+  html += '<button onclick="parseTextImport()" style="width:100%;margin-top:8px;padding:10px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:600">Import</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function parseTextImport() {
+  var textarea = document.getElementById('import-text');
+  if (!textarea || !textarea.value.trim()) { showToast('Paste workout text first'); return; }
+  var lines = textarea.value.trim().split('\n').filter(function(l) { return l.trim(); });
+  if (!lines.length) { showToast('No exercises found'); return; }
+  if (typeof captureUndo === 'function') captureUndo();
+  var added = 0;
+  var xPos = 50;
+  lines.forEach(function(line) {
+    var trimmed = line.trim();
+    var match = trimmed.match(/^(.+?)\s+(\d+)\s*x\s*(\d+)/i);
+    var exerciseName, sets, reps;
+    if (match) { exerciseName = match[1].trim(); sets = parseInt(match[2]); reps = parseInt(match[3]); }
+    else { exerciseName = trimmed.replace(/\s*\d+[sx]\d+.*/i, '').trim(); sets = 3; reps = 8; }
+    if (!exerciseName) return;
+    var bestMatch = null;
+    if (typeof EXERCISES !== 'undefined') {
+      var lower = exerciseName.toLowerCase();
+      EXERCISES.forEach(function(ex) {
+        if (ex.name.toLowerCase().indexOf(lower) >= 0 || lower.indexOf(ex.name.toLowerCase()) >= 0) {
+          bestMatch = ex;
+        }
+      });
+    }
+    var family = bestMatch ? bestMatch.family : 'core';
+    var trackMap = { push: '0', pull: '1', core: '2', legs: '3', skills: '4' };
+    var trackId = trackMap[family] || '2';
+    var lane = document.querySelector('.track-lane[data-track="' + trackId + '"]');
+    if (!lane) lane = document.querySelector('.track-lane');
+    if (lane && typeof createClipElement === 'function') {
+      var clipName = bestMatch ? bestMatch.name : exerciseName;
+      var clip = createClipElement(clipName, family);
+      clip.style.left = xPos + 'px';
+      clip.style.width = '120px';
+      clip.dataset.sets = sets;
+      clip.dataset.reps = reps;
+      if (typeof updateClipInfo === 'function') updateClipInfo(clip);
+      lane.appendChild(clip);
+      xPos += 130;
+      added++;
+    }
+  });
+  var modal = textarea.closest('div[style*="fixed"]');
+  if (modal) modal.remove();
+  showToast('Imported ' + added + ' exercises from text');
+}
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
