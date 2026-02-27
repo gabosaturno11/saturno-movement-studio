@@ -7914,6 +7914,12 @@ var CMD_ACTIONS = [
   {label:'Movement Journal: History', key:'', icon:'\u270E', action: function() { showJournalHistory(); }},
   {label:'Workout Streak Badge', key:'', icon:'\u2B50', action: function() { showStreakBadge(); }},
   {label:'Quick Swap Exercise', key:'', icon:'\u21C4', action: function() { showQuickSwap(); }},
+  {label:'Zen Mode (Z key)', key:'z', icon:'\u2600', action: function() { toggleZenMode(); }},
+  {label:'Exercise Preview Image', key:'', icon:'\u25B6', action: function() { showExercisePreviewFromClip(); }},
+  {label:'Toggle Recovery Prompts', key:'', icon:'\u2764', action: function() { toggleRecoveryPrompts(); }},
+  {label:'Recovery Interval: 10 min', key:'', icon:'\u2764', action: function() { setRecoveryInterval(10); }},
+  {label:'Recovery Interval: 15 min', key:'', icon:'\u2764', action: function() { setRecoveryInterval(15); }},
+  {label:'Recovery Interval: 20 min', key:'', icon:'\u2764', action: function() { setRecoveryInterval(20); }},
 ];
 
 function openCmdPalette() {
@@ -14292,6 +14298,128 @@ function executeQuickSwap(newName, newFamily, newPattern) {
   if (label) label.textContent = newName;
   if (typeof updateClipInfo === 'function') updateClipInfo(clip);
   showToast('Swapped to: ' + newName);
+}
+
+// Batch 331: Workout Focus Mode (zen mode)
+var _zenMode = false;
+function toggleZenMode() {
+  _zenMode = !_zenMode;
+  var header = document.querySelector('.header, header');
+  var panelLeft = document.querySelector('.panel-left');
+  var panelRight = document.querySelector('.panel-right');
+  var footer = document.querySelector('.footer, footer');
+  var transport = document.querySelector('.transport');
+  if (_zenMode) {
+    if (header) header.style.display = 'none';
+    if (panelLeft) panelLeft.style.display = 'none';
+    if (panelRight) panelRight.style.display = 'none';
+    if (footer) footer.style.opacity = '0.3';
+    document.body.style.overflow = 'hidden';
+    showToast('Zen Mode ON — press Z to exit');
+  } else {
+    if (header) header.style.display = '';
+    if (panelLeft) panelLeft.style.display = '';
+    if (panelRight) panelRight.style.display = '';
+    if (footer) footer.style.opacity = '';
+    document.body.style.overflow = '';
+    showToast('Zen Mode OFF');
+  }
+}
+(function() {
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'z' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      toggleZenMode();
+    }
+  });
+})();
+
+// Batch 332: Exercise GIF Placeholder System
+var _exerciseGifs = {};
+function loadExerciseGifs() {
+  try { var d = localStorage.getItem('sms_exercise_gifs'); if (d) _exerciseGifs = JSON.parse(d); } catch(e) {}
+}
+function saveExerciseGifs() {
+  try { localStorage.setItem('sms_exercise_gifs', JSON.stringify(_exerciseGifs)); } catch(e) {}
+}
+function setExerciseGif(exerciseName, url) {
+  _exerciseGifs[exerciseName] = url;
+  saveExerciseGifs();
+  showToast('GIF set for ' + exerciseName);
+}
+function showExercisePreview(exerciseName) {
+  loadExerciseGifs();
+  var gifUrl = _exerciseGifs[exerciseName];
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:400px;width:90%;text-align:center">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:12px">' + exerciseName + '</span>';
+  if (gifUrl) {
+    html += '<img src="' + gifUrl + '" style="max-width:100%;border-radius:8px;margin-bottom:12px" onerror="this.style.display=\'none\'">';
+  } else {
+    html += '<div style="width:100%;height:200px;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:12px">';
+    html += '<span style="color:#475569;font-size:11px">No preview image set</span></div>';
+  }
+  html += '<input id="gif-url-input" placeholder="Paste image/GIF URL..." value="' + (gifUrl || '') + '" style="width:100%;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:11px;margin-bottom:8px;box-sizing:border-box"/>';
+  html += '<button onclick="var u=document.getElementById(\'gif-url-input\').value;setExerciseGif(\'' + exerciseName.replace(/'/g, "\\'") + '\',u);this.closest(\'div[style*=fixed]\').remove()" style="width:100%;padding:8px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:6px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:10px;font-weight:600">Save Preview Image</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function showExercisePreviewFromClip() {
+  var clip = document.querySelector('.clip.selected');
+  if (!clip) { showToast('Select a clip first'); return; }
+  var name = clip.dataset.exercise || clip.textContent.trim().split('\n')[0];
+  showExercisePreview(name);
+}
+loadExerciseGifs();
+
+// Batch 333: Micro-Recovery Prompts
+var _recoveryInterval = null;
+var _recoveryEnabled = false;
+var _recoveryMinutes = 15;
+var _recoveryPrompts = [
+  'Take 3 deep breaths. Inhale 4s, hold 4s, exhale 6s.',
+  'Drink some water. Stay hydrated.',
+  'Roll your shoulders back 5 times.',
+  'Close your eyes for 10 seconds.',
+  'Shake out your hands and wrists.',
+  'Stand up and do a 10-second stretch.',
+  'Check your posture. Tall spine, relaxed shoulders.',
+  'Breathe in through your nose, out through your mouth.',
+  'Flex your ankles. Circle each foot 5 times.',
+  'Smile. Release jaw tension.'
+];
+function toggleRecoveryPrompts() {
+  _recoveryEnabled = !_recoveryEnabled;
+  if (_recoveryEnabled) {
+    if (_recoveryInterval) clearInterval(_recoveryInterval);
+    _recoveryInterval = setInterval(function() {
+      var prompt = _recoveryPrompts[Math.floor(Math.random() * _recoveryPrompts.length)];
+      showRecoveryToast(prompt);
+    }, _recoveryMinutes * 60 * 1000);
+    showToast('Recovery prompts ON (every ' + _recoveryMinutes + ' min)');
+  } else {
+    if (_recoveryInterval) { clearInterval(_recoveryInterval); _recoveryInterval = null; }
+    showToast('Recovery prompts OFF');
+  }
+}
+function showRecoveryToast(msg) {
+  var el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10000;background:rgba(5,7,17,0.95);border:1px solid rgba(34,211,238,0.2);border-radius:16px;padding:32px 40px;text-align:center;font-family:Sora,sans-serif;max-width:380px;animation:fadeIn 0.3s ease';
+  el.innerHTML = '<div style="color:#22d3ee;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px;font-weight:600">Micro-Recovery</div><div style="color:#e2e8f0;font-size:14px;line-height:1.6">' + msg + '</div><button onclick="this.parentElement.remove()" style="margin-top:16px;padding:6px 20px;background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:10px">Got it</button>';
+  document.body.appendChild(el);
+  setTimeout(function() { if (el.parentElement) el.remove(); }, 15000);
+}
+function setRecoveryInterval(minutes) {
+  _recoveryMinutes = minutes;
+  if (_recoveryEnabled) {
+    if (_recoveryInterval) clearInterval(_recoveryInterval);
+    _recoveryInterval = setInterval(function() {
+      var prompt = _recoveryPrompts[Math.floor(Math.random() * _recoveryPrompts.length)];
+      showRecoveryToast(prompt);
+    }, _recoveryMinutes * 60 * 1000);
+  }
+  showToast('Recovery interval: ' + minutes + ' min');
 }
 
 function selectClipsByStage(stage) {
