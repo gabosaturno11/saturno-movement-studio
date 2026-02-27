@@ -1960,6 +1960,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <div class="logo-sub">The Ableton of Movement</div>
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:4px;margin-left:8px">
+      <span style="font-size:8px;color:var(--micro)">/</span>
+      <span id="header-workout-name" style="font-size:9px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="renameWorkout()" title="Click to rename">Untitled</span>
+    </div>
     <nav class="header-nav">
       <button class="nav-btn" id="btn-presets" onclick="togglePresets()">PRESETS</button>
       <button class="nav-btn" onclick="clearTimeline()">CLEAR</button>
@@ -2430,6 +2434,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
   <div class="clip-tip-detail" style="margin-top:2px">
     <span id="tip-dna"></span>
     <span id="tip-instrument" style="opacity:0.5"></span>
+  </div>
+  <div class="clip-tip-detail" style="margin-top:2px;color:var(--micro);font-size:7px">
+    <span id="tip-time"></span>
+    <span id="tip-tut" style="color:var(--accent-cyan)"></span>
   </div>
 </div>
 <div class="track-ctx" id="track-ctx">
@@ -5366,6 +5374,8 @@ var workoutName = 'Untitled';
 function setWorkoutName(name) {
   workoutName = name;
   document.getElementById('workout-name').textContent = name;
+  var headerName = document.getElementById('header-workout-name');
+  if (headerName) headerName.textContent = name;
 }
 function renameWorkout() {
   var name = prompt('Workout name:', workoutName);
@@ -5458,9 +5468,19 @@ document.addEventListener('mouseover', function(e) {
     document.getElementById('tip-pattern').textContent = ex.pattern;
     document.getElementById('tip-stage').textContent = 'Stage ' + ex.stage;
     document.getElementById('tip-discipline').textContent = ex.discipline;
-    document.getElementById('tip-dna').textContent = clipEl.dataset.sets + 'x' + clipEl.dataset.reps + ' @ RPE ' + clipEl.dataset.rpe;
+    var sets = parseInt(clipEl.dataset.sets) || 3;
+    var reps = parseInt(clipEl.dataset.reps) || 8;
+    var tempo = parseFloat(clipEl.dataset.tempo) || 3;
+    var rest = parseInt(clipEl.dataset.rest) || 60;
+    document.getElementById('tip-dna').textContent = sets + 'x' + reps + ' @ RPE ' + clipEl.dataset.rpe;
     var fm = FAMILY_MAP[ex.family] || {};
     document.getElementById('tip-instrument').textContent = fm.instrument || '';
+    var totalSec = (sets * reps * tempo) + ((sets - 1) * rest);
+    var tut = sets * reps * tempo;
+    var m = Math.floor(totalSec / 60);
+    var s = Math.floor(totalSec % 60);
+    document.getElementById('tip-time').textContent = m + ':' + s.toString().padStart(2, '0') + ' total';
+    document.getElementById('tip-tut').textContent = 'TUT ' + tut + 's';
     var rect = clipEl.getBoundingClientRect();
     tip.style.left = (rect.left + rect.width / 2) + 'px';
     tip.style.top = (rect.top - 40) + 'px';
