@@ -7426,6 +7426,9 @@ var CMD_ACTIONS = [
   {label:'Split Clip in 3', key:'', icon:'\u2702', action: function() { splitClipEqual(3); }},
   {label:'Split Clip in 4', key:'', icon:'\u2702', action: function() { splitClipEqual(4); }},
   {label:'Start Workout Timer', key:'', icon:'\u23F1', action: function() { startWorkoutTimer(); }},
+  {label:'Add Phase Markers', key:'', icon:'\u2691', action: function() { addPhaseMarkers(); }},
+  {label:'Show RPE Curve', key:'', icon:'\u2197', action: function() { showRPECurve(); }},
+  {label:'Name Superset Groups', key:'', icon:'\u2387', action: function() { nameSupersetGroups(); }},
 ];
 
 function openCmdPalette() {
@@ -9539,6 +9542,111 @@ function updateTrackVolumeBars() {
     fill.style.width = pct + '%';
     fill.style.background = familyColors[tid] || '#06b6d4';
   });
+}
+
+/* ===== BATCH 262: AUTO PHASE MARKERS ===== */
+function addPhaseMarkers() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('No clips for phase markers'); return; }
+  var pps = 80 / 15;
+  var ho = 100;
+  var sortedByLeft = clips.slice().sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var firstTime = (parseInt(sortedByLeft[0].style.left) - ho) / pps;
+  var lastRight = 0;
+  sortedByLeft.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > lastRight) lastRight = r;
+  });
+  var endTime = (lastRight - ho) / pps;
+  var totalDuration = endTime - firstTime;
+  if (totalDuration < 60) { toast('Workout too short for phases'); return; }
+  var warmupEnd = firstTime + totalDuration * 0.15;
+  var cooldownStart = firstTime + totalDuration * 0.85;
+  markers.push({id: ++markerCounter, time: firstTime, label: 'WARMUP'});
+  markers.push({id: ++markerCounter, time: warmupEnd, label: 'MAIN'});
+  markers.push({id: ++markerCounter, time: cooldownStart, label: 'COOLDOWN'});
+  markers.push({id: ++markerCounter, time: endTime, label: 'END'});
+  if (typeof renderAllMarkers === 'function') renderAllMarkers();
+  saveSession(); sfx('click');
+  toast('Phase markers added (Warmup / Main / Cooldown / End)');
+}
+
+/* ===== BATCH 263: RPE CURVE DISPLAY ===== */
+function showRPECurve() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('No clips'); return; }
+  var sorted = clips.slice().sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var rpeValues = sorted.map(function(c) { return parseInt(c.dataset.rpe) || 7; });
+  var names = sorted.map(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    return ex ? ex.name.substring(0, 12) : '?';
+  });
+  var maxRpe = 10;
+  var barWidth = 24;
+  var height = 100;
+  var rpeColors = ['#22c55e','#22c55e','#84cc16','#a3e635','#eab308','#f59e0b','#f97316','#ef4444','#dc2626','#991b1b'];
+  var svgWidth = Math.max(300, rpeValues.length * (barWidth + 4) + 40);
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgWidth + '" height="' + (height + 40) + '" style="background:#0f172a;border-radius:8px;padding:8px">';
+  svg += '<text x="' + (svgWidth / 2) + '" y="14" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Sora,sans-serif">RPE Curve</text>';
+  rpeValues.forEach(function(rpe, i) {
+    var x = 20 + i * (barWidth + 4);
+    var barH = (rpe / maxRpe) * height * 0.8;
+    var y = 24 + (height * 0.8 - barH);
+    var color = rpeColors[rpe - 1] || '#eab308';
+    svg += '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + barH + '" fill="' + color + '44" stroke="' + color + '" stroke-width="1" rx="2"/>';
+    svg += '<text x="' + (x + barWidth / 2) + '" y="' + (y - 4) + '" text-anchor="middle" fill="' + color + '" font-size="9" font-family="Sora,sans-serif">' + rpe + '</text>';
+    svg += '<text x="' + (x + barWidth / 2) + '" y="' + (24 + height * 0.8 + 12) + '" text-anchor="middle" fill="#475569" font-size="7" font-family="Sora,sans-serif" transform="rotate(-45,' + (x + barWidth / 2) + ',' + (24 + height * 0.8 + 12) + ')">' + names[i] + '</text>';
+  });
+  svg += '</svg>';
+  var blob = new Blob([svg], {type: 'image/svg+xml'});
+  var url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  toast('RPE curve opened in new tab');
+}
+
+/* ===== BATCH 264: SUPERSET GROUP NAMING ===== */
+function nameSupersetGroups() {
+  var clips = document.querySelectorAll('.clip');
+  var groups = {};
+  clips.forEach(function(c) {
+    var left = parseInt(c.style.left);
+    var right = left + parseInt(c.style.width);
+    var tid = c.parentElement.dataset.track;
+    clips.forEach(function(c2) {
+      if (c === c2) return;
+      var tid2 = c2.parentElement.dataset.track;
+      if (tid === tid2) return;
+      var l2 = parseInt(c2.style.left);
+      var r2 = l2 + parseInt(c2.style.width);
+      if (left < r2 && right > l2) {
+        var key = Math.min(left, l2) + '-' + Math.max(right, r2);
+        if (!groups[key]) groups[key] = [];
+        if (groups[key].indexOf(c) === -1) groups[key].push(c);
+        if (groups[key].indexOf(c2) === -1) groups[key].push(c2);
+      }
+    });
+  });
+  var keys = Object.keys(groups);
+  if (keys.length === 0) { toast('No supersets found'); return; }
+  var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var count = 0;
+  keys.forEach(function(k, idx) {
+    var label = labels[idx % 26] + '1';
+    groups[k].forEach(function(c) {
+      c.dataset.supersetLabel = label;
+      var badge = c.querySelector('.clip-ss-label');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'clip-ss-label';
+        badge.style.cssText = 'position:absolute;top:1px;right:14px;font-size:7px;font-weight:700;color:rgba(168,85,247,0.9);letter-spacing:0.04em;z-index:2';
+        c.appendChild(badge);
+      }
+      badge.textContent = label;
+    });
+    count++;
+  });
+  saveSession(); sfx('click');
+  toast(count + ' superset group' + (count !== 1 ? 's' : '') + ' labeled');
 }
 
 function selectClipsByStage(stage) {
