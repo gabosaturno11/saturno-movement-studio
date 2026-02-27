@@ -712,9 +712,12 @@ body {
   border-image: linear-gradient(to right, rgba(59,130,246,0.02), rgba(59,130,246,0.15), transparent) 1;
 }
 .playhead.playing::after {
-  width: 40px; left: -40px; height: 100%; bottom: auto; top: 0;
-  background: linear-gradient(to right, transparent, rgba(59,130,246,0.04));
+  content: '';
+  position: absolute;
+  width: 60px; left: -60px; height: 100%; bottom: auto; top: 0;
+  background: linear-gradient(to right, transparent, rgba(59,130,246,0.06));
   border-radius: 0; opacity: 1;
+  pointer-events: none;
 }
 .playhead::before {
   content: '';
@@ -1460,6 +1463,32 @@ button:focus-visible, .transport-btn:focus-visible {
   transition: opacity 0.15s;
 }
 .panel-resize:hover::after { opacity: 1; }
+
+/* Clip dragging state — semi-transparent while being moved */
+.clip.clip-dragging {
+  opacity: 0.7;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1);
+  z-index: 25;
+}
+
+/* Music track special styling — waveform decoration */
+.track[data-track="music"] .track-content {
+  background:
+    repeating-linear-gradient(90deg, transparent 0px, transparent 19px, rgba(6,182,212,0.015) 19px, rgba(6,182,212,0.015) 20px),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 79px, rgba(6,182,212,0.03) 79px, rgba(6,182,212,0.03) 80px);
+}
+.track[data-track="music"] .track-content::after {
+  content: '';
+  position: absolute; bottom: 4px; left: 104px; right: 20px;
+  height: 16px;
+  background: repeating-linear-gradient(90deg,
+    rgba(6,182,212,0.04) 0px, rgba(6,182,212,0.02) 2px,
+    transparent 2px, transparent 6px
+  );
+  mask-image: linear-gradient(90deg, transparent, rgba(0,0,0,0.4) 5%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.4) 95%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, rgba(0,0,0,0.4) 5%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.4) 95%, transparent);
+  pointer-events: none; opacity: 0.5;
+}
 
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
@@ -3267,11 +3296,12 @@ function createClipElement(exercise, left, width, dna) {
     e.preventDefault();
     selectClipEl(clip, e.shiftKey);
     var startX = e.clientX, startLeft = parseInt(clip.style.left);
+    clip.classList.add('clip-dragging');
     function onMove(e) {
       var newLeft = Math.max(0, startLeft + e.clientX - startX);
       clip.style.left = snapValue(newLeft) + 'px';
     }
-    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
+    function onUp() { clip.classList.remove('clip-dragging'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
