@@ -2068,6 +2068,52 @@ button:focus-visible, .transport-btn:focus-visible {
 .loop-region::before { left: -3px; }
 .loop-region::after { right: -3px; }
 
+/* ===== INLINE PROMPT — Craft-style modal input ===== */
+.inline-prompt {
+  display: none; position: fixed; inset: 0; z-index: 350;
+  background: rgba(2,4,8,0.7);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  align-items: flex-start; justify-content: center;
+  padding-top: 28vh;
+}
+.inline-prompt.open { display: flex; }
+.inline-prompt-box {
+  background: rgba(10,14,26,0.95);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  width: 280px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.inline-prompt-label {
+  font-size: 9px; color: var(--micro); text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.inline-prompt-input {
+  width: 100%; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-sm); padding: 8px 10px;
+  color: var(--text); font-family: 'Sora', sans-serif;
+  font-size: 13px; font-weight: 500; outline: none;
+}
+.inline-prompt-input:focus { border-color: rgba(59,130,246,0.4); }
+.inline-prompt-actions {
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;
+}
+.inline-prompt-actions button {
+  font-family: 'Sora', sans-serif; font-size: 9px;
+  padding: 4px 12px; border: none; border-radius: var(--radius-sm);
+  cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.inline-prompt-cancel {
+  background: transparent; color: var(--muted);
+}
+.inline-prompt-cancel:hover { color: var(--text); }
+.inline-prompt-ok {
+  background: rgba(59,130,246,0.15); color: var(--accent-blue);
+}
+.inline-prompt-ok:hover { background: rgba(59,130,246,0.25); }
+
 /* ===== SCROLLBAR — Craft Style (barely visible) ===== */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -2513,6 +2559,17 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
 <div class="summary-overlay" id="summary-overlay">
   <div class="summary-close" onclick="closeSummary()">ESC / CLOSE</div>
   <div class="summary-inner" id="summary-content"></div>
+</div>
+
+<div class="inline-prompt" id="inline-prompt">
+  <div class="inline-prompt-box">
+    <div class="inline-prompt-label" id="inline-prompt-label">Name</div>
+    <input type="text" class="inline-prompt-input" id="inline-prompt-input" maxlength="60" autocomplete="off">
+    <div class="inline-prompt-actions">
+      <button class="inline-prompt-cancel" onclick="closeInlinePrompt(null)">Cancel</button>
+      <button class="inline-prompt-ok" onclick="confirmInlinePrompt()">OK</button>
+    </div>
+  </div>
 </div>
 
 <div class="saved-modal" id="saved-modal">
@@ -5053,21 +5110,22 @@ function getSavedWorkouts() {
 function saveNamedWorkout() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('Add clips first'); return; }
-  var name = prompt('Workout name:');
-  if (!name || !name.trim()) return;
-  var workout = {
-    name: name.trim(),
-    created: new Date().toISOString(),
-    bpm: bpm,
-    clipCount: clips.length,
-    state: captureState()
-  };
-  var saved = getSavedWorkouts();
-  saved.unshift(workout);
-  if (saved.length > 20) saved = saved.slice(0, 20);
-  try { localStorage.setItem('sms_saved_workouts', JSON.stringify(saved)); } catch(e) {}
-  setWorkoutName(name.trim());
-  toast('Saved: ' + name.trim());
+  showInlinePrompt('Save workout as', workoutName !== 'Untitled' ? workoutName : '', function(name) {
+    if (!name) return;
+    var workout = {
+      name: name,
+      created: new Date().toISOString(),
+      bpm: bpm,
+      clipCount: clips.length,
+      state: captureState()
+    };
+    var saved = getSavedWorkouts();
+    saved.unshift(workout);
+    if (saved.length > 20) saved = saved.slice(0, 20);
+    try { localStorage.setItem('sms_saved_workouts', JSON.stringify(saved)); } catch(e) {}
+    setWorkoutName(name);
+    toast('Saved: ' + name);
+  });
 }
 
 function showSavedWorkouts() {
@@ -5807,6 +5865,38 @@ document.getElementById('cmd-input').addEventListener('keydown', function(e) {
   }
 });
 
+/* ===== INLINE PROMPT — Craft-style replacement for native prompt() ===== */
+var inlinePromptCallback = null;
+function showInlinePrompt(label, defaultVal, callback) {
+  inlinePromptCallback = callback;
+  var overlay = document.getElementById('inline-prompt');
+  var lbl = document.getElementById('inline-prompt-label');
+  var inp = document.getElementById('inline-prompt-input');
+  lbl.textContent = label;
+  inp.value = defaultVal || '';
+  overlay.classList.add('open');
+  setTimeout(function() { inp.focus(); inp.select(); }, 50);
+}
+function closeInlinePrompt(value) {
+  document.getElementById('inline-prompt').classList.remove('open');
+  if (inlinePromptCallback) {
+    var cb = inlinePromptCallback;
+    inlinePromptCallback = null;
+    cb(value);
+  }
+}
+function confirmInlinePrompt() {
+  var val = document.getElementById('inline-prompt-input').value.trim();
+  closeInlinePrompt(val || null);
+}
+// Enter confirms, Escape cancels
+document.addEventListener('keydown', function(e) {
+  var overlay = document.getElementById('inline-prompt');
+  if (!overlay || !overlay.classList.contains('open')) return;
+  if (e.key === 'Enter') { e.preventDefault(); confirmInlinePrompt(); }
+  if (e.key === 'Escape') { e.preventDefault(); closeInlinePrompt(null); }
+});
+
 /* ===== WORKOUT NAME ===== */
 var workoutName = 'Untitled';
 function setWorkoutName(name) {
@@ -5816,12 +5906,13 @@ function setWorkoutName(name) {
   if (headerName) headerName.textContent = name;
 }
 function renameWorkout() {
-  var name = prompt('Workout name:', workoutName);
-  if (name && name.trim()) {
-    setWorkoutName(name.trim());
-    saveSession();
-    toast('Renamed: ' + workoutName);
-  }
+  showInlinePrompt('Workout name', workoutName, function(name) {
+    if (name) {
+      setWorkoutName(name);
+      saveSession();
+      toast('Renamed: ' + workoutName);
+    }
+  });
 }
 
 /* ===== CLIP SPLIT ===== */
