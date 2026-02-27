@@ -244,6 +244,11 @@ body {
 .movement-item { position: relative; }
 .movement-item:hover .mv-detail { display: block; }
 /* Clip stage dots */
+.clip-rpe-badge {
+  position: absolute; bottom: 2px; right: 4px;
+  font-size: 7px; font-weight: 600; color: rgba(255,255,255,0.35);
+  z-index: 2; pointer-events: none; line-height: 1;
+}
 .clip-stage-dots {
   position: absolute; top: 3px; right: 6px;
   display: flex; gap: 2px; z-index: 2;
@@ -470,6 +475,7 @@ body {
 .track.track-collapsed .clip .clip-progress { display: none; }
 .track.track-collapsed .clip .clip-fade { display: none; }
 .track.track-collapsed .clip .clip-stage-dots { display: none; }
+.track.track-collapsed .clip .clip-rpe-badge { display: none; }
 .track.track-collapsed .clip .clip-resize,
 .track.track-collapsed .clip .clip-resize-left { display: none; }
 .track:hover { background: rgba(10,14,26,0.8); }
@@ -3694,6 +3700,11 @@ function createClipElement(exercise, left, width, dna) {
   }
   clip.appendChild(dotsEl);
 
+  var rpeBadge = document.createElement('div');
+  rpeBadge.className = 'clip-rpe-badge';
+  rpeBadge.textContent = clip.dataset.rpe || 7;
+  clip.appendChild(rpeBadge);
+
   var canvas = document.createElement('canvas');
   canvas.className = 'clip-waveform';
   clip.appendChild(canvas);
@@ -4130,6 +4141,8 @@ function updateClipDNA() {
     selectedClip.style.width = Math.max(40, totalSec * pps) + 'px';
     updateStats();
   }
+  var rpeBadge = selectedClip.querySelector('.clip-rpe-badge');
+  if (rpeBadge) rpeBadge.textContent = selectedClip.dataset.rpe;
   updateInspectorTime();
   saveSession();
 }
@@ -6035,6 +6048,14 @@ function printWorkout() {
   html += '<div class="stat"><div class="stat-val">' + totalSets + '</div><div class="stat-label">Total Sets</div></div>';
   html += '<div class="stat"><div class="stat-val">' + totalReps + '</div><div class="stat-label">Total Reps</div></div>';
   html += '<div class="stat"><div class="stat-val">' + durMin + '</div><div class="stat-label">Est. Minutes</div></div></div>';
+  var printFams = {};
+  clips.forEach(function(c) { var ex = getExercise(c.dataset.exerciseId); if (ex) printFams[ex.family] = (printFams[ex.family] || 0) + 1; });
+  var pfKeys = Object.keys(printFams);
+  if (pfKeys.length > 0) {
+    html += '<div style="text-align:center;font-size:9px;color:#64748b;margin-bottom:24px;letter-spacing:0.04em">';
+    html += pfKeys.sort(function(a,b){ return printFams[b]-printFams[a]; }).map(function(f){ return f + ' (' + printFams[f] + ')'; }).join(' / ');
+    html += '</div>';
+  }
   var trackNames = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
   var trackColors = {push:'#3b82f6',pull:'#8b5cf6',core:'#f97316',legs:'#22c55e',skills:'#06b6d4'};
   var trackOrder = ['push','pull','legs','core','skills'];
@@ -6162,6 +6183,20 @@ function showSummary() {
   html += '<div class="summary-stat"><div class="summary-stat-val">' + totalReps + '</div><div class="summary-stat-label">Total Reps</div></div>';
   html += '<div class="summary-stat"><div class="summary-stat-val">' + estMin + '</div><div class="summary-stat-label">Est. Minutes</div></div>';
   html += '</div>';
+  // Family breakdown
+  var famBreak = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) famBreak[ex.family] = (famBreak[ex.family] || 0) + 1;
+  });
+  var famHtml = '';
+  Object.keys(famBreak).sort(function(a, b) { return famBreak[b] - famBreak[a]; }).forEach(function(f) {
+    var fc = (FAMILY_MAP[f] || {}).color || '#666';
+    famHtml += '<span style="color:' + fc + ';font-weight:500">' + f + ' ' + famBreak[f] + '</span>';
+  });
+  if (famHtml) {
+    html += '<div style="text-align:center;font-size:8px;color:var(--micro);margin-bottom:8px;display:flex;justify-content:center;gap:12px;letter-spacing:0.04em">' + famHtml + '</div>';
+  }
   if (discCount > 0) {
     html += '<div style="text-align:center;font-size:9px;color:var(--micro);margin-bottom:16px;letter-spacing:0.06em">' + Object.keys(disciplines).join(' / ') + '</div>';
   }
@@ -8076,6 +8111,8 @@ document.addEventListener('keydown', function(e) {
     var newRpe = e.code === 'ArrowUp' ? Math.min(10, curRpe + 1) : Math.max(1, curRpe - 1);
     selectedClip.dataset.rpe = newRpe;
     document.getElementById('insp-rpe').value = newRpe;
+    var rpeBEl = selectedClip.querySelector('.clip-rpe-badge');
+    if (rpeBEl) rpeBEl.textContent = newRpe;
     updateStats(); saveSession();
     toast('RPE: ' + newRpe);
     return;
