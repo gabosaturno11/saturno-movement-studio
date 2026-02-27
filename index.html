@@ -688,6 +688,9 @@ body {
   border-color: rgba(255,255,255,0.2);
   filter: brightness(1.12);
 }
+.clip.clip-locked { opacity: 0.7; cursor: default; }
+.clip.clip-locked .clip-resize, .clip.clip-locked .clip-resize-left { display: none; }
+.clip.clip-locked::before { content: ''; position: absolute; top: 2px; left: 2px; width: 6px; height: 6px; border: 1px solid rgba(255,255,255,0.3); border-radius: 1px; z-index: 3; }
 /* Playback progress overlay — subtle fill from left to show elapsed */
 .clip-progress-fill {
   position: absolute; top: 0; left: 0; bottom: 0;
@@ -2726,6 +2729,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
   <div class="ctx-item" data-action="stage-up">Stage Up</div>
   <div class="ctx-item" data-action="stage-down">Stage Down</div>
   <div class="ctx-item" data-action="reset-fades">Reset Fades</div>
+  <div class="ctx-item" data-action="toggle-lock">Lock / Unlock</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="group">Group<span class="ctx-key">Cmd+G</span></div>
   <div class="ctx-item" data-action="ungroup">Ungroup<span class="ctx-key">Cmd+Shift+G</span></div>
@@ -2786,6 +2790,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
       <div class="shortcut-item"><kbd>Cmd+K</kbd><span>Command Palette</span></div>
       <div class="shortcut-item"><kbd>1-6</kbd><span>Select Track</span></div>
+      <div class="shortcut-item"><kbd>Cmd+L</kbd><span>Lock / Unlock</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
@@ -3767,6 +3772,7 @@ function createClipElement(exercise, left, width, dna) {
   clip.addEventListener('mousedown', function(e) {
     if (e.target === resize || e.target.classList.contains('clip-resize') || e.target === resizeL || e.target.classList.contains('clip-resize-left')) return;
     e.preventDefault();
+    if (clip.classList.contains('clip-locked')) { selectClipEl(clip, e.shiftKey); return; }
     if (isPlaying) _userSelectedDuringPlayback = true;
     var altDup = e.altKey;
     var dragClip = clip;
@@ -5385,7 +5391,8 @@ function _doSaveSession() {
         customColor: clip.dataset.customColor || '',
         fadeIn: clip.dataset.fadeIn || '0',
         fadeOut: clip.dataset.fadeOut || '0',
-        group: clip.dataset.group || ''
+        group: clip.dataset.group || '',
+        locked: clip.dataset.locked || ''
       });
     });
     document.querySelectorAll('[data-fader]').forEach(function(f) {
@@ -5477,6 +5484,10 @@ function loadSession() {
         if (c.group) {
           clip.dataset.group = c.group;
           clip.style.outline = '1px dashed rgba(59,130,246,0.3)';
+        }
+        if (c.locked) {
+          clip.dataset.locked = '1';
+          clip.classList.add('clip-locked');
         }
         track.appendChild(clip);
       });
@@ -6251,7 +6262,8 @@ function captureState() {
       customColor: clip.dataset.customColor || '',
       fadeIn: clip.dataset.fadeIn || '0',
       fadeOut: clip.dataset.fadeOut || '0',
-      group: clip.dataset.group || ''
+      group: clip.dataset.group || '',
+      locked: clip.dataset.locked || ''
     });
   });
   state.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
@@ -6320,6 +6332,10 @@ function restoreState(state) {
       clip.dataset.group = c.group;
       clip.style.outline = '1px dashed rgba(59,130,246,0.3)';
     }
+    if (c.locked) {
+      clip.dataset.locked = '1';
+      clip.classList.add('clip-locked');
+    }
     track.appendChild(clip);
   });
   // Restore group counter
@@ -6350,8 +6366,9 @@ function deleteSelectedClips() {
   var sel = document.querySelectorAll('.clip.selected');
   if (sel.length === 0) { toast('No clips selected'); return; }
   pushUndo();
-  var count = sel.length;
-  sel.forEach(function(c) { c.remove(); });
+  var count = 0;
+  sel.forEach(function(c) { if (!c.classList.contains('clip-locked')) { c.remove(); count++; } });
+  if (count === 0) { toast('All selected clips are locked'); return; }
   selectedClip = null;
   document.getElementById('inspector').style.display = 'none';
   updateStats(); saveSession();
@@ -6646,6 +6663,11 @@ document.addEventListener('DOMContentLoaded', function() {
       updateFadeOverlay(ctxClip);
       saveSession();
       toast('Fades reset');
+    } else if (action === 'toggle-lock') {
+      ctxClip.classList.toggle('clip-locked');
+      ctxClip.dataset.locked = ctxClip.classList.contains('clip-locked') ? '1' : '';
+      saveSession();
+      toast(ctxClip.classList.contains('clip-locked') ? 'Clip locked' : 'Clip unlocked');
     } else if (action === 'delete') {
       pushUndo();
       ctxClip.remove();
@@ -6992,6 +7014,7 @@ var CMD_ACTIONS = [
   {label:'Playback 1x (Normal)', key:'', icon:'\u25B6', action: function() { playbackSpeed=1; document.getElementById('speed-btn').textContent='1x'; toast('Speed: 1x'); }},
   {label:'Playback 2x', key:'', icon:'\u25B6', action: function() { playbackSpeed=2; document.getElementById('speed-btn').textContent='2x'; toast('Speed: 2x'); }},
   {label:'Reverse Track Order', key:'', icon:'\u21C4', action: function() { reverseTrackClips(); }},
+  {label:'Lock / Unlock Clip', key:'Cmd+L', icon:'\u2693', action: function() { if(!selectedClip)return; selectedClip.classList.toggle('clip-locked'); selectedClip.dataset.locked=selectedClip.classList.contains('clip-locked')?'1':''; saveSession(); toast(selectedClip.classList.contains('clip-locked')?'Locked':'Unlocked'); }},
   {label:'Reset All Faders', key:'', icon:'\u21BA', action: function() { FADERS.forEach(function(f){resetFader(f.id);}); toast('All faders reset'); }},
   {label:'Reset All Knobs', key:'', icon:'\u21BA', action: function() { KNOBS.forEach(function(k){resetKnob(k.id);}); toast('All knobs reset'); }},
 ];
@@ -7658,6 +7681,16 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyL') {
+    e.preventDefault();
+    if (selectedClip) {
+      selectedClip.classList.toggle('clip-locked');
+      selectedClip.dataset.locked = selectedClip.classList.contains('clip-locked') ? '1' : '';
+      saveSession();
+      toast(selectedClip.classList.contains('clip-locked') ? 'Clip locked' : 'Clip unlocked');
+    }
+    return;
   }
   if (e.code === 'KeyL' && !e.metaKey && !e.ctrlKey) {
     toggleLoop();
