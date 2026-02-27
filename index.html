@@ -2625,6 +2625,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span style="color:var(--border)">|</span>
       <span id="footer-bars" style="color:var(--muted)">0 bars</span>
       <span style="color:var(--border)">|</span>
+      <span data-tip="Est. workout time (sets x reps x tempo + rest)" style="color:var(--muted)">Est: <span id="footer-est-time" style="color:var(--muted)">0:00</span></span>
+      <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
       <span data-tip="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
@@ -3509,7 +3511,7 @@ function getExercise(id) {
 }
 
 /* ===== CLIPS ===== */
-function drawClipWaveform(canvas, color, width, opacity) {
+function drawClipWaveform(canvas, color, width, opacity, rpeScale) {
   if (!canvas || !canvas.getContext) return;
   var w = parseInt(width) || 80;
   canvas.width = w - 8;
@@ -3520,12 +3522,13 @@ function drawClipWaveform(canvas, color, width, opacity) {
   ctx.globalAlpha = opacity || 0.35;
   var mid = canvas.height / 2;
   var seed = w * 7 + canvas.width;
+  var intensityScale = rpeScale ? (0.5 + (rpeScale / 10) * 0.5) : 1;
   for (var x = 0; x < canvas.width; x += 1) {
     var v = Math.sin(x * 0.15 + seed * 0.01) * 0.4 +
             Math.sin(x * 0.08 + seed * 0.02) * 0.3 +
             Math.sin(x * 0.3 + seed * 0.005) * 0.2 +
             Math.sin(x * 0.5 + seed * 0.03) * 0.1;
-    var amp = (mid - 2) * Math.abs(v);
+    var amp = (mid - 2) * Math.abs(v) * intensityScale;
     ctx.fillRect(x, mid - amp, 1, amp * 2);
   }
 }
@@ -3616,8 +3619,9 @@ function createClipElement(exercise, left, width, dna) {
   // Waveform: family color + stage-based density
   var waveOpacity = exercise.stage === 1 ? 0.35 : exercise.stage === 2 ? 0.5 : 0.65;
   var waveColor = baseColor || '#fff';
+  var waveRpe = parseInt(clip.dataset.rpe) || 7;
   setTimeout(function() {
-    drawClipWaveform(canvas, waveColor, clip.style.width, waveOpacity);
+    drawClipWaveform(canvas, waveColor, clip.style.width, waveOpacity, waveRpe);
     addBeatMarkers(clip, clip.style.width);
   }, 10);
 
@@ -3692,7 +3696,7 @@ function createClipElement(exercise, left, width, dna) {
       var newW = Math.max(40, startW - delta);
       clip.style.left = newLeft + 'px';
       clip.style.width = newW + 'px';
-      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity);
+      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity, parseInt(clip.dataset.rpe) || 7);
       addBeatMarkers(clip, newW);
       updateStats();
     }
@@ -3785,7 +3789,7 @@ function createClipElement(exercise, left, width, dna) {
       var newW = Math.max(40, startW + e.clientX - startX);
       newW = snapEnabled ? Math.max(40, snapValue(newW)) : newW;
       clip.style.width = newW + 'px';
-      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity);
+      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity, parseInt(clip.dataset.rpe) || 7);
       addBeatMarkers(clip, newW);
       var durSec = Math.round(newW / 80 * 15);
       var durM = Math.floor(durSec / 60);
@@ -3834,7 +3838,7 @@ function createClipElement(exercise, left, width, dna) {
       e.preventDefault();
       var newW = Math.max(40, startW + e.touches[0].clientX - startX);
       clip.style.width = newW + 'px';
-      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity);
+      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity, parseInt(clip.dataset.rpe) || 7);
       addBeatMarkers(clip, newW);
       updateStats();
     }
@@ -3986,7 +3990,7 @@ function swapClipExercise(newExId) {
   var canvas = selectedClip.querySelector('.clip-waveform');
   if (canvas) {
     var waveOpacity = ex.stage === 1 ? 0.35 : ex.stage === 2 ? 0.5 : 0.65;
-    drawClipWaveform(canvas, fm.color, selectedClip.style.width, waveOpacity);
+    drawClipWaveform(canvas, fm.color, selectedClip.style.width, waveOpacity, parseInt(selectedClip.dataset.rpe) || 7);
   }
   // Update velocity strip
   updateClipVisuals(selectedClip, parseInt(selectedClip.dataset.rpe) || 7);
@@ -4118,6 +4122,18 @@ function updateStats() {
   var m = Math.floor(secs / 60);
   var s = secs % 60;
   document.getElementById('total-duration').textContent = m + ':' + s.toString().padStart(2, '0');
+  // Estimated workout time (sets x reps x tempo + rest between sets)
+  var estTotalSec = 0;
+  clips.forEach(function(c) {
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 8;
+    var tempo = parseFloat(c.dataset.tempo) || 3;
+    var rest = parseInt(c.dataset.rest) || 60;
+    estTotalSec += sets * (reps * tempo + rest) - rest;
+  });
+  var estMin = Math.floor(estTotalSec / 60);
+  var estSec = Math.round(estTotalSec % 60);
+  document.getElementById('footer-est-time').textContent = estMin + ':' + estSec.toString().padStart(2, '0');
   // Update total bars in footer
   var bpbF = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
   var totalBars = Math.ceil(secs / (60 / bpm * bpbF));
@@ -6689,7 +6705,7 @@ function splitClipAtPlayhead() {
   selectedClip.style.width = leftW + 'px';
   var canvas = selectedClip.querySelector('.clip-waveform');
   var splitFm = FAMILY_MAP[ex.family] || {color:'#fff'};
-  if (canvas) drawClipWaveform(canvas, splitFm.color, leftW + 'px', 0.5);
+  if (canvas) drawClipWaveform(canvas, splitFm.color, leftW + 'px', 0.5, parseInt(selectedClip.dataset.rpe) || 7);
   addBeatMarkers(selectedClip, leftW);
   // Create right portion
   var dna = {
