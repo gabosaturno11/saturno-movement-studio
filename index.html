@@ -7941,6 +7941,13 @@ var CMD_ACTIONS = [
   {label:'Stop Macro Recording', key:'', icon:'\u25A0', action: function() { stopMacroRecord(); }},
   {label:'Saved Macros', key:'', icon:'\u25B6', action: function() { showMacroList(); }},
   {label:'Clear All Macros', key:'', icon:'\u2716', action: function() { clearMacros(); }},
+  {label:'Preview Workout Animation', key:'', icon:'\u25B6', action: function() { previewWorkout(); }},
+  {label:'Stop Preview', key:'', icon:'\u25A0', action: function() { stopPreview(); }},
+  {label:'Sort Library: Alphabetical', key:'', icon:'\u2630', action: function() { sortLibrary('alpha'); }},
+  {label:'Sort Library: By Family', key:'', icon:'\u2630', action: function() { sortLibrary('family'); }},
+  {label:'Sort Library: By Difficulty', key:'', icon:'\u2630', action: function() { sortLibrary('difficulty'); }},
+  {label:'Sort Library: By Frequency', key:'', icon:'\u2630', action: function() { sortLibrary('frequency'); }},
+  {label:'Session Debrief', key:'', icon:'\u2B50', action: function() { showSessionDebrief(); }},
 ];
 
 function openCmdPalette() {
@@ -15209,6 +15216,151 @@ function clearMacros() {
   _savedMacros = {};
   try { localStorage.removeItem('sms_macros'); } catch(e) {}
   showToast('All macros cleared');
+}
+
+// Batch 346: Workout Preview Animation
+var _previewAnimId = null;
+function previewWorkout() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (!clips.length) { showToast('No clips to preview'); return; }
+  var ph = document.getElementById('playhead');
+  if (!ph) return;
+  var sorted = clips.sort(function(a, b) { return parseFloat(a.style.left) - parseFloat(b.style.left); });
+  var maxRight = 0;
+  sorted.forEach(function(c) {
+    var r = parseFloat(c.style.left) + parseFloat(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var startPos = 0;
+  var endPos = maxRight + 50;
+  var speed = 3;
+  var currentPos = startPos;
+  showToast('Preview starting...');
+  function animate() {
+    currentPos += speed;
+    if (currentPos > endPos) { cancelAnimationFrame(_previewAnimId); ph.style.left = '0px'; showToast('Preview complete'); return; }
+    ph.style.left = currentPos + 'px';
+    clips.forEach(function(c) {
+      var cl = parseFloat(c.style.left);
+      var cr = cl + parseFloat(c.style.width);
+      if (currentPos >= cl && currentPos <= cr) {
+        c.style.outline = '2px solid #22d3ee';
+        c.style.filter = 'brightness(1.3)';
+      } else {
+        c.style.outline = '';
+        c.style.filter = '';
+      }
+    });
+    _previewAnimId = requestAnimationFrame(animate);
+  }
+  _previewAnimId = requestAnimationFrame(animate);
+}
+function stopPreview() {
+  if (_previewAnimId) { cancelAnimationFrame(_previewAnimId); _previewAnimId = null; }
+  document.querySelectorAll('.clip').forEach(function(c) { c.style.outline = ''; c.style.filter = ''; });
+  showToast('Preview stopped');
+}
+
+// Batch 347: Exercise Sort Modes
+var _librarySortMode = 'alpha';
+function sortLibrary(mode) {
+  _librarySortMode = mode;
+  var libraryEl = document.querySelector('.panel-left .library-list, .panel-left ul, .panel-left [class*=library]');
+  if (!libraryEl) { showToast('Library not found'); return; }
+  var items = Array.from(libraryEl.querySelectorAll('.library-item, li'));
+  if (!items.length) { showToast('No library items to sort'); return; }
+  items.sort(function(a, b) {
+    if (mode === 'alpha') {
+      return (a.textContent || '').trim().localeCompare((b.textContent || '').trim());
+    } else if (mode === 'family') {
+      var famA = a.dataset.family || a.getAttribute('data-family') || 'z';
+      var famB = b.dataset.family || b.getAttribute('data-family') || 'z';
+      return famA.localeCompare(famB);
+    } else if (mode === 'difficulty') {
+      var exA = a.dataset.exercise || a.textContent.trim();
+      var exB = b.dataset.exercise || b.textContent.trim();
+      var dA = _exerciseDifficulty[exA] || 0;
+      var dB = _exerciseDifficulty[exB] || 0;
+      return dB - dA;
+    } else if (mode === 'frequency') {
+      var eA = a.dataset.exercise || a.textContent.trim();
+      var eB = b.dataset.exercise || b.textContent.trim();
+      var countA = document.querySelectorAll('.clip[data-exercise="' + eA + '"]').length;
+      var countB = document.querySelectorAll('.clip[data-exercise="' + eB + '"]').length;
+      return countB - countA;
+    }
+    return 0;
+  });
+  items.forEach(function(item) { libraryEl.appendChild(item); });
+  showToast('Library sorted: ' + mode);
+}
+
+// Batch 348: Session Debrief
+function showSessionDebrief() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No workout to debrief'); return; }
+  var totalSets = 0, totalReps = 0, totalRPE = 0, rpeCount = 0;
+  var families = {};
+  clips.forEach(function(c) {
+    totalSets += parseInt(c.dataset.sets) || 3;
+    totalReps += (parseInt(c.dataset.sets) || 3) * (parseInt(c.dataset.reps) || 8);
+    var rpe = parseInt(c.dataset.rpe);
+    if (rpe) { totalRPE += rpe; rpeCount++; }
+    families[c.dataset.family || 'core'] = true;
+  });
+  var avgRPE = rpeCount > 0 ? (totalRPE / rpeCount).toFixed(1) : '-';
+  var html = '<div id="debrief-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.97);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:16px;padding:32px;max-width:420px;width:90%;max-height:85vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:16px;font-weight:700;display:block;margin-bottom:4px">Session Debrief</span>';
+  html += '<span style="color:#64748b;font-size:10px;display:block;margin-bottom:20px">' + clips.length + ' exercises | ' + totalSets + ' sets | ' + totalReps + ' reps | RPE ' + avgRPE + '</span>';
+  var questions = [
+    { id: 'energy', label: 'How was your energy?', options: ['Low', 'Medium', 'High', 'Peak'] },
+    { id: 'focus', label: 'Mental focus?', options: ['Scattered', 'Okay', 'Locked In', 'Flow State'] },
+    { id: 'execution', label: 'Execution quality?', options: ['Rough', 'Decent', 'Clean', 'Perfect'] },
+    { id: 'enjoyment', label: 'Did you enjoy it?', options: ['Hated It', 'Meh', 'Good', 'Loved It'] }
+  ];
+  questions.forEach(function(q) {
+    html += '<div style="margin-bottom:16px">';
+    html += '<span style="color:#94a3b8;font-size:10px;display:block;margin-bottom:6px">' + q.label + '</span>';
+    html += '<div style="display:flex;gap:4px">';
+    q.options.forEach(function(opt, idx) {
+      var col = idx === 0 ? '#f87171' : (idx === 1 ? '#fbbf24' : (idx === 2 ? '#4ade80' : '#22d3ee'));
+      html += '<button class="debrief-opt" data-q="' + q.id + '" onclick="selectDebriefOption(this,\'' + q.id + '\',\'' + opt + '\')" style="flex:1;padding:8px 4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:9px" data-col="' + col + '">' + opt + '</button>';
+    });
+    html += '</div></div>';
+  });
+  html += '<textarea id="debrief-notes" placeholder="Any notes for next time?" style="width:100%;height:60px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:11px;resize:none;box-sizing:border-box;margin-bottom:12px"></textarea>';
+  html += '<button onclick="saveDebrief()" style="width:100%;padding:12px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:12px;font-weight:600">Save Debrief</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+var _debriefData = {};
+function selectDebriefOption(btn, qid, value) {
+  document.querySelectorAll('.debrief-opt[data-q="' + qid + '"]').forEach(function(b) {
+    b.style.borderColor = 'rgba(255,255,255,0.06)';
+    b.style.color = '#64748b';
+    b.style.background = 'rgba(255,255,255,0.02)';
+  });
+  var col = btn.dataset.col || '#22d3ee';
+  btn.style.borderColor = col;
+  btn.style.color = col;
+  btn.style.background = col + '15';
+  _debriefData[qid] = value;
+}
+function saveDebrief() {
+  var notes = document.getElementById('debrief-notes');
+  _debriefData.notes = notes ? notes.value : '';
+  _debriefData.date = new Date().toISOString();
+  _debriefData.clipCount = document.querySelectorAll('.clip').length;
+  var debriefs = [];
+  try { var d = localStorage.getItem('sms_debriefs'); if (d) debriefs = JSON.parse(d); } catch(e) {}
+  debriefs.push(_debriefData);
+  if (debriefs.length > 50) debriefs = debriefs.slice(-50);
+  try { localStorage.setItem('sms_debriefs', JSON.stringify(debriefs)); } catch(e) {}
+  var ov = document.getElementById('debrief-overlay');
+  if (ov) ov.remove();
+  _debriefData = {};
+  showToast('Debrief saved!');
 }
 
 function selectClipsByStage(stage) {
