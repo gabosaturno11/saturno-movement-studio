@@ -3972,6 +3972,7 @@ function createClipElement(exercise, left, width, dna) {
     toast('Clip removed');
   });
 
+  if (typeof showClipDetail === 'function') showClipDetail(clip);
   return clip;
 }
 
@@ -7433,6 +7434,8 @@ var CMD_ACTIONS = [
   {label:'Search & Replace Exercise', key:'', icon:'\u21C4', action: function() { searchReplaceExercise(); }},
   {label:'Progressive RPE (Ascending)', key:'', icon:'\u2197', action: function() { progressiveRPE('ascending'); }},
   {label:'Progressive RPE (Descending)', key:'', icon:'\u2198', action: function() { progressiveRPE('descending'); }},
+  {label:'Arrange as Circuit', key:'', icon:'\u21C6', action: function() { arrangeAsCircuit(); }},
+  {label:'Time Under Tension', key:'', icon:'\u23F1', action: function() { showTUT(); }},
 ];
 
 function openCmdPalette() {
@@ -9774,6 +9777,94 @@ function progressiveRPE(direction) {
   });
   updateStats(); saveSession(); sfx('click');
   toast(count + ' clips set to ' + direction + ' RPE (' + startRPE + '->' + endRPE + ')');
+}
+
+/* ===== BATCH 268: CIRCUIT MODE ===== */
+function arrangeAsCircuit() {
+  var sel = Array.from(document.querySelectorAll('.clip.selected'));
+  if (sel.length < 2) {
+    sel = Array.from(document.querySelectorAll('.clip'));
+  }
+  if (sel.length < 2) { toast('Need 2+ clips for circuit'); return; }
+  pushUndo();
+  var ho = 100;
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var clipW = beatPx * 4;
+  var gap = 4;
+  var byTrack = {};
+  sel.forEach(function(c) {
+    var tid = c.parentElement.dataset.track;
+    if (!byTrack[tid]) byTrack[tid] = [];
+    byTrack[tid].push(c);
+  });
+  var trackIds = Object.keys(byTrack);
+  if (trackIds.length < 2) { toast('Need clips on 2+ tracks for circuit'); return; }
+  var maxRounds = 0;
+  trackIds.forEach(function(tid) {
+    if (byTrack[tid].length > maxRounds) maxRounds = byTrack[tid].length;
+  });
+  var xPos = ho;
+  var count = 0;
+  for (var round = 0; round < maxRounds; round++) {
+    trackIds.forEach(function(tid) {
+      if (round < byTrack[tid].length) {
+        var c = byTrack[tid][round];
+        if (c.classList.contains('clip-locked')) return;
+        c.style.left = xPos + 'px';
+        c.style.width = clipW + 'px';
+        xPos += clipW + gap;
+        count++;
+      }
+    });
+    xPos += beatPx * 2;
+  }
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips arranged in circuit (' + maxRounds + ' rounds)');
+}
+
+/* ===== BATCH 269: TIME UNDER TENSION CALCULATOR ===== */
+function showTUT() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var totalTUT = 0;
+  var perExercise = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex) return;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 8;
+    var tempo = parseFloat(c.dataset.tempo) || 3;
+    var tut = sets * reps * tempo;
+    totalTUT += tut;
+    if (!perExercise[ex.name]) perExercise[ex.name] = 0;
+    perExercise[ex.name] += tut;
+  });
+  var sorted = Object.keys(perExercise).sort(function(a, b) { return perExercise[b] - perExercise[a]; });
+  var msg = 'Time Under Tension\n';
+  msg += 'Total: ' + Math.round(totalTUT) + 's (' + (totalTUT / 60).toFixed(1) + ' min)\n\n';
+  sorted.forEach(function(name, i) {
+    msg += (i + 1) + '. ' + name + ': ' + Math.round(perExercise[name]) + 's\n';
+  });
+  toast(msg);
+}
+
+/* ===== BATCH 270: ENHANCED CLIP INFO TOOLTIP ===== */
+function showClipDetail(clipEl) {
+  var ex = getExercise(clipEl.dataset.exerciseId);
+  if (!ex) return;
+  var sets = clipEl.dataset.sets || '3';
+  var reps = clipEl.dataset.reps || '8';
+  var tempo = clipEl.dataset.tempo || '3';
+  var rest = clipEl.dataset.rest || '60';
+  var rpe = clipEl.dataset.rpe || '7';
+  var tut = parseInt(sets) * parseInt(reps) * parseFloat(tempo);
+  var info = ex.name + ' (S' + ex.stage + ')';
+  info += '\n' + ex.pattern + ' | ' + ex.discipline;
+  info += '\n' + sets + 'x' + reps + ' @ ' + tempo + 's | Rest ' + rest + 's | RPE ' + rpe;
+  info += '\nTUT: ' + Math.round(tut) + 's';
+  if (clipEl.dataset.notes) info += '\nNote: ' + clipEl.dataset.notes.substring(0, 50);
+  if (clipEl.dataset.locked === '1') info += '\n[LOCKED]';
+  clipEl.title = info;
 }
 
 function selectClipsByStage(stage) {
