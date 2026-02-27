@@ -7290,6 +7290,12 @@ var CMD_ACTIONS = [
   {label:'Toggle Grid Lines', key:'', icon:'\u2591', action: function() { toggleGridLines(); }},
   {label:'Clear Recent Exercises', key:'', icon:'\u2716', action: function() { recentExercises=[]; updateRecentSection(); toast('Recent exercises cleared'); }},
   {label:'Reset All Clip Colors', key:'', icon:'\u25A0', action: function() { pushUndo(); document.querySelectorAll('.clip').forEach(function(c){ if(c.dataset.customColor){ delete c.dataset.customColor; var ex=getExercise(c.dataset.exerciseId); var fc=(ex&&FAMILY_MAP[ex.family])?FAMILY_MAP[ex.family].color:'#666'; c.style.background='linear-gradient(180deg, '+fc+'22 0%, '+fc+'11 100%)'; c.style.borderTopColor=fc+'44'; }}); saveSession(); toast('Clip colors reset to family defaults'); }},
+  {label:'Copy Clip Info', key:'', icon:'\u2398', action: function() { if(!selectedClip){toast('Select a clip');return;} var ex=getExercise(selectedClip.dataset.exerciseId); var txt=(ex?ex.name:'Clip')+' | '+selectedClip.dataset.sets+'x'+selectedClip.dataset.reps+' @ '+selectedClip.dataset.tempo+'s | Rest: '+selectedClip.dataset.rest+'s | RPE: '+selectedClip.dataset.rpe+(ex?' | '+ex.family+' S'+ex.stage:''); navigator.clipboard.writeText(txt).then(function(){toast('Clip info copied');}); }},
+  {label:'Shift All RPE +1', key:'', icon:'\u25B2', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip').forEach(function(cl){ var r=parseInt(cl.dataset.rpe)||7; if(r<10){cl.dataset.rpe=r+1; var b=cl.querySelector('.clip-rpe-badge'); if(b)b.textContent=r+1; c++;} }); saveSession(); toast(c+' clips RPE +1'); }},
+  {label:'Shift All RPE -1', key:'', icon:'\u25BC', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip').forEach(function(cl){ var r=parseInt(cl.dataset.rpe)||7; if(r>1){cl.dataset.rpe=r-1; var b=cl.querySelector('.clip-rpe-badge'); if(b)b.textContent=r-1; c++;} }); saveSession(); toast(c+' clips RPE -1'); }},
+  {label:'Select Stage 1 Clips', key:'', icon:'S1', action: function() { selectClipsByStage(1); }},
+  {label:'Select Stage 2 Clips', key:'', icon:'S2', action: function() { selectClipsByStage(2); }},
+  {label:'Select Stage 3 Clips', key:'', icon:'S3', action: function() { selectClipsByStage(3); }},
 ];
 
 function openCmdPalette() {
@@ -7878,6 +7884,17 @@ function clearTrackClips() {
   updateStats(); saveSession();
   sfx('delete');
   toast(count + ' track clips cleared');
+}
+
+function selectClipsByStage(stage) {
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex && ex.stage === stage) { c.classList.add('selected'); count++; }
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' Stage ' + stage + ' clip' + (count !== 1 ? 's' : '') + ' selected');
 }
 
 function selectClipsByFamily(family) {
