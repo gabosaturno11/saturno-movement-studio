@@ -2161,6 +2161,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>R</kbd><span>Record Toggle</span></div>
       <div class="shortcut-item"><kbd>F</kbd><span>Focus Mode</span></div>
       <div class="shortcut-item"><kbd>T</kbd><span>Tap Tempo</span></div>
+      <div class="shortcut-item"><kbd>G</kbd><span>Generate Random</span></div>
+      <div class="shortcut-item"><kbd>P</kbd><span>Presets</span></div>
       <div class="shortcut-item"><kbd>Dbl-Click</kbd><span>Add Random Clip</span></div>
       <div class="shortcut-item"><kbd>Drag</kbd><span>Marquee Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
@@ -4200,6 +4202,8 @@ function exportWorkout() {
       movement: ex ? ex.name : clip.textContent,
       pattern: ex ? ex.pattern : '',
       family: ex ? ex.family : '',
+      discipline: ex ? ex.discipline : '',
+      stage: ex ? ex.stage : 1,
       startTime: parseInt(clip.style.left) / 80 * 15,
       duration: parseInt(clip.style.width) / 80 * 15,
       sets: parseInt(clip.dataset.sets) || 3,
@@ -4972,9 +4976,9 @@ var CMD_ACTIONS = [
   {label:'Export JSON', key:'', icon:'\u21A6', action: function() { exportWorkout(); }},
   {label:'Import Workout', key:'', icon:'\u21A4', action: function() { importWorkout(); }},
   {label:'Print Sheet', key:'', icon:'\u2399', action: function() { printWorkout(); }},
-  {label:'Generate Random', key:'', icon:'\u2684', action: function() { generateRandom(); }},
+  {label:'Generate Random', key:'G', icon:'\u2684', action: function() { generateRandom(); }},
   {label:'Rename Workout', key:'', icon:'\u270E', action: function() { renameWorkout(); }},
-  {label:'Toggle Presets', key:'', icon:'\u2630', action: function() { togglePresets(); }},
+  {label:'Toggle Presets', key:'P', icon:'\u2630', action: function() { togglePresets(); }},
   {label:'Keyboard Shortcuts', key:'?', icon:'\u2328', action: function() { toggleShortcuts(); }},
   {label:'Reset Session', key:'', icon:'\u21BA', action: function() { resetSession(); }},
 ];
@@ -5452,6 +5456,12 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyT' && !e.metaKey && !e.ctrlKey) {
     tapTempo();
+  }
+  if (e.code === 'KeyG' && !e.metaKey && !e.ctrlKey) {
+    generateRandom();
+  }
+  if (e.code === 'KeyP' && !e.metaKey && !e.ctrlKey) {
+    togglePresets();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
