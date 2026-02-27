@@ -2599,7 +2599,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span style="color:var(--border)">|</span>
       <span id="footer-bars" style="color:var(--muted)">0 bars</span>
       <span style="color:var(--border)">|</span>
-      <span id="footer-pos" style="color:var(--muted);cursor:pointer" onclick="toggleFooterMode()" title="Click to switch format">1.1.1</span>
+      <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
       <span data-tip="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
     </div>
@@ -6070,6 +6070,11 @@ var CMD_ACTIONS = [
   {label:'Reset Session', key:'', icon:'\u21BA', action: function() { resetSession(); }},
   {label:'Scroll to Playhead', key:'', icon:'\u25B8', action: function() { scrollToPlayhead(); }},
   {label:'Toggle Auto-Scroll', key:'', icon:'\u21C5', action: function() { toggleAutoScrollFromTransport(); }},
+  {label:'Deselect All', key:'Esc', icon:'\u2610', action: function() { document.querySelectorAll('.clip.selected').forEach(function(c){c.classList.remove('selected')}); selectedClip=null; document.getElementById('inspector').style.display='none'; if(typeof updateSelectionBadge==='function')updateSelectionBadge(); toast('Deselected'); }},
+  {label:'Toggle Record Mode', key:'R', icon:'\u23FA', action: function() { toggleRec(); }},
+  {label:'Cycle Time Signature', key:'', icon:'4/4', action: function() { cycleTimeSig(); }},
+  {label:'Collapse All Tracks', key:'', icon:'\u25BC', action: function() { document.querySelectorAll('.track').forEach(function(t){if(t.dataset.track!=='music')t.classList.add('track-collapsed')}); toast('Tracks collapsed'); }},
+  {label:'Expand All Tracks', key:'', icon:'\u25B2', action: function() { document.querySelectorAll('.track').forEach(function(t){t.classList.remove('track-collapsed')}); toast('Tracks expanded'); }},
 ];
 
 function openCmdPalette() {
