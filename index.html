@@ -8016,6 +8016,9 @@ var CMD_ACTIONS = [
   {label:'Workout Fingerprint', key:'', icon:'\u2318', action: function() { showWorkoutFingerprint(); }},
   {label:'Auto Superset Pair', key:'', icon:'\u21cb', action: function() { autoSupersetPair(); }},
   {label:'Volume Landmarks (MEV/MAV/MRV)', key:'', icon:'\u2261', action: function() { showVolumeLandmarks(); }},
+  {label:'Color Legend', key:'', icon:'\u25a0', action: function() { showColorLegend(); }},
+  {label:'Exercise Pool Manager', key:'', icon:'\u2630', action: function() { showPoolManager(); }},
+  {label:'Session Comparison', key:'', icon:'\u2262', action: function() { showSessionComparison(); }},
 ];
 
 function openCmdPalette() {
@@ -18482,6 +18485,177 @@ function showVolumeLandmarks() {
   });
   html += '<div style="color:#64748b;font-size:10px;margin-top:8px">MEV = Minimum Effective Volume | MAV = Maximum Adaptive Volume | MRV = Maximum Recoverable Volume (per week)</div>';
   html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 394: Clip Color Legend
+function showColorLegend() {
+  var famColors = {
+    Push: { color: 'var(--push-color, #f87171)', label: 'Push (Chest, Triceps, Shoulders)' },
+    Pull: { color: 'var(--pull-color, #60a5fa)', label: 'Pull (Back, Biceps)' },
+    Core: { color: 'var(--core-color, #fbbf24)', label: 'Core (Abs, Obliques)' },
+    Legs: { color: 'var(--legs-color, #4ade80)', label: 'Legs (Quads, Hamstrings, Glutes)' },
+    Skills: { color: 'var(--skills-color, #a78bfa)', label: 'Skills (Handstands, L-sits, Planches)' }
+  };
+  var customColors = {
+    '#f87171': 'Red', '#fb923c': 'Orange', '#fbbf24': 'Amber',
+    '#4ade80': 'Green', '#60a5fa': 'Blue', '#a78bfa': 'Purple', '#f472b6': 'Pink'
+  };
+  // Count custom colors in use
+  var usedCustom = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    if (c.dataset.customColor) usedCustom[c.dataset.customColor] = (usedCustom[c.dataset.customColor]||0) + 1;
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:380px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Color Legend</div>';
+  html += '<div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Family Colors</div>';
+  Object.keys(famColors).forEach(function(fam) {
+    var fc = famColors[fam];
+    var fallback = fc.color.match(/#[0-9a-fA-F]+/) ? fc.color.match(/#[0-9a-fA-F]+/)[0] : '#22d3ee';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+    html += '<div style="width:20px;height:20px;border-radius:4px;background:' + fallback + ';flex-shrink:0"></div>';
+    html += '<div style="color:#e2e8f0;font-size:12px">' + fc.label + '</div>';
+    html += '</div>';
+  });
+  if (Object.keys(usedCustom).length > 0) {
+    html += '<div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px">Custom Colors in Use</div>';
+    Object.keys(usedCustom).forEach(function(col) {
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+      html += '<div style="width:20px;height:20px;border-radius:4px;background:' + col + ';flex-shrink:0"></div>';
+      html += '<div style="color:#e2e8f0;font-size:12px">' + (customColors[col]||col) + ' (' + usedCustom[col] + ' clips)</div>';
+      html += '</div>';
+    });
+  }
+  html += '<div style="color:#64748b;font-size:10px;margin-top:12px">Right-click any clip to change its color. RPE color mode overrides family colors.</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 395: Exercise Pool Manager
+function showPoolManager() {
+  var disabled = {};
+  try { disabled = JSON.parse(localStorage.getItem('sms_disabled_exercises') || '{}'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa',Mobility:'#818cf8'};
+  var enabledCount = 0;
+  EXERCISES.forEach(function(e) { if(!disabled[e.name]) enabledCount++; });
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:550px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700">Exercise Pool Manager</div>';
+  html += '<div style="color:#94a3b8;font-size:12px">' + enabledCount + '/' + EXERCISES.length + ' enabled</div>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:12px">';
+  html += '<button onclick="poolEnableAll()" style="padding:6px 12px;background:rgba(74,222,128,0.1);color:#4ade80;border:1px solid rgba(74,222,128,0.2);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Enable All</button>';
+  html += '<button onclick="poolDisableAll()" style="padding:6px 12px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Disable All</button>';
+  html += '</div>';
+  var byFamily = {};
+  EXERCISES.forEach(function(e) {
+    if (!byFamily[e.family]) byFamily[e.family] = [];
+    byFamily[e.family].push(e);
+  });
+  Object.keys(byFamily).forEach(function(fam) {
+    html += '<div style="color:' + (famColors[fam]||'#22d3ee') + ';font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:12px 0 6px">' + fam + '</div>';
+    byFamily[fam].forEach(function(ex) {
+      var isDisabled = disabled[ex.name];
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0">';
+      html += '<input type="checkbox" ' + (isDisabled ? '' : 'checked') + ' onchange="togglePoolExercise(\'' + ex.name.replace(/'/g,"\\'") + '\',this.checked)" style="cursor:pointer">';
+      html += '<span style="color:' + (isDisabled ? '#64748b' : '#e2e8f0') + ';font-size:12px;' + (isDisabled ? 'text-decoration:line-through' : '') + '">' + ex.name + '</span>';
+      html += '<span style="color:#64748b;font-size:10px">' + ex.stage + '</span>';
+      html += '</div>';
+    });
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function togglePoolExercise(name, enabled) {
+  var disabled = {};
+  try { disabled = JSON.parse(localStorage.getItem('sms_disabled_exercises') || '{}'); } catch(e) {}
+  if (enabled) { delete disabled[name]; }
+  else { disabled[name] = true; }
+  try { localStorage.setItem('sms_disabled_exercises', JSON.stringify(disabled)); } catch(e) {}
+}
+function poolEnableAll() {
+  try { localStorage.setItem('sms_disabled_exercises', '{}'); } catch(e) {}
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showPoolManager();
+  showToast('All exercises enabled');
+}
+function poolDisableAll() {
+  var disabled = {};
+  EXERCISES.forEach(function(e) { disabled[e.name] = true; });
+  try { localStorage.setItem('sms_disabled_exercises', JSON.stringify(disabled)); } catch(e) {}
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showPoolManager();
+  showToast('All exercises disabled');
+}
+
+// Batch 396: Session Comparison Timeline
+function showSessionComparison() {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('sms_session_history') || '[]'); } catch(e) {}
+  if (history.length < 2) { showToast('Need 2+ logged sessions to compare (use Log Session first)'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var last5 = history.slice(-5);
+  var maxClips = Math.max.apply(null, last5.map(function(s) { return s.clips || 0; }).concat([1]));
+  var maxDur = Math.max.apply(null, last5.map(function(s) { return s.duration || 0; }).concat([1]));
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:600px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Session Comparison (Last ' + last5.length + ')</div>';
+  // Timeline bars
+  html += '<div style="margin-bottom:16px">';
+  html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:8px">Clips per session</div>';
+  last5.forEach(function(s) {
+    var pct = Math.round((s.clips || 0) / maxClips * 100);
+    var date = new Date(s.date).toLocaleDateString();
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+    html += '<span style="width:60px;color:#64748b;font-size:10px;text-align:right;flex-shrink:0">' + date + '</span>';
+    html += '<div style="flex:1;height:16px;background:rgba(34,211,238,0.05);border-radius:3px;overflow:hidden">';
+    html += '<div style="height:100%;width:' + pct + '%;background:rgba(34,211,238,0.4);border-radius:3px;display:flex;align-items:center;padding:0 6px">';
+    html += '<span style="color:#e2e8f0;font-size:9px;font-weight:600">' + s.clips + '</span>';
+    html += '</div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  // Duration bars
+  html += '<div style="margin-bottom:16px">';
+  html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:8px">Duration (minutes)</div>';
+  last5.forEach(function(s) {
+    var durMin = Math.round((s.duration || 0) / 60);
+    var pct = Math.round((s.duration || 0) / maxDur * 100);
+    var date = new Date(s.date).toLocaleDateString();
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+    html += '<span style="width:60px;color:#64748b;font-size:10px;text-align:right;flex-shrink:0">' + date + '</span>';
+    html += '<div style="flex:1;height:16px;background:rgba(74,222,128,0.05);border-radius:3px;overflow:hidden">';
+    html += '<div style="height:100%;width:' + pct + '%;background:rgba(74,222,128,0.3);border-radius:3px;display:flex;align-items:center;padding:0 6px">';
+    html += '<span style="color:#e2e8f0;font-size:9px;font-weight:600">' + durMin + 'm</span>';
+    html += '</div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  // Summary trend
+  var first = last5[0];
+  var last = last5[last5.length - 1];
+  var clipTrend = (last.clips || 0) - (first.clips || 0);
+  var durTrend = Math.round(((last.duration||0) - (first.duration||0)) / 60);
+  html += '<div style="display:flex;gap:16px;padding:12px;background:rgba(34,211,238,0.03);border-radius:8px">';
+  html += '<div style="text-align:center;flex:1">';
+  html += '<div style="color:' + (clipTrend >= 0 ? '#4ade80' : '#f87171') + ';font-size:16px;font-weight:600">' + (clipTrend >= 0 ? '+' : '') + clipTrend + '</div>';
+  html += '<div style="color:#64748b;font-size:10px">Clip trend</div>';
+  html += '</div>';
+  html += '<div style="text-align:center;flex:1">';
+  html += '<div style="color:' + (durTrend >= 0 ? '#4ade80' : '#f87171') + ';font-size:16px;font-weight:600">' + (durTrend >= 0 ? '+' : '') + durTrend + 'm</div>';
+  html += '<div style="color:#64748b;font-size:10px">Duration trend</div>';
+  html += '</div>';
+  html += '</div></div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
 }
