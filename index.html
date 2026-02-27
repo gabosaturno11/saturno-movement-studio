@@ -676,6 +676,11 @@ body {
   border-color: rgba(255,255,255,0.5);
   box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 0 16px rgba(255,255,255,0.08), 0 0 24px rgba(59,130,246,0.06);
   filter: brightness(1.08);
+  animation: clip-select-flash 0.3s ease-out;
+}
+@keyframes clip-select-flash {
+  0% { box-shadow: 0 0 0 2px rgba(59,130,246,0.6), 0 0 20px rgba(59,130,246,0.3); }
+  100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 0 16px rgba(255,255,255,0.08), 0 0 24px rgba(59,130,246,0.06); }
 }
 .clip .clip-name {
   overflow: hidden; white-space: nowrap;
@@ -6925,6 +6930,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var pps = (80 / 15) * (zoomLevel / 100);
     var ho = 100 * (zoomLevel / 100);
     currentTime = Math.max(0, (x - ho) / pps);
+    if (snapEnabled) {
+      var beatSec = 60 / bpm;
+      currentTime = Math.round(currentTime / beatSec) * beatSec;
+    }
     updateTimeDisplay();
     updatePlayheadPosition();
   }
@@ -7280,6 +7289,7 @@ var CMD_ACTIONS = [
   {label:'Workout Stats', key:'', icon:'\u2139', action: function() { showWorkoutStats(); }},
   {label:'Toggle Grid Lines', key:'', icon:'\u2591', action: function() { toggleGridLines(); }},
   {label:'Clear Recent Exercises', key:'', icon:'\u2716', action: function() { recentExercises=[]; updateRecentSection(); toast('Recent exercises cleared'); }},
+  {label:'Reset All Clip Colors', key:'', icon:'\u25A0', action: function() { pushUndo(); document.querySelectorAll('.clip').forEach(function(c){ if(c.dataset.customColor){ delete c.dataset.customColor; var ex=getExercise(c.dataset.exerciseId); var fc=(ex&&FAMILY_MAP[ex.family])?FAMILY_MAP[ex.family].color:'#666'; c.style.background='linear-gradient(180deg, '+fc+'22 0%, '+fc+'11 100%)'; c.style.borderTopColor=fc+'44'; }}); saveSession(); toast('Clip colors reset to family defaults'); }},
 ];
 
 function openCmdPalette() {
