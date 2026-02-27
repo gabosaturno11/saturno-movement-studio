@@ -1962,6 +1962,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <div class="inspector-field"><label>Rest (seconds)</label><input type="number" id="insp-rest" value="60" min="0" max="300" step="5" onchange="updateClipDNA()"></div>
         <div class="inspector-field"><label>RPE (1-10)</label><input type="range" id="insp-rpe" min="1" max="10" value="7" style="width:100%" oninput="updateClipDNA()"></div>
         <div class="inspector-tags" id="insp-tags"></div>
+        <div id="insp-time" style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:8px;color:var(--muted);display:flex;justify-content:space-between">
+          <span>Est. time: <span id="insp-est-time" style="color:var(--text-secondary)">-</span></span>
+          <span>TUT: <span id="insp-tut" style="color:var(--accent-cyan)">-</span></span>
+        </div>
       </div>
       <div class="mixer-section" id="inspector-empty" style="padding:30px 14px;text-align:center">
         <div style="font-size:9px;color:var(--micro);text-transform:uppercase;letter-spacing:0.1em">Select a clip to inspect</div>
@@ -3174,6 +3178,23 @@ function selectClipEl(clip, addToSelection) {
     '<span class="inspector-tag" style="background:'+((FAMILY_MAP[ex.family]||{}).color||'#666')+'22;color:'+(FAMILY_MAP[ex.family]||{}).color+'">'+ex.family+'</span>' +
     '<span class="inspector-tag">'+(fm.instrument||'')+'</span>' +
     '<span class="inspector-tag">S'+ex.stage+'</span>';
+  updateInspectorTime();
+}
+
+function updateInspectorTime() {
+  if (!selectedClip) return;
+  var sets = parseInt(selectedClip.dataset.sets) || 3;
+  var reps = parseInt(selectedClip.dataset.reps) || 8;
+  var tempo = parseFloat(selectedClip.dataset.tempo) || 3;
+  var rest = parseInt(selectedClip.dataset.rest) || 60;
+  var totalSec = (sets * reps * tempo) + ((sets - 1) * rest);
+  var tut = sets * reps * tempo;
+  var m = Math.floor(totalSec / 60);
+  var s = Math.floor(totalSec % 60);
+  var etEl = document.getElementById('insp-est-time');
+  if (etEl) etEl.textContent = m + ':' + s.toString().padStart(2, '0');
+  var tutEl = document.getElementById('insp-tut');
+  if (tutEl) tutEl.textContent = tut + 's';
 }
 
 function updateClipDNA() {
@@ -3196,6 +3217,7 @@ function updateClipDNA() {
     selectedClip.style.width = Math.max(40, totalSec * pps) + 'px';
     updateStats();
   }
+  updateInspectorTime();
   saveSession();
 }
 
