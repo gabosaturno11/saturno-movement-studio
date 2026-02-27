@@ -2168,7 +2168,11 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   <div class="clip-tip-detail">
     <span id="tip-pattern"></span>
     <span id="tip-stage"></span>
+    <span id="tip-discipline" style="font-style:italic"></span>
+  </div>
+  <div class="clip-tip-detail" style="margin-top:2px">
     <span id="tip-dna"></span>
+    <span id="tip-instrument" style="opacity:0.5"></span>
   </div>
 </div>
 <div class="track-ctx" id="track-ctx">
@@ -5106,7 +5110,10 @@ document.addEventListener('mouseover', function(e) {
     document.getElementById('tip-name').textContent = ex.name;
     document.getElementById('tip-pattern').textContent = ex.pattern;
     document.getElementById('tip-stage').textContent = 'Stage ' + ex.stage;
+    document.getElementById('tip-discipline').textContent = ex.discipline;
     document.getElementById('tip-dna').textContent = clipEl.dataset.sets + 'x' + clipEl.dataset.reps + ' @ RPE ' + clipEl.dataset.rpe;
+    var fm = FAMILY_MAP[ex.family] || {};
+    document.getElementById('tip-instrument').textContent = fm.instrument || '';
     var rect = clipEl.getBoundingClientRect();
     tip.style.left = (rect.left + rect.width / 2) + 'px';
     tip.style.top = (rect.top - 40) + 'px';
@@ -5466,6 +5473,12 @@ document.addEventListener('keydown', function(e) {
     sfx('click');
   }
 });
+
+/* Autosave every 30 seconds */
+setInterval(function() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length > 0) saveSession();
+}, 30000);
 </script>
 </body>
 </html>
