@@ -2042,6 +2042,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
     <aside class="panel-left">
       <div class="panel-header"><span>Movement Library</span><span id="lib-count">0</span></div>
       <input type="text" class="lib-search" id="lib-search" placeholder="Search movements... (Enter to add)" oninput="filterLibrary()" onkeydown="if(event.key==='Enter')addFirstMatch()">
+      <div class="movement-category" style="display:none">
+        <div class="category-header" style="font-size:8px;color:var(--accent-cyan);padding:5px 12px"><span>Recent</span></div>
+        <div class="movement-list" id="recent-exercises"></div>
+      </div>
       <div id="library-container"></div>
     </aside>
 
@@ -2316,6 +2320,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span id="footer-bars" style="color:var(--muted)">0 bars</span>
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer" onclick="toggleFooterMode()" title="Click to switch format">1.1.1</span>
+      <span style="color:var(--border)">|</span>
+      <span title="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <div id="footer-balance" style="display:flex;gap:1px;height:4px;width:60px;border-radius:2px;overflow:hidden" title="Family balance"></div>
@@ -3400,6 +3406,7 @@ function addClip(track, exercise, x) {
   var clip = createClipElement(exercise, x, 80);
   track.appendChild(clip);
   selectClipEl(clip);
+  if (typeof addToRecent === 'function') addToRecent(exercise.id);
   updateStats();
   saveSession();
   sfx('drop');
@@ -5932,6 +5939,61 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('mouseup', onUp);
   });
 });
+
+/* Session elapsed timer — shows how long studio has been open */
+var sessionStartTime = Date.now();
+setInterval(function() {
+  var elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+  var h = Math.floor(elapsed / 3600);
+  var m = Math.floor((elapsed % 3600) / 60);
+  var s = elapsed % 60;
+  var el = document.getElementById('session-timer');
+  if (el) {
+    el.textContent = h > 0
+      ? h + ':' + m.toString().padStart(2,'0') + ':' + s.toString().padStart(2,'0')
+      : m + ':' + s.toString().padStart(2,'0');
+  }
+}, 1000);
+
+/* Recently used exercises — track last 5 exercises dropped on timeline */
+var recentExercises = [];
+function addToRecent(exerciseId) {
+  recentExercises = recentExercises.filter(function(id) { return id !== exerciseId; });
+  recentExercises.unshift(exerciseId);
+  if (recentExercises.length > 5) recentExercises.pop();
+  updateRecentSection();
+}
+function updateRecentSection() {
+  var container = document.getElementById('recent-exercises');
+  if (!container) return;
+  if (recentExercises.length === 0) {
+    container.parentElement.style.display = 'none';
+    return;
+  }
+  container.parentElement.style.display = '';
+  var html = '';
+  recentExercises.forEach(function(id) {
+    var ex = getExercise(id);
+    if (!ex) return;
+    var fm = FAMILY_MAP[ex.family] || {color:'#666'};
+    html += '<div class="movement-item" draggable="true" data-id="'+ex.id+'" style="border-left-color:'+fm.color+'40">';
+    html += '<div class="mv-icon" style="background:'+fm.color+'22;color:'+fm.color+'">'+ex.name.charAt(0)+'</div>';
+    html += '<span style="font-size:9px;color:var(--text-secondary)">'+ex.name+'</span>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+  // Re-init drag events on recent items
+  container.querySelectorAll('.movement-item').forEach(function(item) {
+    item.addEventListener('dragstart', function(e) {
+      var ex = getExercise(item.dataset.id);
+      if (!ex) return;
+      e.dataTransfer.setData('text/plain', JSON.stringify(ex));
+      item.style.opacity = '0.4';
+      sfx('click');
+    });
+    item.addEventListener('dragend', function() { item.style.opacity = '1'; });
+  });
+}
 </script>
 </body>
 </html>
