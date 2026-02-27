@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~12,746 lines). No build step. No framework.
+Single-file HTML app (index.html, ~14,020 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-300)
+### Features (Batches 1-315)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -338,7 +338,19 @@ saturno-movement-studio/
 - **Workout heat calendar** (GitHub-style 12-week activity grid)
 - **Motivational quotes engine** (15 quotes, footer rotation, milestone toasts)
 - **Session milestones** (5/15/30/45/60/90/120 min cinematic toast with quote)
-- **Command palette** (Cmd+K, 210+ commands)
+- **Quick reference cheat sheet** (6-section grid with all shortcuts + mobile gestures)
+- **Clip entrance animation** (scaleX bounce on create, fade-out on delete)
+- **Session auto-backup** (every 2 min, last 5 snapshots, one-click restore)
+- **Workout difficulty scaling** (Beginner/Intermediate/Advanced/Elite presets)
+- **Enhanced exercise search modal** (full-text search + family filter buttons)
+- **Rest timer mini-widget** (floating countdown 30/60/90/120s with progress bar)
+- **Per-exercise coaching notes** (modal editor, localStorage, cyan dot indicator)
+- **Exercise reference URLs** (store/open photo/video links per exercise)
+- **Dark mode intensity** (Dim/Standard/High Contrast, CSS vars, persists)
+- **Workout comparison overlay** (split-screen current vs saved, diff summary)
+- **Exercise progression tree** (S1->S2->S3 visual tree per pattern, new tab)
+- **Training volume breakdown** (sets/reps/TUT per family, volume guidelines)
+- **Command palette** (Cmd+K, 230+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
