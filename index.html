@@ -3703,7 +3703,28 @@ function createClipElement(exercise, left, width, dna) {
     clip.classList.add('clip-dragging');
     function onMove(e) {
       var newLeft = Math.max(0, startLeft + e.clientX - startX);
-      clip.style.left = snapValue(newLeft) + 'px';
+      newLeft = snapValue(newLeft);
+      // Clip-to-clip edge snapping
+      if (snapEnabled) {
+        var clipW = parseInt(clip.style.width) || 80;
+        var rightEdge = newLeft + clipW;
+        var threshold = 6;
+        var siblings = clip.parentElement.querySelectorAll('.clip');
+        for (var si = 0; si < siblings.length; si++) {
+          if (siblings[si] === clip) continue;
+          var sL = parseInt(siblings[si].style.left) || 0;
+          var sR = sL + (parseInt(siblings[si].style.width) || 80);
+          // Snap left edge to sibling right edge
+          if (Math.abs(newLeft - sR) < threshold) { newLeft = sR; break; }
+          // Snap right edge to sibling left edge
+          if (Math.abs(rightEdge - sL) < threshold) { newLeft = sL - clipW; break; }
+          // Snap left edge to sibling left edge
+          if (Math.abs(newLeft - sL) < threshold) { newLeft = sL; break; }
+          // Snap right edge to sibling right edge
+          if (Math.abs(rightEdge - sR) < threshold) { newLeft = sR - clipW; break; }
+        }
+      }
+      clip.style.left = Math.max(0, newLeft) + 'px';
     }
     function onUp() { clip.classList.remove('clip-dragging'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
     document.addEventListener('mousemove', onMove);
@@ -4175,10 +4196,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /* ===== TRANSPORT ===== */
+var playStartTime = 0; /* Where playback began, for return-to-start */
 function togglePlay() {
   isPlaying = !isPlaying;
   var btn = document.getElementById('play-btn');
   if (isPlaying) {
+    playStartTime = currentTime;
     btn.classList.add('active');
     btn.innerHTML = '&#9616;&#9616;';
     playInterval = setInterval(updatePlayhead, 50);
@@ -4205,9 +4228,18 @@ function togglePlay() {
   }
 }
 
+var _lastStopTime = 0;
 function stopPlayback() {
   isPlaying = false;
-  currentTime = 0;
+  var now = Date.now();
+  // Double-stop: if stopped within 400ms and already at start, go to 0
+  if (currentTime === (playStartTime || 0) && now - _lastStopTime < 400) {
+    currentTime = 0;
+    playStartTime = 0;
+  } else {
+    currentTime = playStartTime || 0;
+  }
+  _lastStopTime = now;
   var btn = document.getElementById('play-btn');
   btn.classList.remove('active');
   btn.innerHTML = '&#9654;';
