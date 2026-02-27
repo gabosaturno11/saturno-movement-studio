@@ -538,6 +538,20 @@ body {
   padding-left: 6px;
 }
 
+/* Track header tiny VU meter — 5 dots showing activity level */
+.track-vu {
+  display: flex; gap: 1px; position: absolute; right: 6px; top: 50%;
+  transform: translateY(-50%);
+}
+.track-vu-dot {
+  width: 2px; height: 6px; border-radius: 1px;
+  background: rgba(255,255,255,0.06);
+  transition: background 0.08s, height 0.08s;
+}
+.track-vu-dot.on-low { background: var(--accent-green); }
+.track-vu-dot.on-mid { background: var(--accent-orange); }
+.track-vu-dot.on-high { background: var(--accent-red); }
+
 /* Clips — Logic Pro Audio Region Style */
 @keyframes clipInsert {
   0% { transform: scaleX(0); opacity: 0; }
@@ -621,7 +635,8 @@ body {
 }
 .clip.selected {
   border-color: rgba(255,255,255,0.5);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 0 16px rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 0 16px rgba(255,255,255,0.08), 0 0 24px rgba(59,130,246,0.06);
+  filter: brightness(1.08);
 }
 .clip .clip-name {
   overflow: hidden; text-overflow: ellipsis;
@@ -637,6 +652,14 @@ body {
   box-shadow: inset 0 -1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06),
               0 0 12px rgba(255,255,255,0.15), 0 0 4px currentColor;
   border-color: rgba(255,255,255,0.2);
+  filter: brightness(1.12);
+}
+/* Playback progress overlay — subtle fill from left to show elapsed */
+.clip-progress-fill {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  background: rgba(255,255,255,0.02);
+  pointer-events: none; z-index: 0;
+  width: 0%; transition: width 0.08s linear;
 }
 .clip-resize {
   position: absolute; right: 0; top: 0; bottom: 0;
@@ -2747,6 +2770,7 @@ function buildTracks() {
       html += '<div class="track-header"><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
       html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
       html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
+      if (!t.isMusic) html += '<div class="track-vu" id="vu-'+t.id+'"><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div></div>';
       html += '</div>';
       html += '<div class="track-content" data-track="'+t.id+'"></div></div>';
     }
@@ -3010,6 +3034,10 @@ function createClipElement(exercise, left, width, dna) {
   var progress = document.createElement('div');
   progress.className = 'clip-progress';
   clip.appendChild(progress);
+
+  var progressFill = document.createElement('div');
+  progressFill.className = 'clip-progress-fill';
+  clip.appendChild(progressFill);
 
   var fadeIn = document.createElement('div');
   fadeIn.className = 'clip-fade clip-fade-in';
@@ -3480,6 +3508,8 @@ function stopPlayback() {
     c.classList.remove('clip-playing');
     var p = c.querySelector('.clip-progress');
     if (p) p.style.width = '0';
+    var pf = c.querySelector('.clip-progress-fill');
+    if (pf) pf.style.width = '0';
   });
   document.getElementById('status-text').textContent = 'Ready';
   document.getElementById('playback-state').textContent = 'STOP';
@@ -3572,16 +3602,16 @@ function updatePlayheadPosition() {
       var clipW = parseInt(clip.style.width);
       var clipRight = clipLeft + clipW;
       var progressEl = clip.querySelector('.clip-progress');
+      var fillEl = clip.querySelector('.clip-progress-fill');
       if (pos >= clipLeft && pos <= clipRight) {
-        if (progressEl) {
-          var pct = ((pos - clipLeft) / clipW) * 100;
-          progressEl.style.width = pct + '%';
-        }
+        var pct = ((pos - clipLeft) / clipW) * 100;
+        if (progressEl) progressEl.style.width = pct + '%';
+        if (fillEl) fillEl.style.width = pct + '%';
         clip.classList.add('clip-playing');
       } else {
-        if (progressEl) {
-          progressEl.style.width = pos > clipRight ? '100%' : '0';
-        }
+        var done = pos > clipRight;
+        if (progressEl) progressEl.style.width = done ? '100%' : '0';
+        if (fillEl) fillEl.style.width = done ? '100%' : '0';
         clip.classList.remove('clip-playing');
       }
     });
@@ -3876,13 +3906,23 @@ function startMeters() {
       bar.style.height = newH + 'px';
       bar.style.background = newH > 45 ? 'var(--accent-red)' : newH > 30 ? 'var(--accent-orange)' : 'var(--accent-green)';
     });
-    // Animate channel meters
+    // Animate channel meters + track header VU dots
     ['push','pull','core','legs','skills'].forEach(function(tid) {
       var el = document.getElementById('ch-meter-' + tid);
-      if (el) {
-        var trackClips = document.querySelectorAll('.track-content[data-track="'+tid+'"] .clip');
-        var level = trackClips.length > 0 ? (30 + Math.random() * 70) : 0;
-        el.style.width = level + '%';
+      var trackClips = document.querySelectorAll('.track-content[data-track="'+tid+'"] .clip');
+      var level = trackClips.length > 0 ? (30 + Math.random() * 70) : 0;
+      if (el) el.style.width = level + '%';
+      // Update track header VU dots
+      var vu = document.getElementById('vu-' + tid);
+      if (vu) {
+        var dots = vu.children;
+        var litCount = Math.floor(level / 20);
+        for (var d = 0; d < dots.length; d++) {
+          dots[d].className = 'track-vu-dot';
+          if (d < litCount) {
+            dots[d].classList.add(d < 3 ? 'on-low' : d < 4 ? 'on-mid' : 'on-high');
+          }
+        }
       }
     });
   }, 100);
@@ -3894,6 +3934,10 @@ function stopMeters() {
   document.querySelectorAll('.meter-bar').forEach(function(bar) {
     bar.style.height = '5px';
     bar.style.background = 'var(--accent-green)';
+  });
+  // Clear track header VU dots
+  document.querySelectorAll('.track-vu-dot').forEach(function(d) {
+    d.className = 'track-vu-dot';
   });
 }
 
