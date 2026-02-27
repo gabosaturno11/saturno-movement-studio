@@ -5508,6 +5508,7 @@ function _doSaveSession() {
     session.markerCounter = markerCounter;
     // Workout name + creation date
     session.workoutName = workoutName || '';
+    session.workoutNotes = workoutNotes || '';
     session.createdAt = _sessionCreatedAt || new Date().toISOString();
     // Recently used exercises
     if (typeof recentExercises !== 'undefined') session.recentExercises = recentExercises.slice(0);
@@ -5634,6 +5635,7 @@ function loadSession() {
       if (hn) hn.textContent = workoutName;
     }
     if (s.createdAt) _sessionCreatedAt = s.createdAt;
+    if (s.workoutNotes) workoutNotes = s.workoutNotes;
     // Restore recently used exercises
     if (s.recentExercises && s.recentExercises.length) {
       recentExercises = s.recentExercises;
@@ -5726,6 +5728,7 @@ function exportWorkout() {
     name: workoutName || 'Saturno Movement Studio Export',
     timestamp: new Date().toISOString(),
     createdAt: _sessionCreatedAt,
+    workoutNotes: workoutNotes || '',
     bpm: bpm,
     bpmMode: document.getElementById('bpm-mode').textContent,
     tracks: {}
@@ -5968,6 +5971,7 @@ function importWorkout() {
           if (loopEnabled) updateLoopRegion();
         }
         if (workout.createdAt) _sessionCreatedAt = workout.createdAt;
+        if (workout.workoutNotes) workoutNotes = workout.workoutNotes;
         updateStats();
         saveSession();
         sfx('preset');
@@ -6052,6 +6056,9 @@ function printWorkout() {
   html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + (modeDesc ? ' - ' + modeDesc : '') + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span>';
   if (printCreated) html += '<span>Created ' + printCreated + '</span>';
   html += '</div>';
+  if (workoutNotes) {
+    html += '<div style="font-size:10px;color:#64748b;margin-bottom:16px;font-style:italic;line-height:1.5">' + workoutNotes.replace(/</g, '&lt;') + '</div>';
+  }
   var totalDur = 0;
   clips.forEach(function(c) {
     var st = parseInt(c.dataset.sets) || 3;
@@ -6175,6 +6182,9 @@ function showSummary() {
   html += '<span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span>';
   html += '</div>';
   html += '</div>';
+  if (workoutNotes) {
+    html += '<div style="font-size:10px;color:var(--muted);margin-bottom:12px;font-style:italic;text-align:center;line-height:1.5">' + workoutNotes.replace(/</g, '&lt;') + '</div>';
+  }
 
   // Estimated workout time
   var estSec = 0;
@@ -6302,6 +6312,7 @@ function copyWorkoutText() {
   var txtEstMin = Math.floor(txtEstSec / 60);
   lines.push(name + ' | ' + bpm + ' BPM | ' + document.getElementById('bpm-mode').textContent);
   lines.push(clips.length + ' exercises | ~' + txtEstMin + ' min');
+  if (workoutNotes) { lines.push('Notes: ' + workoutNotes); }
   lines.push('');
   var trackNames = {push:'PUSH',pull:'PULL',core:'CORE',legs:'LEGS',skills:'SKILLS'};
   var trackOrder = ['push','pull','legs','core','skills'];
@@ -7308,6 +7319,7 @@ var CMD_ACTIONS = [
   {label:'Set All Tempo 4s', key:'', icon:'\u23F1', action: function() { setAllTempo(4); }},
   {label:'Set All Tempo 5s', key:'', icon:'\u23F1', action: function() { setAllTempo(5); }},
   {label:'Complexity Score', key:'', icon:'\u2139', action: function() { showComplexityScore(); }},
+  {label:'Edit Workout Notes', key:'', icon:'\u270E', action: function() { showInlinePrompt('Workout Notes', workoutNotes, function(v){ workoutNotes=v; saveSession(); toast('Notes saved'); }); }},
   {label:'Lock All Clips', key:'', icon:'\u2693', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip').forEach(function(cl){if(!cl.classList.contains('clip-locked')){cl.classList.add('clip-locked');cl.dataset.locked='1';c++;}}); saveSession(); toast(c+' clips locked'); }},
   {label:'Unlock All Clips', key:'', icon:'\u2693', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip.clip-locked').forEach(function(cl){cl.classList.remove('clip-locked');cl.dataset.locked='';c++;}); saveSession(); toast(c+' clips unlocked'); }},
 ];
@@ -7415,6 +7427,7 @@ document.addEventListener('keydown', function(e) {
 
 /* ===== WORKOUT NAME ===== */
 var workoutName = 'Untitled';
+var workoutNotes = '';
 var _sessionCreatedAt = new Date().toISOString();
 function setWorkoutName(name) {
   workoutName = name;
