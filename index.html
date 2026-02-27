@@ -1387,6 +1387,13 @@ button:focus-visible, .transport-btn:focus-visible {
   border: 1px solid rgba(239,68,68,0.4);
   box-shadow: inset 0 0 6px rgba(239,68,68,0.1);
 }
+.clip.clip-overlap-flash {
+  animation: overlapPulse 0.6s ease-out;
+}
+@keyframes overlapPulse {
+  0% { box-shadow: inset 0 0 12px rgba(239,68,68,0.3), 0 0 8px rgba(239,68,68,0.2); }
+  100% { box-shadow: inset 0 0 6px rgba(239,68,68,0.1); }
+}
 
 /* Locate / scroll-to-playhead button in transport */
 .locate-btn {
@@ -3169,6 +3176,7 @@ var MUSIC_TRACKS = [
 /* ===== INIT ===== */
 document.addEventListener('DOMContentLoaded', function() {
   buildLibrary();
+  restoreCategoryState();
   buildTracks();
   buildRuler();
   buildFaders();
@@ -3217,6 +3225,36 @@ function toggleCategory(header) {
   header.classList.toggle('collapsed');
   var list = header.nextElementSibling;
   list.classList.toggle('hidden');
+  saveCategoryState();
+}
+
+function saveCategoryState() {
+  try {
+    var state = {};
+    document.querySelectorAll('.movement-category[data-pattern]').forEach(function(cat) {
+      var h = cat.querySelector('.category-header');
+      if (h && h.classList.contains('collapsed')) {
+        state[cat.dataset.pattern] = true;
+      }
+    });
+    localStorage.setItem('sms_lib_collapsed', JSON.stringify(state));
+  } catch(e) {}
+}
+
+function restoreCategoryState() {
+  try {
+    var saved = localStorage.getItem('sms_lib_collapsed');
+    if (!saved) return;
+    var state = JSON.parse(saved);
+    document.querySelectorAll('.movement-category[data-pattern]').forEach(function(cat) {
+      if (state[cat.dataset.pattern]) {
+        var h = cat.querySelector('.category-header');
+        var l = cat.querySelector('.movement-list');
+        if (h) h.classList.add('collapsed');
+        if (l) l.classList.add('hidden');
+      }
+    });
+  } catch(e) {}
 }
 
 function filterLibrary() {
@@ -3997,9 +4035,10 @@ function updateStats() {
     }
   });
   // Detect clip overlaps per track
+  var prevOverlapCount = document.querySelectorAll('.clip.clip-overlap').length;
   document.querySelectorAll('.track-content').forEach(function(tc) {
     var trackClips = Array.from(tc.querySelectorAll('.clip'));
-    trackClips.forEach(function(c) { c.classList.remove('clip-overlap'); });
+    trackClips.forEach(function(c) { c.classList.remove('clip-overlap'); c.classList.remove('clip-overlap-flash'); });
     for (var i = 0; i < trackClips.length; i++) {
       var aL = parseInt(trackClips[i].style.left) || 0;
       var aR = aL + (parseInt(trackClips[i].style.width) || 80);
@@ -4013,6 +4052,11 @@ function updateStats() {
       }
     }
   });
+  var newOverlapCount = document.querySelectorAll('.clip.clip-overlap').length;
+  if (newOverlapCount > 0 && newOverlapCount > prevOverlapCount) {
+    document.querySelectorAll('.clip.clip-overlap').forEach(function(c) { c.classList.add('clip-overlap-flash'); });
+    toast('Overlapping clips detected (' + newOverlapCount + ')');
+  }
   updateSummary();
   updateMinimap();
   updateEmptyState();
