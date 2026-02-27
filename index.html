@@ -4521,6 +4521,9 @@ function tapTempo() {
     bpm = tapBpm;
     document.getElementById('bpm-input').value = bpm;
     updateBPM();
+    toast('Tap: ' + bpm + ' BPM (' + tapTimes.length + ' taps)');
+  } else {
+    toast('Tap... (keep tapping)');
   }
   sfx('metronome');
   // Visual feedback on tap button
@@ -5918,7 +5921,10 @@ function toggleSnap() {
   var settingsBtn = document.getElementById('settings-snap');
   if (settingsBtn) settingsBtn.textContent = snapEnabled ? 'ON' : 'OFF';
   var snapBadge = document.getElementById('snap-badge');
-  if (snapBadge) snapBadge.classList.toggle('active', snapEnabled);
+  if (snapBadge) {
+    snapBadge.classList.toggle('active', snapEnabled);
+    snapBadge.textContent = snapEnabled ? 'SNAP ' + gridRes + 'B' : 'SNAP';
+  }
   sfx('snap');
   toast(snapEnabled ? 'Snap ON (' + gridRes + ' beat' + (gridRes > 1 ? 's' : '') + ')' : 'Snap OFF');
 }
@@ -6798,6 +6804,8 @@ var metroVolume = 0.5;
 
 function setGridRes(val) {
   gridRes = parseInt(val);
+  var snapBadge = document.getElementById('snap-badge');
+  if (snapBadge && snapEnabled) snapBadge.textContent = 'SNAP ' + gridRes + 'B';
   toast('Grid: ' + gridRes + ' beat' + (gridRes > 1 ? 's' : '') + (snapEnabled ? ' (snap active)' : ''));
 }
 
