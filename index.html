@@ -1227,6 +1227,20 @@ button:focus-visible, .transport-btn:focus-visible {
 }
 .track-resize-handle:hover::after { opacity: 1; }
 
+/* Focus mode — hide panels for full-width timeline */
+.main.focus-mode .panel-left { display: none; }
+.main.focus-mode .panel-right { display: none; }
+.main.focus-mode { grid-template-columns: 1fr; }
+.focus-indicator {
+  display: none; position: fixed; top: 44px; right: 8px;
+  font-size: 7px; color: var(--accent-cyan); background: rgba(6,182,212,0.1);
+  border: 1px solid rgba(6,182,212,0.2); padding: 2px 8px;
+  border-radius: var(--radius-sm); z-index: 60;
+  text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.focus-indicator.visible { display: block; }
+
 /* ===== COMMAND PALETTE ===== */
 .cmd-palette {
   display: none; position: fixed; inset: 0; z-index: 250;
@@ -1946,6 +1960,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       </div>
     </aside>
   </main>
+  <div class="focus-indicator" id="focus-indicator" onclick="toggleFocusMode()" title="Exit focus mode (F)">FOCUS</div>
 
   <!-- FOOTER -->
   <footer class="footer">
@@ -2030,6 +2045,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Enter</kbd><span>Add from Search</span></div>
       <div class="shortcut-item"><kbd>Q</kbd><span>Quantize All</span></div>
       <div class="shortcut-item"><kbd>R</kbd><span>Record Toggle</span></div>
+      <div class="shortcut-item"><kbd>F</kbd><span>Focus Mode</span></div>
       <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
       <div class="shortcut-item"><kbd>Cmd+K</kbd><span>Command Palette</span></div>
       <div class="shortcut-item"><kbd>1-6</kbd><span>Select Track</span></div>
@@ -2709,9 +2725,13 @@ function createClipElement(exercise, left, width, dna) {
   var clip = document.createElement('div');
   clip.className = 'clip';
   var baseColor = fm.color;
-  // Stage-based opacity variation for visual differentiation
-  var stageAlpha = exercise.stage === 1 ? 'bb' : exercise.stage === 2 ? 'dd' : 'ff';
-  clip.style.background = 'linear-gradient(180deg, ' + baseColor + stageAlpha + ' 0%, ' + baseColor + '99 100%)';
+  // Stage-based opacity + RPE intensity for visual differentiation
+  var rpeVal = parseInt((dna && dna.rpe) || '7');
+  var stageBase = exercise.stage === 1 ? 170 : exercise.stage === 2 ? 200 : 230;
+  var rpeBoost = Math.round((rpeVal / 10) * 25);
+  var alphaTop = Math.min(255, stageBase + rpeBoost).toString(16).padStart(2, '0');
+  var alphaBot = Math.min(255, 130 + rpeBoost).toString(16).padStart(2, '0');
+  clip.style.background = 'linear-gradient(180deg, ' + baseColor + alphaTop + ' 0%, ' + baseColor + alphaBot + ' 100%)';
   clip.style.borderTopColor = baseColor;
   clip.style.left = (typeof left === 'string' ? left : Math.max(0, left) + 'px');
   clip.style.width = (typeof width === 'string' ? width : (width || 80) + 'px');
@@ -4501,6 +4521,23 @@ function updatePlayheadClass() {
   if (isPlaying) { ph.classList.add('playing'); } else { ph.classList.remove('playing'); }
 }
 
+var focusMode = false;
+function toggleFocusMode() {
+  focusMode = !focusMode;
+  var main = document.querySelector('.main');
+  var indicator = document.getElementById('focus-indicator');
+  if (focusMode) {
+    main.classList.add('focus-mode');
+    indicator.classList.add('visible');
+    toast('Focus mode — press F to exit');
+  } else {
+    main.classList.remove('focus-mode');
+    indicator.classList.remove('visible');
+    toast('Focus mode off');
+  }
+  sfx('click');
+}
+
 function updateStatusDot() {
   var dot = document.querySelector('.status-dot');
   if (!dot) return;
@@ -4579,6 +4616,7 @@ var CMD_ACTIONS = [
   {label:'Zoom In', key:'Cmd++', icon:'+', action: function() { zoomIn(); }},
   {label:'Zoom Out', key:'Cmd+-', icon:'-', action: function() { zoomOut(); }},
   {label:'Zoom Reset (100%)', key:'Cmd+0', icon:'1:1', action: function() { zoomLevel = 100; applyZoom(); toast('Zoom reset: 100%'); }},
+  {label:'Toggle Focus Mode', key:'F', icon:'\u2B1C', action: function() { toggleFocusMode(); }},
   {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
   {label:'Quantize All Clips', key:'Q', icon:'\u2593', action: function() { quantizeClips(); }},
   {label:'Auto-Arrange Clips', key:'', icon:'\u21F6', action: function() { autoArrange(); }},
@@ -5060,6 +5098,9 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyQ' && !e.metaKey && !e.ctrlKey) {
     quantizeClips();
+  }
+  if (e.code === 'KeyF' && !e.metaKey && !e.ctrlKey) {
+    toggleFocusMode();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
