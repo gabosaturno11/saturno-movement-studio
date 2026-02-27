@@ -1212,6 +1212,40 @@ button:focus-visible, .transport-btn:focus-visible {
   opacity: 1; filter: none;
 }
 
+/* Active track — left accent glow when selected via number key or header click */
+.track.track-active .track-header {
+  border-left: 2px solid var(--accent-blue);
+  background: rgba(59,130,246,0.04);
+}
+.track.track-active .track-content {
+  background: rgba(59,130,246,0.015);
+}
+
+/* Marquee rubber-band selection */
+.marquee-selection {
+  position: absolute;
+  border: 1px solid rgba(59,130,246,0.5);
+  background: rgba(59,130,246,0.08);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Snap line flash */
+@keyframes snapFlash {
+  0% { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+.snap-line {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: var(--accent-blue);
+  pointer-events: none;
+  z-index: 15;
+  animation: snapFlash 0.3s ease-out forwards;
+}
+
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
   0% { transform: translateX(-100%); }
@@ -2067,6 +2101,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Q</kbd><span>Quantize All</span></div>
       <div class="shortcut-item"><kbd>R</kbd><span>Record Toggle</span></div>
       <div class="shortcut-item"><kbd>F</kbd><span>Focus Mode</span></div>
+      <div class="shortcut-item"><kbd>Dbl-Click</kbd><span>Add Random Clip</span></div>
+      <div class="shortcut-item"><kbd>Drag</kbd><span>Marquee Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
       <div class="shortcut-item"><kbd>Cmd+K</kbd><span>Command Palette</span></div>
       <div class="shortcut-item"><kbd>1-6</kbd><span>Select Track</span></div>
@@ -2689,6 +2725,66 @@ function initDragDrop() {
         var x = e.clientX - rect.left + track.parentElement.parentElement.scrollLeft;
         addClip(track, ex, x);
       } catch(err) {}
+    });
+    // Double-click empty area to add random exercise matching this track's family
+    track.addEventListener('dblclick', function(e) {
+      if (e.target.closest('.clip')) return; // ignore clicks on existing clips
+      var trackId = track.dataset.track;
+      if (trackId === 'music') return;
+      var trackDef = TRACKS.find(function(t) { return t.id === trackId; });
+      if (!trackDef) return;
+      var familyExercises = EXERCISES.filter(function(ex) { return ex.family === trackDef.family; });
+      if (familyExercises.length === 0) return;
+      var ex = familyExercises[Math.floor(Math.random() * familyExercises.length)];
+      var rect = track.getBoundingClientRect();
+      var x = e.clientX - rect.left + (track.parentElement.parentElement ? track.parentElement.parentElement.scrollLeft : 0);
+      addClip(track, ex, snapValue(x));
+    });
+    // Marquee rubber-band selection on empty area
+    track.addEventListener('mousedown', function(e) {
+      if (e.target.closest('.clip') || e.button !== 0) return;
+      var trackId = track.dataset.track;
+      if (trackId === 'music') return;
+      var rect = track.getBoundingClientRect();
+      var startX = e.clientX - rect.left;
+      var startY = e.clientY - rect.top;
+      var marquee = document.createElement('div');
+      marquee.className = 'marquee-selection';
+      track.style.position = 'relative';
+      track.appendChild(marquee);
+      function onMove(ev) {
+        var curX = ev.clientX - rect.left;
+        var curY = ev.clientY - rect.top;
+        var left = Math.min(startX, curX);
+        var top = Math.min(startY, curY);
+        var w = Math.abs(curX - startX);
+        var h = Math.abs(curY - startY);
+        marquee.style.left = left + 'px';
+        marquee.style.top = top + 'px';
+        marquee.style.width = w + 'px';
+        marquee.style.height = h + 'px';
+        // Highlight clips that intersect marquee
+        var mLeft = left; var mRight = left + w;
+        track.querySelectorAll('.clip').forEach(function(c) {
+          var cLeft = parseInt(c.style.left) || 0;
+          var cRight = cLeft + (parseInt(c.style.width) || 80);
+          if (cRight > mLeft && cLeft < mRight) {
+            c.classList.add('selected');
+          } else if (!ev.shiftKey) {
+            c.classList.remove('selected');
+          }
+        });
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (marquee.parentNode) marquee.remove();
+        var sel = track.querySelectorAll('.clip.selected');
+        if (sel.length === 1) selectClipEl(sel[0]);
+        else if (sel.length > 1) toast(sel.length + ' clips selected');
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
   });
 }
@@ -4236,7 +4332,18 @@ function toggleSnap() {
 
 function snapValue(val) {
   if (!snapEnabled) return val;
-  return Math.round(val / SNAP_SIZE) * SNAP_SIZE;
+  var snapped = Math.round(val / SNAP_SIZE) * SNAP_SIZE;
+  if (snapped !== val) showSnapLine(snapped);
+  return snapped;
+}
+function showSnapLine(x) {
+  var container = document.getElementById('timeline-tracks');
+  if (!container) return;
+  var line = document.createElement('div');
+  line.className = 'snap-line';
+  line.style.left = x + 'px';
+  container.appendChild(line);
+  setTimeout(function() { if (line.parentNode) line.remove(); }, 300);
 }
 
 /* ===== ZOOM ===== */
