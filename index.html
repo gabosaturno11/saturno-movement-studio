@@ -2688,6 +2688,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="footer-quote" id="footer-hint">Saturno Movement Studio</div>
       <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" data-tip="Zoom level">
       <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
+      <span id="footer-version" data-tip="Workout save version" style="font-size:7px;color:var(--micro);opacity:0.4;font-variant-numeric:tabular-nums">v1</span>
       <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v3.0</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
@@ -5576,6 +5577,12 @@ function _doSaveSession() {
         collapsed: t.classList.contains('track-collapsed')
       };
     });
+    // Version tracking
+    if (typeof _workoutVersion !== 'undefined') {
+      _workoutVersion++;
+      session.workoutVersion = _workoutVersion;
+      updateVersionDisplay();
+    }
     localStorage.setItem('sms_session', JSON.stringify(session));
     // Flash save indicator
     var si = document.getElementById('save-indicator');
@@ -5669,6 +5676,8 @@ function loadSession() {
     }
     if (s.createdAt) _sessionCreatedAt = s.createdAt;
     if (s.workoutNotes) workoutNotes = s.workoutNotes;
+    // Restore workout version
+    if (s.workoutVersion) { _workoutVersion = s.workoutVersion; updateVersionDisplay(); }
     // Restore recently used exercises
     if (s.recentExercises && s.recentExercises.length) {
       recentExercises = s.recentExercises;
@@ -5797,6 +5806,7 @@ function exportWorkout() {
   workout.groupCounter = _groupCounter;
   workout.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
   workout.loop = {enabled: loopEnabled, start: loopStart, end: loopEnd};
+  workout.workoutVersion = _workoutVersion;
   // Faders
   workout.faders = {};
   document.querySelectorAll('[data-fader]').forEach(function(f) {
@@ -7402,6 +7412,12 @@ var CMD_ACTIONS = [
   {label:'Select First 60s', key:'', icon:'\u2610', action: function() { selectClipsInTimeRange(0, 60); }},
   {label:'Save as Template', key:'', icon:'\u2913', action: function() { saveWorkoutTemplate(); }},
   {label:'Load Template', key:'', icon:'\u2912', action: function() { loadWorkoutTemplate(); }},
+  {label:'Half-Time BPM', key:'', icon:'\u00BD', action: function() { halfTimeBPM(); }},
+  {label:'Double-Time BPM', key:'', icon:'\u00D7', action: function() { doubleTimeBPM(); }},
+  {label:'Export HTML Report', key:'', icon:'\u2B1A', action: function() { exportHTMLReport(); }},
+  {label:'Suggest Harder Exercise', key:'', icon:'\u2191', action: function() { suggestProgression('up'); }},
+  {label:'Suggest Easier Exercise', key:'', icon:'\u2193', action: function() { suggestProgression('down'); }},
+  {label:'Insert Rest Between Clips', key:'', icon:'\u23F8', action: function() { insertRestBetweenClips(); }},
 ];
 
 function openCmdPalette() {
@@ -9009,6 +9025,211 @@ function loadWorkoutTemplate() {
     updateStats(); saveSession(); sfx('drop');
     toast('Loaded: ' + template.name);
   });
+}
+
+/* ===== BATCH 250: WORKOUT VERSION TRACKING ===== */
+var _workoutVersion = 1;
+function bumpVersion() {
+  _workoutVersion++;
+  updateVersionDisplay();
+}
+function updateVersionDisplay() {
+  var el = document.getElementById('footer-version');
+  if (el) el.textContent = 'v' + _workoutVersion;
+}
+
+/* ===== BATCH 251: HALF-TIME / DOUBLE-TIME BPM ===== */
+function halfTimeBPM() {
+  var newBpm = Math.max(30, Math.round(bpm / 2));
+  bpm = newBpm;
+  document.getElementById('bpm-input').value = bpm;
+  updateBPMMode();
+  saveSession();
+  sfx('click');
+  toast('Half-time: ' + bpm + ' BPM');
+}
+function doubleTimeBPM() {
+  var newBpm = Math.min(300, bpm * 2);
+  bpm = newBpm;
+  document.getElementById('bpm-input').value = bpm;
+  updateBPMMode();
+  saveSession();
+  sfx('click');
+  toast('Double-time: ' + bpm + ' BPM');
+}
+
+/* ===== BATCH 252: EXPORT AS HTML REPORT ===== */
+function exportHTMLReport() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to export'); return; }
+  var name = workoutName || 'Untitled Workout';
+  var modeName = document.getElementById('bpm-mode') ? document.getElementById('bpm-mode').textContent : '';
+  var trackOrder = ['push', 'pull', 'core', 'legs', 'skills'];
+  var trackLabels = {push:'Push', pull:'Pull', core:'Core', legs:'Legs', skills:'Skills'};
+  var familyColors = {push:'#ef4444', pull:'#3b82f6', core:'#eab308', legs:'#22c55e', skills:'#a855f7'};
+  var totalSets = 0; var totalReps = 0; var exerciseSet = {};
+  var trackData = {};
+  trackOrder.forEach(function(tid) { trackData[tid] = []; });
+  clips.forEach(function(c) {
+    var tid = c.parentElement.dataset.track;
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex || !trackData[tid]) return;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 8;
+    totalSets += sets; totalReps += sets * reps;
+    exerciseSet[ex.id] = true;
+    trackData[tid].push({
+      name: ex.name, stage: ex.stage, discipline: ex.discipline,
+      sets: sets, reps: reps, tempo: c.dataset.tempo || '3',
+      rest: c.dataset.rest || '60', rpe: c.dataset.rpe || '7',
+      notes: c.dataset.notes || ''
+    });
+  });
+  var estTime = 0;
+  clips.forEach(function(c) {
+    var s = parseInt(c.dataset.sets) || 3;
+    var r = parseInt(c.dataset.reps) || 8;
+    var t = parseFloat(c.dataset.tempo) || 3;
+    var rest = parseInt(c.dataset.rest) || 60;
+    estTime += s * r * t + (s - 1) * rest;
+  });
+  var estMin = Math.round(estTime / 60);
+  var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + name + ' - SMS Report</title>';
+  html += '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#050711;color:#e2e8f0;font-family:Sora,system-ui,sans-serif;padding:40px 20px;max-width:800px;margin:0 auto}';
+  html += 'h1{font-size:24px;font-weight:700;margin-bottom:4px}h2{font-size:14px;font-weight:600;margin:24px 0 8px;text-transform:uppercase;letter-spacing:0.08em}';
+  html += '.meta{font-size:11px;color:#64748b;margin-bottom:20px;display:flex;gap:16px;flex-wrap:wrap}.meta span{white-space:nowrap}';
+  html += '.track-section{margin-bottom:20px}.track-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;padding:6px 0;border-bottom:1px solid #1e293b;margin-bottom:8px}';
+  html += 'table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}th{text-align:left;padding:4px 8px;color:#64748b;font-weight:500;border-bottom:1px solid #1e293b;font-size:10px}';
+  html += 'td{padding:4px 8px;border-bottom:1px solid #0f172a}.notes-cell{font-size:9px;color:#94a3b8;font-style:italic}';
+  html += '.rpe-badge{display:inline-block;width:18px;height:14px;border-radius:3px;text-align:center;font-size:9px;font-weight:600;line-height:14px}';
+  html += '.footer-bar{margin-top:32px;padding-top:12px;border-top:1px solid #1e293b;font-size:9px;color:#475569;text-align:center}';
+  html += '@media print{body{background:#fff;color:#1e293b}td,th{border-bottom-color:#e2e8f0}.track-label{border-bottom-color:#e2e8f0}.footer-bar{border-top-color:#e2e8f0}}</style></head><body>';
+  html += '<h1>' + name + '</h1>';
+  html += '<div class="meta"><span>' + bpm + ' BPM ' + modeName + '</span><span>' + clips.length + ' clips</span><span>' + Object.keys(exerciseSet).length + ' exercises</span>';
+  html += '<span>' + totalSets + ' total sets</span><span>~' + estMin + ' min</span>';
+  if (_sessionCreatedAt) html += '<span>Created: ' + new Date(_sessionCreatedAt).toLocaleDateString() + '</span>';
+  html += '<span>Exported: ' + new Date().toLocaleDateString() + '</span></div>';
+  if (workoutNotes) html += '<p style="font-size:11px;color:#94a3b8;margin-bottom:16px;padding:8px;background:#0f172a;border-radius:4px">' + workoutNotes.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>';
+  trackOrder.forEach(function(tid) {
+    if (trackData[tid].length === 0) return;
+    html += '<div class="track-section"><div class="track-label" style="color:' + familyColors[tid] + '">' + trackLabels[tid] + ' (' + trackData[tid].length + ')</div>';
+    html += '<table><tr><th>#</th><th>Exercise</th><th>S</th><th>Sets</th><th>Reps</th><th>Tempo</th><th>Rest</th><th>RPE</th></tr>';
+    trackData[tid].forEach(function(item, idx) {
+      var rpeVal = parseInt(item.rpe) || 7;
+      var rpeColors = ['#22c55e','#22c55e','#84cc16','#a3e635','#eab308','#f59e0b','#f97316','#ef4444','#dc2626','#991b1b'];
+      var rpeColor = rpeColors[rpeVal - 1] || '#eab308';
+      html += '<tr><td>' + (idx + 1) + '</td><td>' + item.name + '</td><td>S' + item.stage + '</td>';
+      html += '<td>' + item.sets + '</td><td>' + item.reps + '</td><td>' + item.tempo + 's</td><td>' + item.rest + 's</td>';
+      html += '<td><span class="rpe-badge" style="background:' + rpeColor + '22;color:' + rpeColor + '">' + rpeVal + '</span></td></tr>';
+      if (item.notes) html += '<tr><td></td><td colspan="7" class="notes-cell">' + item.notes.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</td></tr>';
+    });
+    html += '</table></div>';
+  });
+  html += '<div class="footer-bar">Generated by Saturno Movement Studio | saturnomovement.com</div>';
+  html += '</body></html>';
+  var blob = new Blob([html], {type: 'text/html'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  var safeName = (workoutName || 'workout').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/,'');
+  a.download = safeName + '-report.html';
+  a.click();
+  toast('HTML report exported');
+}
+
+/* ===== BATCH 253: SUGGEST PROGRESSION ===== */
+function suggestProgression(direction) {
+  if (!selectedClip) { toast('Select a clip'); return; }
+  if (selectedClip.classList.contains('clip-locked')) { toast('Clip is locked'); return; }
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var targetStage = direction === 'up' ? ex.stage + 1 : ex.stage - 1;
+  if (targetStage < 1 || targetStage > 3) { toast('No ' + (direction === 'up' ? 'harder' : 'easier') + ' progression'); return; }
+  var candidates = EXERCISES.filter(function(e) { return e.pattern === ex.pattern && e.stage === targetStage; });
+  if (candidates.length === 0) { toast('No stage ' + targetStage + ' for ' + ex.pattern); return; }
+  pushUndo();
+  var replacement = candidates[Math.floor(Math.random() * candidates.length)];
+  selectedClip.dataset.exerciseId = replacement.id;
+  var nameEl = selectedClip.querySelector('.clip-name');
+  if (nameEl) nameEl.textContent = replacement.name;
+  var dots = selectedClip.querySelector('.clip-stage-dots');
+  if (dots) {
+    dots.innerHTML = '';
+    for (var d = 1; d <= 3; d++) {
+      var dot = document.createElement('span');
+      dot.style.cssText = 'width:3px;height:3px;border-radius:50%;background:' + (d <= replacement.stage ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.15)');
+      dots.appendChild(dot);
+    }
+  }
+  selectClipEl(selectedClip);
+  saveSession(); sfx('click');
+  toast((direction === 'up' ? 'Harder' : 'Easier') + ': ' + replacement.name + ' (S' + replacement.stage + ')');
+}
+
+/* ===== BATCH 254: TRACK COLOR THEME ===== */
+var trackColorOverrides = {};
+function setTrackColor(trackId, color) {
+  trackColorOverrides[trackId] = color;
+  var tc = document.querySelector('.track-content[data-track="' + trackId + '"]');
+  if (!tc) return;
+  tc.querySelectorAll('.clip').forEach(function(c) {
+    if (c.dataset.customColor) return;
+    c.style.borderTopColor = color;
+    c.style.background = 'linear-gradient(180deg, ' + color + '22 0%, ' + color + '11 100%)';
+  });
+  saveSession();
+  toast(trackId + ' track color set');
+}
+function resetTrackColor(trackId) {
+  delete trackColorOverrides[trackId];
+  var tc = document.querySelector('.track-content[data-track="' + trackId + '"]');
+  if (!tc) return;
+  tc.querySelectorAll('.clip').forEach(function(c) {
+    if (c.dataset.customColor) return;
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex) return;
+    var familyColors = {push:'#ef4444', pull:'#3b82f6', core:'#eab308', legs:'#22c55e', skills:'#a855f7'};
+    var fc = familyColors[ex.family] || '#06b6d4';
+    c.style.borderTopColor = fc;
+    c.style.background = 'linear-gradient(180deg, ' + fc + '22 0%, ' + fc + '11 100%)';
+  });
+  saveSession();
+  toast(trackId + ' track color reset');
+}
+
+/* ===== BATCH 255: INSERT REST BETWEEN CLIPS ===== */
+function insertRestBetweenClips() {
+  var sel = Array.from(document.querySelectorAll('.clip.selected'));
+  if (sel.length < 2) { toast('Select 2+ clips to insert rest gaps'); return; }
+  pushUndo();
+  var byTrack = {};
+  sel.forEach(function(c) {
+    var tid = c.parentElement.dataset.track;
+    if (!byTrack[tid]) byTrack[tid] = [];
+    byTrack[tid].push(c);
+  });
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var restGap = beatPx * 4;
+  var count = 0;
+  Object.keys(byTrack).forEach(function(tid) {
+    var trackClips = byTrack[tid];
+    trackClips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+    for (var i = trackClips.length - 1; i > 0; i--) {
+      if (trackClips[i].classList.contains('clip-locked')) continue;
+      var prevRight = parseInt(trackClips[i - 1].style.left) + parseInt(trackClips[i - 1].style.width);
+      var curLeft = parseInt(trackClips[i].style.left);
+      var gap = curLeft - prevRight;
+      if (gap < restGap) {
+        var shift = restGap - gap;
+        for (var j = i; j < trackClips.length; j++) {
+          if (trackClips[j].classList.contains('clip-locked')) continue;
+          trackClips[j].style.left = (parseInt(trackClips[j].style.left) + shift) + 'px';
+          count++;
+        }
+      }
+    }
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast('Rest gaps inserted (' + count + ' clips shifted)');
 }
 
 function selectClipsByStage(stage) {
