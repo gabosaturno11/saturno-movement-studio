@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~10,836 lines). No build step. No framework.
+Single-file HTML app (index.html, ~12,746 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-276)
+### Features (Batches 1-300)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -302,6 +302,43 @@ saturno-movement-studio/
 - **Clip crossfade** (auto fade-out/fade-in on adjacent clips in active track)
 - **Command palette** (Cmd+K, 193+ commands)
 - **Keyboard shortcuts panel** (?, 62+ shortcuts)
+- **Intensity zones** (RPE-grouped zone breakdown: Recovery/Moderate/Hard/Max)
+- **Track swap** (swap all clips between two tracks)
+- **Export timeline image** (canvas render of all tracks as PNG download)
+- **Movement pattern balance** (horizontal bar chart of pattern percentages)
+- **Paste exercises from clipboard** (fuzzy match text to exercises, adds to timeline)
+- **Workout streak tracker** (consecutive days from ratings/saved workouts)
+- **Compare saved workouts** (side-by-side diff of two saved workouts)
+- **Exercise history** (per-exercise usage across all saved workouts)
+- **Smart auto-arrange** (sort clips by family, then by pattern, optimal spacing)
+- **Ghost mode** (dim unselected clips for focus, toggle command)
+- **Detailed workout analysis** (comprehensive 10-metric breakdown report)
+- **Exercise atlas** (standalone HTML grid of all 58 exercises with badges)
+- **Full mobile responsive system** (640px breakpoint, drawer layout)
+- **Library slide-out drawer** (left-side drawer on mobile, touch-friendly)
+- **Inspector bottom sheet** (slide-up panel on mobile with drag handle)
+- **Mobile bottom panel bar** (5 buttons: Library, Play, Cmd, Mixer, More)
+- **Mobile nav dropdown** (header nav becomes fullscreen dropdown menu)
+- **Touch-friendly targets** (44px minimum throughout on mobile)
+- **Touch drag-drop** (tap exercises in library to add, touch-move clips)
+- **Swipe right to open library** (edge swipe gesture on timeline)
+- **Mobile play button sync** (bottom bar play button tracks playback state)
+- **Landscape detection** (portrait hint on first mobile visit, auto-dismiss)
+- **Haptic feedback** (navigator.vibrate on transport/clip/panel touches)
+- **Swipe-to-delete clips** (left-swipe clip to delete on mobile)
+- **Double-tap timeline** (opens command palette on mobile)
+- **Long-press context menu** (500ms hold opens clip context menu on mobile)
+- **Mobile-optimized presets** (fullscreen modal overlay on mobile)
+- **Mobile context menu** (anchored to bottom of screen on mobile)
+- **Cinematic workout intro** (fullscreen animated splash before timer start)
+- **Achievement system** (10 achievements with localStorage persistence)
+- **Achievement toast** (animated unlock notification with haptic)
+- **Smart workout suggestions** (family balance, RPE, volume analysis with modal)
+- **Quick workout templates** (8 pre-built templates: PPL, Upper, Core Blitz, etc.)
+- **Workout heat calendar** (GitHub-style 12-week activity grid)
+- **Motivational quotes engine** (15 quotes, footer rotation, milestone toasts)
+- **Session milestones** (5/15/30/45/60/90/120 min cinematic toast with quote)
+- **Command palette** (Cmd+K, 210+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
