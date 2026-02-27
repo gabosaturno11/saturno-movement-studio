@@ -8063,6 +8063,12 @@ var CMD_ACTIONS = [
   {label:'Training Density', key:'', icon:'\u26a1', action: function() { showTrainingDensity(); }},
   {label:'Prerequisites Map', key:'', icon:'\ud83d\uddfa', action: function() { showPrerequisiteMap(); }},
   {label:'Export Comparison', key:'', icon:'\ud83d\udccb', action: function() { exportWorkoutComparison(); }},
+  {label:'Mood Logger', key:'', icon:'\ud83d\ude0a', action: function() { showMoodLogger(); }},
+  {label:'Difficulty Progression', key:'', icon:'\ud83d\udcc8', action: function() { showDifficultyProgression(); }},
+  {label:'Smart Suggestions', key:'', icon:'\ud83d\udca1', action: function() { showSmartSuggestions(); }},
+  {label:'Energy Expenditure', key:'', icon:'\ud83d\udd25', action: function() { showEnergyExpenditure(); }},
+  {label:'Week Overview', key:'', icon:'\ud83d\udcc5', action: function() { showWeekOverview(); }},
+  {label:'Confidence Rating', key:'', icon:'\u2b50', action: function() { showConfidenceRating(); }},
 ];
 
 function openCmdPalette() {
@@ -20989,6 +20995,324 @@ function exportWorkoutComparison() {
     text += name.padEnd(20) + String(clips).padEnd(8) + String(sets).padEnd(8) + Object.keys(fams).join(', ').padEnd(30) + '\n';
   });
   try { navigator.clipboard.writeText(text); showToast('Comparison exported to clipboard'); } catch(e) { showToast('Copy failed'); }
+}
+
+// Batch 440: Workout Mood Logger
+function showMoodLogger() {
+  var moods = [];
+  try { moods = JSON.parse(localStorage.getItem('sms_mood_log') || '[]'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var moodLevels = [
+    {val: 1, label: 'Terrible', color: '#f87171'},
+    {val: 2, label: 'Low', color: '#fb923c'},
+    {val: 3, label: 'Neutral', color: '#fbbf24'},
+    {val: 4, label: 'Good', color: '#4ade80'},
+    {val: 5, label: 'Amazing', color: '#06b6d4'}
+  ];
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Mood Logger</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">How are you feeling?</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;">';
+  html += '<div>';
+  html += '<div style="font-size:12px;color:#94a3b8;margin-bottom:6px;text-align:center;">Pre-Workout</div>';
+  moodLevels.forEach(function(m) {
+    html += '<button onclick="logMood(\'pre\',' + m.val + ')" style="display:block;width:100%;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:' + m.color + ';cursor:pointer;font-family:Sora,sans-serif;font-size:13px;">' + m.val + ' - ' + m.label + '</button>';
+  });
+  html += '</div><div>';
+  html += '<div style="font-size:12px;color:#94a3b8;margin-bottom:6px;text-align:center;">Post-Workout</div>';
+  moodLevels.forEach(function(m) {
+    html += '<button onclick="logMood(\'post\',' + m.val + ')" style="display:block;width:100%;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:' + m.color + ';cursor:pointer;font-family:Sora,sans-serif;font-size:13px;">' + m.val + ' - ' + m.label + '</button>';
+  });
+  html += '</div></div>';
+  if (moods.length > 0) {
+    html += '<div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:12px;margin-top:8px;">';
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">Recent</div>';
+    moods.slice(-8).reverse().forEach(function(m) {
+      var preColor = moodLevels[m.pre - 1] ? moodLevels[m.pre - 1].color : '#94a3b8';
+      var postColor = m.post ? (moodLevels[m.post - 1] ? moodLevels[m.post - 1].color : '#94a3b8') : '#64748b';
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 8px;margin-bottom:3px;font-size:12px;">';
+      html += '<span style="color:#94a3b8;">' + new Date(m.date).toLocaleDateString() + '</span>';
+      html += '<span>Pre: <span style="color:' + preColor + ';">' + m.pre + '</span> | Post: <span style="color:' + postColor + ';">' + (m.post || '-') + '</span></span></div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function logMood(type, val) {
+  var moods = [];
+  try { moods = JSON.parse(localStorage.getItem('sms_mood_log') || '[]'); } catch(e) {}
+  var today = new Date().toISOString().split('T')[0];
+  var entry = moods.find(function(m) { return m.date && m.date.startsWith(today); });
+  if (!entry) { entry = {date: new Date().toISOString()}; moods.push(entry); }
+  entry[type] = val;
+  if (moods.length > 100) moods = moods.slice(-100);
+  try { localStorage.setItem('sms_mood_log', JSON.stringify(moods)); } catch(e) {}
+  var label = ['', 'Terrible', 'Low', 'Neutral', 'Good', 'Amazing'][val];
+  showToast(type === 'pre' ? 'Pre-workout mood: ' + label : 'Post-workout mood: ' + label);
+}
+
+// Batch 441: Exercise Difficulty Progression
+function showDifficultyProgression() {
+  var diffRatings = {};
+  try { diffRatings = JSON.parse(localStorage.getItem('sms_exercise_difficulty') || '{}'); } catch(e) {}
+  var exercises = [];
+  var seen = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var name = c.dataset.exercise || '';
+    if (name && !seen[name]) {
+      seen[name] = true;
+      exercises.push({name: name, family: c.dataset.family || '', history: diffRatings[name] || []});
+    }
+  });
+  if (exercises.length === 0) { showToast('Add exercises first'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Difficulty Progression</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Rate how hard each exercise feels (1=Easy, 5=Very Hard)</div>';
+  exercises.forEach(function(ex) {
+    var latest = ex.history.length > 0 ? ex.history[ex.history.length - 1].val : 0;
+    var trend = ex.history.length >= 2 ? (ex.history[ex.history.length - 1].val - ex.history[ex.history.length - 2].val) : 0;
+    var trendIcon = trend < 0 ? ' (easier)' : trend > 0 ? ' (harder)' : '';
+    var trendColor = trend < 0 ? '#4ade80' : trend > 0 ? '#f87171' : '#94a3b8';
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+    html += '<span style="flex:1;font-size:13px;">' + ex.name + '</span>';
+    for (var d = 1; d <= 5; d++) {
+      var active = d <= latest;
+      html += '<span onclick="rateDifficulty(\'' + ex.name.replace(/'/g, "\\'") + '\',' + d + ')" style="cursor:pointer;font-size:14px;color:' + (active ? '#fbbf24' : '#1e293b') + ';">*</span>';
+    }
+    if (trendIcon) html += '<span style="font-size:10px;color:' + trendColor + ';">' + trendIcon + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function rateDifficulty(name, val) {
+  var diffRatings = {};
+  try { diffRatings = JSON.parse(localStorage.getItem('sms_exercise_difficulty') || '{}'); } catch(e) {}
+  if (!diffRatings[name]) diffRatings[name] = [];
+  diffRatings[name].push({val: val, date: new Date().toISOString()});
+  if (diffRatings[name].length > 20) diffRatings[name] = diffRatings[name].slice(-20);
+  try { localStorage.setItem('sms_exercise_difficulty', JSON.stringify(diffRatings)); } catch(e) {}
+  showToast(name + ': difficulty ' + val + '/5');
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showDifficultyProgression();
+}
+
+// Batch 442: Smart Exercise Suggestions
+function showSmartSuggestions() {
+  var currentFamilies = {};
+  var currentPatterns = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var pat = c.dataset.pattern || '';
+    currentFamilies[fam] = (currentFamilies[fam] || 0) + 1;
+    if (pat) currentPatterns[pat] = true;
+  });
+  var allFamilies = ['Push', 'Pull', 'Core', 'Legs', 'Skills'];
+  var missing = allFamilies.filter(function(f) {
+    return !Object.keys(currentFamilies).some(function(cf) { return cf.toLowerCase().indexOf(f.toLowerCase()) > -1; });
+  });
+  var underrep = allFamilies.filter(function(f) {
+    var count = 0;
+    Object.keys(currentFamilies).forEach(function(cf) { if (cf.toLowerCase().indexOf(f.toLowerCase()) > -1) count += currentFamilies[cf]; });
+    return count > 0 && count <= 2;
+  });
+  var suggestions = [];
+  missing.forEach(function(fam) {
+    var exs = EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf(fam.toLowerCase()) > -1; });
+    if (exs.length > 0) {
+      var pick = exs[Math.floor(Math.random() * exs.length)];
+      suggestions.push({exercise: pick.name, reason: fam + ' family missing from workout', family: fam, priority: 'high'});
+    }
+  });
+  underrep.forEach(function(fam) {
+    var exs = EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf(fam.toLowerCase()) > -1; });
+    if (exs.length > 0) {
+      var pick = exs[Math.floor(Math.random() * exs.length)];
+      suggestions.push({exercise: pick.name, reason: fam + ' underrepresented (add more volume)', family: fam, priority: 'medium'});
+    }
+  });
+  if (suggestions.length === 0) suggestions.push({exercise: '-', reason: 'Your workout looks well-balanced!', family: '', priority: 'none'});
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Smart Suggestions</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  suggestions.forEach(function(s) {
+    var priColor = s.priority === 'high' ? '#f87171' : s.priority === 'medium' ? '#fbbf24' : '#4ade80';
+    html += '<div style="padding:12px;margin-bottom:8px;background:rgba(6,182,212,0.05);border-left:3px solid ' + priColor + ';border-radius:0 8px 8px 0;">';
+    if (s.exercise !== '-') html += '<div style="font-weight:600;font-size:14px;">' + s.exercise + '</div>';
+    html += '<div style="font-size:12px;color:#94a3b8;margin-top:4px;">' + s.reason + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 443: Workout Energy Expenditure
+function showEnergyExpenditure() {
+  var metValues = {Push: 6.0, Pull: 5.5, Core: 4.0, Legs: 7.0, Skills: 5.0};
+  var bodyWeight = 75;
+  var totalCal = 0;
+  var perFamily = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var sets = parseInt(c.dataset.sets || 3);
+    var reps = parseInt(c.dataset.reps || 8);
+    var tempo = parseInt(c.dataset.tempo || 3);
+    var rest = parseInt(c.dataset.rest || 60);
+    var famKey = Object.keys(metValues).find(function(k) { return fam.toLowerCase().indexOf(k.toLowerCase()) > -1; }) || 'Core';
+    var met = metValues[famKey];
+    var workMin = (sets * reps * tempo) / 60;
+    var restMin = ((sets - 1) * rest) / 60;
+    var totalMin = workMin + restMin;
+    var cal = Math.round(met * bodyWeight * totalMin / 60);
+    totalCal += cal;
+    if (!perFamily[famKey]) perFamily[famKey] = 0;
+    perFamily[famKey] += cal;
+  });
+  if (totalCal === 0) { showToast('Add exercises first'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Energy Expenditure</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:16px 0;">';
+  html += '<div style="font-size:48px;font-weight:700;color:#fb923c;">' + totalCal + '</div>';
+  html += '<div style="font-size:14px;color:#94a3b8;">Estimated kcal</div>';
+  html += '<div style="font-size:11px;color:#64748b;margin-top:4px;">Based on ' + bodyWeight + 'kg body weight</div></div>';
+  Object.keys(perFamily).sort(function(a, b) { return perFamily[b] - perFamily[a]; }).forEach(function(f) {
+    var pct = Math.round((perFamily[f] / totalCal) * 100);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+    html += '<span style="font-size:13px;color:' + getFamilyColor(f) + ';">' + f + '</span>';
+    html += '<span style="font-size:13px;color:#94a3b8;">' + perFamily[f] + ' kcal (' + pct + '%)</span>';
+    html += '</div>';
+  });
+  html += '<div style="margin-top:12px;font-size:11px;color:#64748b;text-align:center;">Estimate uses MET values. Actual expenditure varies.</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 444: Training Week Overview
+function showWeekOverview() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var now = new Date();
+  var weekStart = new Date(now);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+  var weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  var thisWeek = saved.filter(function(s) {
+    var d = new Date(s.date || s.timestamp);
+    return d >= weekStart && d < weekEnd;
+  });
+  var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var dayMap = {};
+  dayNames.forEach(function(d) { dayMap[d] = []; });
+  thisWeek.forEach(function(s) {
+    var d = new Date(s.date || s.timestamp);
+    var dayName = dayNames[d.getDay()];
+    dayMap[dayName].push(s);
+  });
+  var totalSets = 0;
+  var totalClips = 0;
+  thisWeek.forEach(function(s) {
+    (s.clips || []).forEach(function(c) {
+      totalClips++;
+      totalSets += parseInt(c.sets || c.dataset && c.dataset.sets || 3);
+    });
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">This Week</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#06b6d4;">' + thisWeek.length + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Sessions</div></div>';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#22d3ee;">' + totalClips + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Exercises</div></div>';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#67e8f9;">' + totalSets + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Total Sets</div></div></div>';
+  dayNames.forEach(function(d) {
+    var isToday = d === dayNames[now.getDay()];
+    var sessions = dayMap[d];
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:rgba(6,182,212,' + (isToday ? '0.1' : '0.03') + ');border-radius:6px;' + (isToday ? 'border:1px solid rgba(6,182,212,0.3);' : '') + '">';
+    html += '<span style="font-size:13px;font-weight:' + (isToday ? '700' : '400') + ';color:' + (isToday ? '#06b6d4' : '#94a3b8') + ';width:40px;">' + d + '</span>';
+    if (sessions.length > 0) {
+      sessions.forEach(function(s) {
+        html += '<span style="font-size:12px;color:#e2e8f0;padding:2px 6px;background:rgba(6,182,212,0.15);border-radius:4px;">' + (s.name || 'Workout') + '</span>';
+      });
+    } else {
+      html += '<span style="font-size:12px;color:#64748b;">Rest day</span>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 445: Exercise Confidence Rating
+function showConfidenceRating() {
+  var confidence = {};
+  try { confidence = JSON.parse(localStorage.getItem('sms_exercise_confidence') || '{}'); } catch(e) {}
+  var exercises = [];
+  var seen = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var name = c.dataset.exercise || '';
+    if (name && !seen[name]) {
+      seen[name] = true;
+      exercises.push({name: name, family: c.dataset.family || '', confidence: confidence[name] || 0});
+    }
+  });
+  if (exercises.length === 0) { showToast('Add exercises first'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Confidence Rating</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Rate your confidence with each exercise (1-5)</div>';
+  exercises.forEach(function(ex) {
+    var confColor = ex.confidence >= 4 ? '#4ade80' : ex.confidence >= 2 ? '#fbbf24' : ex.confidence > 0 ? '#f87171' : '#64748b';
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+    html += '<span style="flex:1;font-size:13px;">' + ex.name + '</span>';
+    for (var c = 1; c <= 5; c++) {
+      var active = c <= ex.confidence;
+      html += '<span onclick="rateConfidence(\'' + ex.name.replace(/'/g, "\\'") + '\',' + c + ')" style="cursor:pointer;font-size:14px;color:' + (active ? '#fbbf24' : '#1e293b') + ';">*</span>';
+    }
+    html += '</div>';
+  });
+  var avgConf = exercises.reduce(function(s, e) { return s + e.confidence; }, 0) / exercises.length;
+  html += '<div style="text-align:center;margin-top:12px;font-size:12px;color:#94a3b8;">Average confidence: ' + avgConf.toFixed(1) + '/5</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function rateConfidence(name, val) {
+  var confidence = {};
+  try { confidence = JSON.parse(localStorage.getItem('sms_exercise_confidence') || '{}'); } catch(e) {}
+  confidence[name] = val;
+  try { localStorage.setItem('sms_exercise_confidence', JSON.stringify(confidence)); } catch(e) {}
+  showToast(name + ': confidence ' + val + '/5');
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showConfidenceRating();
 }
 
 function selectClipsByStage(stage) {
