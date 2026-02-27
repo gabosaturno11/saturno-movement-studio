@@ -7962,6 +7962,14 @@ var CMD_ACTIONS = [
   {label:'Show Movement Cues', key:'', icon:'\u270E', action: function() { showCueForClip(); }},
   {label:'Narrate Workout (TTS)', key:'', icon:'\u266A', action: function() { generateNarration(); }},
   {label:'Stop Narration', key:'', icon:'\u25A0', action: function() { stopNarration(); }},
+  {label:'Theme Picker', key:'', icon:'\u2600', action: function() { showThemePicker(); }},
+  {label:'Theme: Cosmic Blue', key:'', icon:'\u2600', action: function() { applyTheme('default'); }},
+  {label:'Theme: Midnight', key:'', icon:'\u2600', action: function() { applyTheme('midnight'); }},
+  {label:'Theme: Ember', key:'', icon:'\u2600', action: function() { applyTheme('ember'); }},
+  {label:'Theme: Frost', key:'', icon:'\u2600', action: function() { applyTheme('frost'); }},
+  {label:'Theme: Neon', key:'', icon:'\u2600', action: function() { applyTheme('neon'); }},
+  {label:'Progression Tracker', key:'', icon:'\u2191', action: function() { showProgressionTracker(); }},
+  {label:'Pin Command to Toolbar', key:'', icon:'\u2691', action: function() { showPinPicker(); }},
 ];
 
 function openCmdPalette() {
@@ -15667,6 +15675,155 @@ function stopNarration() {
   if ('speechSynthesis' in window) speechSynthesis.cancel();
   showToast('Narration stopped');
 }
+
+// Batch 355: Workout Visual Themes
+var _currentTheme = 'default';
+var WORKOUT_THEMES = {
+  default: { name: 'Cosmic Blue', bg: '#050711', surface: '#0a0f1e', accent: '#22d3ee', text: '#e2e8f0', muted: '#64748b' },
+  midnight: { name: 'Midnight', bg: '#0a0a12', surface: '#12121e', accent: '#818cf8', text: '#e0e0e8', muted: '#6b6b8a' },
+  ember: { name: 'Ember', bg: '#0f0807', surface: '#1a0f0c', accent: '#f97316', text: '#fde8d0', muted: '#8b6b5a' },
+  frost: { name: 'Frost', bg: '#060a0f', surface: '#0c1420', accent: '#38bdf8', text: '#e0ecf8', muted: '#5a7a9b' },
+  neon: { name: 'Neon', bg: '#050508', surface: '#0a0a14', accent: '#a3e635', text: '#e8f0d0', muted: '#6a7a5a' }
+};
+function applyTheme(themeKey) {
+  var theme = WORKOUT_THEMES[themeKey];
+  if (!theme) return;
+  _currentTheme = themeKey;
+  var root = document.documentElement;
+  root.style.setProperty('--bg', theme.bg);
+  root.style.setProperty('--surface', theme.surface);
+  root.style.setProperty('--accent', theme.accent);
+  root.style.setProperty('--text', theme.text);
+  root.style.setProperty('--muted', theme.muted);
+  document.body.style.background = theme.bg;
+  document.body.style.color = theme.text;
+  try { localStorage.setItem('sms_theme', themeKey); } catch(e) {}
+  showToast('Theme: ' + theme.name);
+}
+function showThemePicker() {
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.9);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:400px">';
+  Object.keys(WORKOUT_THEMES).forEach(function(key) {
+    var t = WORKOUT_THEMES[key];
+    var active = key === _currentTheme;
+    html += '<button onclick="applyTheme(\'' + key + '\');this.closest(\'div[style*=fixed]\').remove()" style="width:80px;padding:16px 8px;background:' + t.bg + ';border:2px solid ' + (active ? t.accent : 'rgba(255,255,255,0.1)') + ';border-radius:12px;cursor:pointer;text-align:center">';
+    html += '<div style="width:24px;height:24px;border-radius:50%;background:' + t.accent + ';margin:0 auto 8px"></div>';
+    html += '<span style="color:' + t.text + ';font-family:Sora,sans-serif;font-size:9px;font-weight:600">' + t.name + '</span></button>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+(function() {
+  try { var t = localStorage.getItem('sms_theme'); if (t && WORKOUT_THEMES[t]) applyTheme(t); } catch(e) {}
+})();
+
+// Batch 356: Exercise Progression Tracking
+var _progressionState = {};
+function loadProgressionState() {
+  try { var d = localStorage.getItem('sms_progression_state'); if (d) _progressionState = JSON.parse(d); } catch(e) {}
+}
+function saveProgressionState() {
+  try { localStorage.setItem('sms_progression_state', JSON.stringify(_progressionState)); } catch(e) {}
+}
+function setProgressionStage(pattern, stage) {
+  _progressionState[pattern] = stage;
+  saveProgressionState();
+  showToast(pattern + ' progression set to Stage ' + stage);
+}
+function showProgressionTracker() {
+  loadProgressionState();
+  var patterns = [];
+  if (typeof EXERCISES !== 'undefined') {
+    var seen = {};
+    EXERCISES.forEach(function(ex) {
+      if (ex.pattern && !seen[ex.pattern]) {
+        seen[ex.pattern] = true;
+        patterns.push(ex.pattern);
+      }
+    });
+  }
+  if (!patterns.length) patterns = ['Horizontal Push', 'Horizontal Pull', 'Downward Press', 'Vertical Pull', 'Overhead Press', 'Knee-Dominant', 'Hip-Dominant'];
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:460px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Progression Tracker</span>';
+  patterns.forEach(function(p) {
+    var current = _progressionState[p] || 1;
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03)">';
+    html += '<span style="color:#e2e8f0;font-size:11px;flex:1">' + p + '</span>';
+    html += '<div style="display:flex;gap:4px">';
+    for (var s = 1; s <= 3; s++) {
+      var active = s <= current;
+      html += '<button onclick="setProgressionStage(\'' + p.replace(/'/g, "\\'") + '\',' + s + ');this.closest(\'div[style*=fixed]\').remove();showProgressionTracker()" style="width:28px;height:28px;border-radius:6px;border:1px solid ' + (active ? 'rgba(34,211,238,0.5)' : 'rgba(255,255,255,0.1)') + ';background:' + (active ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.02)') + ';color:' + (active ? '#22d3ee' : '#475569') + ';cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:700">S' + s + '</button>';
+    }
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+loadProgressionState();
+
+// Batch 357: Quick Access Toolbar
+var _quickAccessCommands = [];
+function loadQuickAccess() {
+  try { var d = localStorage.getItem('sms_quick_access'); if (d) _quickAccessCommands = JSON.parse(d); } catch(e) {}
+}
+function saveQuickAccess() {
+  try { localStorage.setItem('sms_quick_access', JSON.stringify(_quickAccessCommands)); } catch(e) {}
+}
+function pinToQuickAccess(label) {
+  loadQuickAccess();
+  if (_quickAccessCommands.indexOf(label) >= 0) { showToast('Already pinned'); return; }
+  _quickAccessCommands.push(label);
+  if (_quickAccessCommands.length > 8) _quickAccessCommands = _quickAccessCommands.slice(-8);
+  saveQuickAccess();
+  renderQuickAccessBar();
+  showToast('Pinned: ' + label);
+}
+function unpinFromQuickAccess(label) {
+  loadQuickAccess();
+  _quickAccessCommands = _quickAccessCommands.filter(function(l) { return l !== label; });
+  saveQuickAccess();
+  renderQuickAccessBar();
+  showToast('Unpinned: ' + label);
+}
+function renderQuickAccessBar() {
+  var existing = document.getElementById('quick-access-bar');
+  if (existing) existing.remove();
+  loadQuickAccess();
+  if (!_quickAccessCommands.length) return;
+  var bar = document.createElement('div');
+  bar.id = 'quick-access-bar';
+  bar.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;gap:4px;padding:6px 12px;background:rgba(5,7,17,0.95);border:1px solid rgba(34,211,238,0.15);border-radius:12px;font-family:Sora,sans-serif';
+  _quickAccessCommands.forEach(function(label) {
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:4px 10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:#94a3b8;cursor:pointer;font-family:Sora,sans-serif;font-size:9px;white-space:nowrap';
+    btn.textContent = label;
+    btn.addEventListener('click', function() {
+      if (typeof CMD_ACTIONS !== 'undefined') {
+        var found = CMD_ACTIONS.find(function(a) { return a.label === label; });
+        if (found) found.action();
+      }
+    });
+    bar.appendChild(btn);
+  });
+  document.body.appendChild(bar);
+}
+function showPinPicker() {
+  if (typeof CMD_ACTIONS === 'undefined') { showToast('No commands available'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:420px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:4px">Pin to Quick Access</span>';
+  html += '<span style="color:#64748b;font-size:9px;display:block;margin-bottom:12px">Click a command to pin/unpin</span>';
+  loadQuickAccess();
+  CMD_ACTIONS.forEach(function(cmd) {
+    var pinned = _quickAccessCommands.indexOf(cmd.label) >= 0;
+    html += '<button onclick="' + (pinned ? 'unpinFromQuickAccess' : 'pinToQuickAccess') + '(\'' + cmd.label.replace(/'/g, "\\'") + '\');this.closest(\'div[style*=fixed]\').remove()" style="display:block;width:100%;text-align:left;padding:6px 10px;margin-bottom:2px;background:' + (pinned ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.01)') + ';border:1px solid ' + (pinned ? 'rgba(34,211,238,0.2)' : 'rgba(255,255,255,0.03)') + ';border-radius:4px;color:' + (pinned ? '#22d3ee' : '#94a3b8') + ';cursor:pointer;font-family:Sora,sans-serif;font-size:10px">' + (pinned ? '[-] ' : '[+] ') + cmd.label + '</button>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+loadQuickAccess();
+setTimeout(renderQuickAccessBar, 500);
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
