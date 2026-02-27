@@ -2627,6 +2627,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span style="color:var(--border)">|</span>
       <span data-tip="Est. workout time (sets x reps x tempo + rest)" style="color:var(--muted)">Est: <span id="footer-est-time" style="color:var(--muted)">0:00</span></span>
       <span style="color:var(--border)">|</span>
+      <span data-tip="Workout intensity score (0-100)" style="color:var(--muted)">Int: <span id="footer-intensity" style="font-variant-numeric:tabular-nums">0</span></span>
+      <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
       <span data-tip="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
@@ -4134,6 +4136,29 @@ function updateStats() {
   var estMin = Math.floor(estTotalSec / 60);
   var estSec = Math.round(estTotalSec % 60);
   document.getElementById('footer-est-time').textContent = estMin + ':' + estSec.toString().padStart(2, '0');
+  // Workout intensity score (0-100)
+  var intensityEl = document.getElementById('footer-intensity');
+  if (clips.length > 0 && intensityEl) {
+    var avgRpe = 0; var totalVolume = 0;
+    clips.forEach(function(c) {
+      avgRpe += parseInt(c.dataset.rpe) || 7;
+      totalVolume += (parseInt(c.dataset.sets) || 3) * (parseInt(c.dataset.reps) || 8);
+    });
+    avgRpe = avgRpe / clips.length;
+    var volScore = Math.min(40, totalVolume / 8);
+    var rpeScore = (avgRpe / 10) * 40;
+    var familyCount = 0;
+    var fams = {};
+    clips.forEach(function(c) { var ex = getExercise(c.dataset.exerciseId); if (ex) fams[ex.family] = true; });
+    familyCount = Object.keys(fams).length;
+    var diversityScore = Math.min(20, familyCount * 4);
+    var score = Math.min(100, Math.round(volScore + rpeScore + diversityScore));
+    intensityEl.textContent = score;
+    intensityEl.style.color = score >= 80 ? '#ef4444' : score >= 60 ? '#f97316' : score >= 40 ? '#eab308' : '#22c55e';
+  } else if (intensityEl) {
+    intensityEl.textContent = '0';
+    intensityEl.style.color = 'var(--muted)';
+  }
   // Update total bars in footer
   var bpbF = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
   var totalBars = Math.ceil(secs / (60 / bpm * bpbF));
