@@ -7888,6 +7888,11 @@ var CMD_ACTIONS = [
   {label:'Export Session Notes (HTML)', key:'', icon:'\u2709', action: function() { exportSessionNotes(); }},
   {label:'Start Playlist Mode', key:'', icon:'\u25B6', action: function() { startPlaylistMode(); }},
   {label:'Stop Playlist Mode', key:'', icon:'\u25A0', action: function() { stopPlaylistMode(); }},
+  {label:'Workout Flow Visualizer', key:'', icon:'\u21C4', action: function() { showWorkoutFlow(); }},
+  {label:'Smart Rest Suggestions', key:'', icon:'\u23F1', action: function() { suggestRest(); }},
+  {label:'Apply Rest Suggestions', key:'', icon:'\u2714', action: function() { applyRestSuggestions(); }},
+  {label:'Take Workout Snapshot', key:'', icon:'\u2B50', action: function() { takeWorkoutSnapshot(); }},
+  {label:'Snapshot History', key:'', icon:'\u231A', action: function() { showSnapshotHistory(); }},
 ];
 
 function openCmdPalette() {
@@ -13475,6 +13480,208 @@ function stopPlaylistMode() {
   _playlistMode = false;
   if (_playlistOverlay) { _playlistOverlay.remove(); _playlistOverlay = null; }
   stopRestTimer();
+}
+
+// Batch 319: Workout Flow Visualizer
+function showWorkoutFlow() {
+  var clips = Array.from(document.querySelectorAll('.clip')).sort(function(a, b) {
+    var tA = parseInt(a.closest('.track-lane') ? a.closest('.track-lane').dataset.track : '0');
+    var tB = parseInt(b.closest('.track-lane') ? b.closest('.track-lane').dataset.track : '0');
+    if (tA !== tB) return tA - tB;
+    return parseFloat(a.style.left) - parseFloat(b.style.left);
+  });
+  if (clips.length < 2) { showToast('Need 2+ clips for flow'); return; }
+  var nodes = [];
+  var seen = {};
+  clips.forEach(function(c) {
+    var name = c.dataset.exercise || c.textContent.trim().split('\n')[0];
+    var fam = c.dataset.family || 'core';
+    if (!seen[name]) { seen[name] = { name: name, family: fam, count: 0 }; nodes.push(seen[name]); }
+    seen[name].count++;
+  });
+  var edges = [];
+  for (var i = 0; i < clips.length - 1; i++) {
+    var from = clips[i].dataset.exercise || clips[i].textContent.trim().split('\n')[0];
+    var to = clips[i + 1].dataset.exercise || clips[i + 1].textContent.trim().split('\n')[0];
+    if (from !== to) {
+      var key = from + '->' + to;
+      var found = false;
+      for (var e = 0; e < edges.length; e++) { if (edges[e].key === key) { edges[e].weight++; found = true; break; } }
+      if (!found) edges.push({ from: from, to: to, key: key, weight: 1 });
+    }
+  }
+  var famColors = { push: '#f87171', pull: '#60a5fa', core: '#fbbf24', legs: '#4ade80', skills: '#c084fc', flow: '#22d3ee' };
+  var w = 900, h = 600, cx = w / 2, cy = h / 2;
+  var angleStep = (2 * Math.PI) / nodes.length;
+  var radius = Math.min(w, h) * 0.35;
+  nodes.forEach(function(n, idx) {
+    n.x = cx + Math.cos(idx * angleStep - Math.PI / 2) * radius;
+    n.y = cy + Math.sin(idx * angleStep - Math.PI / 2) * radius;
+  });
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" style="background:#050711">';
+  svg += '<text x="' + cx + '" y="30" text-anchor="middle" fill="#e2e8f0" font-family="Sora,sans-serif" font-size="16">Workout Flow</text>';
+  var nodeMap = {};
+  nodes.forEach(function(n) { nodeMap[n.name] = n; });
+  edges.forEach(function(ed) {
+    var a = nodeMap[ed.from], b = nodeMap[ed.to];
+    if (a && b) {
+      var opacity = Math.min(0.3 + ed.weight * 0.2, 1);
+      svg += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#22d3ee" stroke-opacity="' + opacity + '" stroke-width="' + (1 + ed.weight) + '"/>';
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var dx = b.x - a.x, dy = b.y - a.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
+      var ax = dx / len, ay = dy / len;
+      svg += '<polygon points="' + (mx + ax * 8) + ',' + (my + ay * 8) + ' ' + (mx - ax * 4 - ay * 4) + ',' + (my - ay * 4 + ax * 4) + ' ' + (mx - ax * 4 + ay * 4) + ',' + (my - ay * 4 - ax * 4) + '" fill="#22d3ee" fill-opacity="' + opacity + '"/>';
+    }
+  });
+  nodes.forEach(function(n) {
+    var col = famColors[n.family] || '#94a3b8';
+    var r = 18 + n.count * 4;
+    svg += '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + col + '" fill-opacity="0.15" stroke="' + col + '" stroke-width="2"/>';
+    svg += '<text x="' + n.x + '" y="' + (n.y + 4) + '" text-anchor="middle" fill="' + col + '" font-family="Sora,sans-serif" font-size="9" font-weight="600">' + (n.name.length > 14 ? n.name.slice(0, 12) + '..' : n.name) + '</text>';
+    svg += '<text x="' + n.x + '" y="' + (n.y + r + 14) + '" text-anchor="middle" fill="#64748b" font-family="Sora,sans-serif" font-size="8">' + n.count + 'x</text>';
+  });
+  svg += '</svg>';
+  var tab = window.open('', '_blank');
+  if (tab) { tab.document.write('<html><head><title>Workout Flow</title></head><body style="margin:0;background:#050711;display:flex;align-items:center;justify-content:center;min-height:100vh">' + svg + '</body></html>'); tab.document.close(); }
+}
+
+// Batch 320: Smart Rest Suggestions
+function suggestRest() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips to analyze'); return; }
+  var suggestions = [];
+  clips.forEach(function(c) {
+    var name = c.dataset.exercise || c.textContent.trim().split('\n')[0];
+    var fam = c.dataset.family || 'core';
+    var rpe = parseInt(c.dataset.rpe) || 7;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var currentRest = parseInt(c.dataset.rest) || 60;
+    var suggestedRest;
+    if (rpe >= 9) suggestedRest = 180;
+    else if (rpe >= 8) suggestedRest = 120;
+    else if (rpe >= 7) suggestedRest = 90;
+    else if (rpe >= 6) suggestedRest = 60;
+    else suggestedRest = 45;
+    if (fam === 'legs' || fam === 'push') suggestedRest = Math.round(suggestedRest * 1.15);
+    if (fam === 'core' || fam === 'flow') suggestedRest = Math.round(suggestedRest * 0.8);
+    if (sets >= 5) suggestedRest += 15;
+    var diff = suggestedRest - currentRest;
+    suggestions.push({ name: name, family: fam, rpe: rpe, currentRest: currentRest, suggestedRest: suggestedRest, diff: diff, clip: c });
+  });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#e2e8f0;font-size:14px;font-weight:600">Smart Rest Suggestions</span>';
+  html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;font-family:Sora,sans-serif">X</button></div>';
+  html += '<p style="color:#94a3b8;font-size:10px;margin:0 0 16px">Based on RPE, family, and set count</p>';
+  var needsChange = suggestions.filter(function(s) { return Math.abs(s.diff) >= 15; });
+  if (!needsChange.length) {
+    html += '<p style="color:#4ade80;font-size:12px;text-align:center;padding:20px 0">All rest periods look good!</p>';
+  } else {
+    needsChange.forEach(function(s, idx) {
+      var diffColor = s.diff > 0 ? '#f87171' : '#4ade80';
+      var arrow = s.diff > 0 ? '+' : '';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+      html += '<div><span style="color:#e2e8f0;font-size:11px">' + s.name + '</span>';
+      html += '<span style="color:#64748b;font-size:9px;margin-left:8px">RPE ' + s.rpe + '</span></div>';
+      html += '<div style="text-align:right"><span style="color:#94a3b8;font-size:10px">' + s.currentRest + 's</span>';
+      html += '<span style="color:#64748b;font-size:10px;margin:0 4px">-></span>';
+      html += '<span style="color:#22d3ee;font-size:10px;font-weight:600">' + s.suggestedRest + 's</span>';
+      html += '<span style="color:' + diffColor + ';font-size:9px;margin-left:6px">(' + arrow + s.diff + 's)</span></div></div>';
+    });
+    html += '<button onclick="applyRestSuggestions()" style="width:100%;margin-top:16px;padding:10px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:600">Apply All Suggestions</button>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  window._restSuggestions = suggestions;
+}
+function applyRestSuggestions() {
+  if (!window._restSuggestions) return;
+  if (typeof captureUndo === 'function') captureUndo();
+  var applied = 0;
+  window._restSuggestions.forEach(function(s) {
+    if (Math.abs(s.diff) >= 15 && s.clip && !s.clip.classList.contains('clip-locked')) {
+      s.clip.dataset.rest = s.suggestedRest;
+      applied++;
+    }
+  });
+  var modal = document.querySelector('div[style*="fixed"][style*="9999"]');
+  if (modal) modal.remove();
+  showToast('Applied rest to ' + applied + ' clips');
+  window._restSuggestions = null;
+}
+
+// Batch 321: Workout Snapshot History
+var _snapshotHistory = [];
+function takeWorkoutSnapshot(label) {
+  var clips = document.querySelectorAll('.clip');
+  var data = [];
+  clips.forEach(function(c) {
+    data.push({
+      exercise: c.dataset.exercise || c.textContent.trim().split('\n')[0],
+      family: c.dataset.family || '',
+      track: c.closest('.track-lane') ? c.closest('.track-lane').dataset.track : '',
+      left: c.style.left,
+      width: c.style.width,
+      sets: c.dataset.sets || '3',
+      reps: c.dataset.reps || '8',
+      rpe: c.dataset.rpe || '7',
+      rest: c.dataset.rest || '60'
+    });
+  });
+  var bpm = typeof _bpm !== 'undefined' ? _bpm : 100;
+  _snapshotHistory.push({
+    label: label || 'Snapshot ' + _snapshotHistory.length,
+    time: new Date().toLocaleTimeString(),
+    clipCount: clips.length,
+    bpm: bpm,
+    data: data
+  });
+  if (_snapshotHistory.length > 20) _snapshotHistory.shift();
+  showToast('Snapshot taken: ' + _snapshotHistory[_snapshotHistory.length - 1].label);
+}
+function showSnapshotHistory() {
+  if (!_snapshotHistory.length) { showToast('No snapshots yet. Use Take Snapshot first.'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#e2e8f0;font-size:14px;font-weight:600">Snapshot History</span>';
+  html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;font-family:Sora,sans-serif">X</button></div>';
+  _snapshotHistory.forEach(function(snap, idx) {
+    var families = {};
+    snap.data.forEach(function(d) { families[d.family] = (families[d.family] || 0) + 1; });
+    var famStr = Object.keys(families).map(function(f) { return f + ':' + families[f]; }).join(' ');
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+    html += '<div><span style="color:#e2e8f0;font-size:11px;font-weight:600">' + snap.label + '</span>';
+    html += '<div style="color:#64748b;font-size:9px;margin-top:2px">' + snap.time + ' | ' + snap.clipCount + ' clips | ' + snap.bpm + ' BPM</div>';
+    html += '<div style="color:#475569;font-size:8px;margin-top:2px">' + famStr + '</div></div>';
+    html += '<button onclick="restoreSnapshot(' + idx + ')" style="padding:4px 12px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.2);border-radius:6px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:9px;flex-shrink:0">Restore</button></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function restoreSnapshot(idx) {
+  var snap = _snapshotHistory[idx];
+  if (!snap) return;
+  if (typeof captureUndo === 'function') captureUndo();
+  document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+  if (typeof _bpm !== 'undefined') { _bpm = snap.bpm; var bpmEl = document.getElementById('bpm-display'); if (bpmEl) bpmEl.textContent = _bpm; }
+  snap.data.forEach(function(d) {
+    var lane = document.querySelector('.track-lane[data-track="' + d.track + '"]');
+    if (!lane) lane = document.querySelector('.track-lane');
+    if (lane && typeof createClipElement === 'function') {
+      var clip = createClipElement(d.exercise, d.family);
+      clip.style.left = d.left;
+      clip.style.width = d.width;
+      clip.dataset.sets = d.sets;
+      clip.dataset.reps = d.reps;
+      clip.dataset.rpe = d.rpe;
+      clip.dataset.rest = d.rest;
+      if (typeof updateClipInfo === 'function') updateClipInfo(clip);
+      lane.appendChild(clip);
+    }
+  });
+  var modal = document.querySelector('div[style*="fixed"][style*="9999"]');
+  if (modal) modal.remove();
+  showToast('Restored: ' + snap.label);
 }
 
 function selectClipsByStage(stage) {
