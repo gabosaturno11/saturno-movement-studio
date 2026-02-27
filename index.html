@@ -817,6 +817,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <button class="transport-btn" onclick="stopPlayback()" title="Stop">&#9632;</button>
           <button class="transport-btn" onclick="forward()" title="Forward 15s">&#9197;</button>
           <button class="transport-btn rec" id="rec-btn" onclick="toggleRec()" title="Record">&#9679;</button>
+          <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:9px;letter-spacing:0.05em">MET</button>
         </div>
         <div class="time-display" id="time-display">00:00:00</div>
         <div class="bpm-section">
@@ -951,6 +952,139 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 <div class="toast" id="toast"></div>
 
 <script>
+/* ===== SFX ENGINE — DAW Sound Design ===== */
+var sfxCtx = null;
+function initSFX() {
+  if (sfxCtx) return;
+  try { sfxCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+}
+function sfx(type) {
+  if (!sfxCtx) initSFX();
+  if (!sfxCtx) return;
+  try {
+    if (sfxCtx.state === 'suspended') sfxCtx.resume();
+    var now = sfxCtx.currentTime;
+    var osc, gain;
+    switch(type) {
+      case 'click': // UI click — short, crisp
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.06);
+        break;
+      case 'snap': // Snap to grid
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(2000, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.03);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.04);
+        break;
+      case 'play': // Transport play — rising tone
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.15);
+        break;
+      case 'stop': // Transport stop — falling tone
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(660, now);
+        osc.frequency.exponentialRampToValueAtTime(220, now + 0.12);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.15);
+        break;
+      case 'drop': // Clip dropped — soft thud
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.1);
+        break;
+      case 'delete': // Clip deleted — descending sweep
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.15);
+        break;
+      case 'preset': // Preset loaded — chord
+        [440, 554, 659].forEach(function(freq, i) {
+          var o = sfxCtx.createOscillator();
+          var g = sfxCtx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(freq, now + i * 0.04);
+          g.gain.setValueAtTime(0.06, now + i * 0.04);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          o.connect(g); g.connect(sfxCtx.destination);
+          o.start(now + i * 0.04); o.stop(now + 0.3);
+        });
+        break;
+      case 'undo': // Undo — quick reverse
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.08);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.1);
+        break;
+      case 'rec': // Record — pulsing tone
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.setValueAtTime(0.02, now + 0.05);
+        gain.gain.setValueAtTime(0.1, now + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.2);
+        break;
+      case 'metronome': // Metronome tick
+        osc = sfxCtx.createOscillator();
+        gain = sfxCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+        osc.connect(gain); gain.connect(sfxCtx.destination);
+        osc.start(now); osc.stop(now + 0.02);
+        break;
+    }
+  } catch(e) {}
+}
+
+/* Init SFX on first user interaction */
+document.addEventListener('click', function() { initSFX(); }, {once: true});
+document.addEventListener('touchstart', function() { initSFX(); }, {once: true});
+
 /* ===== EXERCISE DATABASE (from Victory Belt CC Movement Matrix) ===== */
 var EXERCISES = [
   /* Horizontal Push (Pattern 1) */
@@ -1199,6 +1333,7 @@ var selectedClip = null, musicPlaying = false, musicIndex = 0;
 var audioEl = null;
 var meterInterval = null;
 var undoStack = [], redoStack = [], maxUndo = 30;
+var metronomeEnabled = false, lastBeatTime = 0, beatCounter = 0;
 
 /* Music tracks (from Vercel Blob CDN) */
 var MUSIC_TRACKS = [
@@ -1466,6 +1601,7 @@ function createClipElement(exercise, left, width, dna) {
     clip.remove();
     if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
     updateStats(); saveSession();
+    sfx('delete');
     toast('Clip removed');
   });
 
@@ -1479,6 +1615,7 @@ function addClip(track, exercise, x) {
   selectClipEl(clip);
   updateStats();
   saveSession();
+  sfx('drop');
   toast(exercise.name + ' added');
 }
 
@@ -1597,12 +1734,14 @@ function togglePlay() {
     playInterval = setInterval(updatePlayhead, 50);
     startMeters();
     document.getElementById('status-text').textContent = 'Playing';
+    sfx('play');
   } else {
     btn.classList.remove('active');
     btn.innerHTML = '&#9654;';
     clearInterval(playInterval);
     stopMeters();
     document.getElementById('status-text').textContent = 'Paused';
+    sfx('click');
   }
 }
 
@@ -1617,6 +1756,7 @@ function stopPlayback() {
   updateTimeDisplay();
   updatePlayheadPosition();
   document.getElementById('status-text').textContent = 'Ready';
+  sfx('stop');
 }
 
 function rewind() { currentTime = Math.max(0, currentTime - 15); updateTimeDisplay(); updatePlayheadPosition(); }
@@ -1626,6 +1766,15 @@ function updatePlayhead() {
   currentTime += 0.05;
   updateTimeDisplay();
   updatePlayheadPosition();
+  // Metronome tick on the beat
+  if (metronomeEnabled) {
+    var beatInterval = 60 / bpm;
+    var currentBeat = Math.floor(currentTime / beatInterval);
+    if (currentBeat > beatCounter) {
+      beatCounter = currentBeat;
+      sfx('metronome');
+    }
+  }
 }
 
 function updateTimeDisplay() {
@@ -1648,6 +1797,7 @@ function toggleRec() {
   var btn = document.getElementById('rec-btn');
   btn.classList.toggle('active', isRecording);
   document.getElementById('status-text').textContent = isRecording ? 'Recording' : 'Ready';
+  sfx(isRecording ? 'rec' : 'click');
 }
 
 /* ===== BPM ===== */
@@ -1692,12 +1842,23 @@ function toggleTempoLink() {
   var el = document.getElementById('tempo-link');
   el.classList.toggle('active', tempoLinked);
   if (tempoLinked) {
+    sfx('click');
     toast('BPM linked to exercise tempo');
     updateBPM();
   } else {
     if (audioEl) audioEl.playbackRate = 1.0;
+    sfx('click');
     toast('Tempo unlinked');
   }
+}
+
+function toggleMetronome() {
+  metronomeEnabled = !metronomeEnabled;
+  beatCounter = Math.floor(currentTime / (60 / bpm));
+  var btn = document.getElementById('metro-btn');
+  if (btn) btn.classList.toggle('active', metronomeEnabled);
+  sfx(metronomeEnabled ? 'metronome' : 'click');
+  toast(metronomeEnabled ? 'Metronome ON' : 'Metronome OFF');
 }
 
 /* ===== FADERS ===== */
@@ -1958,6 +2119,7 @@ function loadPreset(id) {
   updateStats();
   saveSession();
   togglePresets();
+  sfx('preset');
   toast('Preset loaded: ' + p.name);
 }
 
@@ -1969,6 +2131,7 @@ function clearTimeline() {
   document.getElementById('inspector').style.display = 'none';
   updateStats();
   saveSession();
+  sfx('delete');
   toast('Timeline cleared');
 }
 
@@ -2229,6 +2392,7 @@ function undo() {
   redoStack.push(captureState());
   var state = JSON.parse(undoStack.pop());
   restoreState(state);
+  sfx('undo');
   toast('Undo');
 }
 
@@ -2237,6 +2401,7 @@ function redo() {
   undoStack.push(captureState());
   var state = JSON.parse(redoStack.pop());
   restoreState(state);
+  sfx('undo');
   toast('Redo');
 }
 
@@ -2277,6 +2442,7 @@ function duplicateClip() {
   selectClipEl(clip);
   updateStats();
   saveSession();
+  sfx('drop');
   toast('Duplicated: ' + ex.name);
 }
 
@@ -2288,6 +2454,7 @@ function toggleSnap() {
   snapEnabled = !snapEnabled;
   var btn = document.getElementById('btn-snap');
   if (btn) btn.classList.toggle('active', snapEnabled);
+  sfx('snap');
   toast(snapEnabled ? 'Snap ON' : 'Snap OFF');
 }
 
@@ -2324,6 +2491,7 @@ document.addEventListener('keydown', function(e) {
       selectedClip = null;
       document.getElementById('inspector').style.display = 'none';
       updateStats(); saveSession();
+      sfx('delete');
       toast('Clip deleted');
     }
   }
