@@ -555,8 +555,8 @@ body {
   background: transparent;
   opacity: 0; transition: opacity 0.1s;
 }
-.clip:hover .clip-resize { opacity: 1; background: rgba(255,255,255,0.2); }
-.clip-resize:hover { background: rgba(255,255,255,0.4) !important; }
+.clip:hover .clip-resize, .clip:hover .clip-resize-left { opacity: 1; background: rgba(255,255,255,0.2); }
+.clip-resize:hover, .clip-resize-left:hover { background: rgba(255,255,255,0.4) !important; }
 .clip-resize::before {
   content: ''; position: absolute;
   top: 50%; transform: translateY(-50%);
@@ -2498,9 +2498,32 @@ function createClipElement(exercise, left, width, dna) {
   resize.className = 'clip-resize';
   clip.appendChild(resize);
 
+  // Left resize handle
+  var resizeL = document.createElement('div');
+  resizeL.className = 'clip-resize-left';
+  resizeL.style.cssText = 'position:absolute;left:0;top:0;bottom:0;width:5px;cursor:ew-resize;background:transparent;opacity:0;transition:opacity 0.1s;z-index:3';
+  clip.appendChild(resizeL);
+  resizeL.addEventListener('mousedown', function(e) {
+    e.stopPropagation();
+    var startX = e.clientX, startLeft = parseInt(clip.style.left), startW = parseInt(clip.style.width);
+    function onMove(e) {
+      var delta = e.clientX - startX;
+      var newLeft = Math.max(0, startLeft + delta);
+      var newW = Math.max(40, startW - delta);
+      clip.style.left = newLeft + 'px';
+      clip.style.width = newW + 'px';
+      drawClipWaveform(canvas, 'rgba(255,255,255,' + waveOpacity + ')', newW + 'px');
+      addBeatMarkers(clip, newW);
+      updateStats();
+    }
+    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
   // Drag clip
   clip.addEventListener('mousedown', function(e) {
-    if (e.target === resize || e.target.classList.contains('clip-resize')) return;
+    if (e.target === resize || e.target.classList.contains('clip-resize') || e.target === resizeL || e.target.classList.contains('clip-resize-left')) return;
     e.preventDefault();
     selectClipEl(clip, e.shiftKey);
     var startX = e.clientX, startLeft = parseInt(clip.style.left);
@@ -2900,12 +2923,14 @@ function updatePlayheadPosition() {
   var pps = 80 / 15;
   var pos = 100 + currentTime * pps;
   document.getElementById('playhead').style.left = pos + 'px';
-  // Auto-scroll timeline during playback
+  // Auto-scroll timeline during playback (respects settings)
   if (isPlaying) {
-    var container = document.getElementById('timeline-container');
-    var visibleRight = container.scrollLeft + container.clientWidth;
-    if (pos > visibleRight - 60) {
-      container.scrollLeft = pos - 200;
+    if (typeof autoScrollEnabled === 'undefined' || autoScrollEnabled) {
+      var container = document.getElementById('timeline-container');
+      var visibleRight = container.scrollLeft + container.clientWidth;
+      if (pos > visibleRight - 60) {
+        container.scrollLeft = pos - 200;
+      }
     }
     // Update clip progress overlays and playing state
     document.querySelectorAll('.clip').forEach(function(clip) {
@@ -3676,11 +3701,21 @@ function showSavedWorkouts() {
     var html = '';
     saved.forEach(function(w, i) {
       var date = new Date(w.created).toLocaleDateString();
+      var timeAgo = '';
+      var diff = Date.now() - new Date(w.created).getTime();
+      var hours = Math.floor(diff / 3600000);
+      var days = Math.floor(diff / 86400000);
+      if (days > 0) timeAgo = days + 'd ago';
+      else if (hours > 0) timeAgo = hours + 'h ago';
+      else timeAgo = 'just now';
       html += '<div class="saved-item" onclick="loadSavedWorkout('+i+')">';
       html += '<span class="saved-item-delete" onclick="event.stopPropagation();deleteSavedWorkout('+i+')">delete</span>';
       html += '<div class="saved-item-name">'+w.name+'</div>';
-      html += '<div class="saved-item-info">'+w.clipCount+' clips / '+w.bpm+' BPM / '+date+'</div>';
-      html += '</div>';
+      html += '<div class="saved-item-info" style="display:flex;gap:8px;flex-wrap:wrap">';
+      html += '<span>'+w.clipCount+' clips</span>';
+      html += '<span style="color:var(--accent-orange)">'+w.bpm+' BPM</span>';
+      html += '<span>'+timeAgo+'</span>';
+      html += '</div></div>';
     });
     list.innerHTML = html;
   }
@@ -3698,6 +3733,7 @@ function loadSavedWorkout(index) {
   var state = JSON.parse(saved[index].state);
   restoreState(state);
   closeSavedWorkouts();
+  setWorkoutName(saved[index].name);
   toast('Loaded: ' + saved[index].name);
 }
 
@@ -4441,6 +4477,9 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyM' && !e.metaKey && !e.ctrlKey) {
     addMarker();
+  }
+  if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey) {
+    toggleRec();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
