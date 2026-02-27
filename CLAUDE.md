@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~7,300 lines). No build step. No framework.
+Single-file HTML app (index.html, ~7,650 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-95)
+### Features (Batches 1-111)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -129,6 +129,25 @@ saturno-movement-studio/
 - **Minimap loop region** (blue overlay + marker dots in minimap overview)
 - **Sorted Tab cycling** (Tab cycles clips in track-then-position order)
 - **Empty state keyboard hints** (P/G/Cmd+K/? badges shown when no clips)
+- **Snap badge grid resolution** (SNAP badge shows "SNAP 4B" when active)
+- **Tap tempo feedback** (BPM + tap count in toast)
+- **Clip grouping** (Cmd+G to group, Cmd+Shift+G to ungroup, grouped clips move together)
+- **Alt+drag duplicate** (Alt+drag clips to create copies in-place)
+- **Ruler drag-to-scrub** (mousedown+drag on ruler scrubs playhead in real-time)
+- **RPE-scaled waveforms** (waveform amplitude scales with RPE for visual "loudness")
+- **Estimated workout time** (footer shows est. time from sets x reps x tempo + rest)
+- **Workout intensity score** (0-100 score in footer: volume + RPE + diversity)
+- **Mute/solo aware playback** (muted tracks skip progress animation)
+- **Record-mode quick-add** (R then 2-6 drops exercise at playhead on family track)
+- **Track state persistence** (solo/mute/collapsed persist in session save/load)
+- **Clip tooltips** (data-tip on clips with exercise name, family, stage, discipline)
+- **Superset detection** (cross-track overlaps show purple "SS" badge + footer count)
+- **Browser title sync** (document.title updates with workout name)
+- **Library stage filter** (S1/S2/S3/All buttons to filter by exercise difficulty)
+- **Library discipline filter** (dropdown to filter by Calisthenics/Power-Free/etc.)
+- **Copy workout as text** (COPY TEXT button in summary, clipboard-ready plain text)
+- **Command palette** (Cmd+K, 47 commands including Group/Ungroup)
+- **Keyboard shortcuts panel** (?, 41 shortcuts including Cmd+G, Alt+Drag)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
