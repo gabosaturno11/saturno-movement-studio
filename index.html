@@ -2443,6 +2443,11 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <label>Notes</label>
           <textarea id="insp-notes" placeholder="Cues, focus points, modifications..." rows="2" style="width:100%;padding:5px 8px;font-size:10px;font-family:Sora,sans-serif;background:rgba(3,5,9,0.5);border:1px solid var(--glass-border);color:var(--text);resize:vertical;min-height:32px;border-radius:var(--radius-sm);transition:border-color 0.2s" onfocus="this.style.borderColor='rgba(59,130,246,0.3)'" onblur="this.style.borderColor='';updateClipNotes()"></textarea>
         </div>
+        <div style="display:flex;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
+          <button class="nav-btn" onclick="duplicateClip()" data-tip="Duplicate (Cmd+D)" style="font-size:8px;padding:4px 8px;flex:1">DUP</button>
+          <button class="nav-btn" onclick="splitClipAtPlayhead()" data-tip="Split at playhead (B)" style="font-size:8px;padding:4px 8px;flex:1">SPLIT</button>
+          <button class="nav-btn" onclick="deleteSelectedClips()" data-tip="Delete (Del)" style="font-size:8px;padding:4px 8px;flex:1;color:var(--accent-red)">DEL</button>
+        </div>
       </div>
       <div class="mixer-section" id="inspector-empty" style="padding:30px 14px;text-align:center">
         <div style="font-size:9px;color:var(--micro);text-transform:uppercase;letter-spacing:0.1em">Select a clip to inspect</div>
@@ -5305,6 +5310,21 @@ function restoreState(state) {
   saveSession();
 }
 
+/* ===== DELETE SELECTED CLIPS ===== */
+function deleteSelectedClips() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length === 0) { toast('No clips selected'); return; }
+  pushUndo();
+  var count = sel.length;
+  sel.forEach(function(c) { c.remove(); });
+  selectedClip = null;
+  document.getElementById('inspector').style.display = 'none';
+  updateStats(); saveSession();
+  sfx('delete');
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' clip' + (count > 1 ? 's' : '') + ' deleted');
+}
+
 /* ===== DUPLICATE CLIP ===== */
 function duplicateClip() {
   if (!selectedClip) { toast('Select a clip first'); return; }
@@ -6373,18 +6393,7 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault(); zoomLevel = 100; applyZoom(); toast('Zoom reset: 100%'); return;
   }
   if (e.code === 'Delete' || e.code === 'Backspace') {
-    var selectedClips = document.querySelectorAll('.clip.selected');
-    if (selectedClips.length > 0) {
-      pushUndo();
-      var count = selectedClips.length;
-      selectedClips.forEach(function(c) { c.remove(); });
-      selectedClip = null;
-      document.getElementById('inspector').style.display = 'none';
-      updateStats(); saveSession();
-      sfx('delete');
-      if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
-      toast(count + ' clip' + (count > 1 ? 's' : '') + ' deleted');
-    }
+    deleteSelectedClips();
   }
   // Select all clips with Cmd+A
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyA') {
