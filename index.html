@@ -7450,6 +7450,9 @@ var CMD_ACTIONS = [
   {label:'Pattern Balance', key:'', icon:'\u2696', action: function() { showPatternBalance(); }},
   {label:'Paste Exercises from Clipboard', key:'', icon:'\u2398', action: function() { pasteExercisesFromText(); }},
   {label:'Workout Streak', key:'', icon:'\u2605', action: function() { showWorkoutStreak(); }},
+  {label:'Compare Saved Workouts', key:'', icon:'\u2194', action: function() { compareSavedWorkouts(); }},
+  {label:'Exercise History', key:'', icon:'\u2139', action: function() { showExerciseHistory(); }},
+  {label:'Smart Auto-Arrange', key:'', icon:'\u2630', action: function() { smartAutoArrange(); }},
 ];
 
 function openCmdPalette() {
@@ -10296,6 +10299,115 @@ function showWorkoutStreak() {
     msg += 'Avg rating: ' + avgRating + '/5';
     toast(msg);
   } catch(e) { toast('Error loading streak data'); }
+}
+
+/* ===== BATCH 283: COMPARE SAVED WORKOUTS ===== */
+function compareSavedWorkouts() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]');
+    if (saved.length < 1) { toast('Need at least 1 saved workout to compare'); return; }
+    var promptText = 'Compare current with:\n';
+    saved.forEach(function(w, i) { promptText += (i + 1) + '. ' + w.name + '\n'; });
+    showInlinePrompt(promptText, function(val) {
+      var idx = parseInt(val) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= saved.length) { toast('Invalid selection'); return; }
+      var other = JSON.parse(saved[idx].state);
+      var currentEx = {};
+      document.querySelectorAll('.clip').forEach(function(c) {
+        var ex = getExercise(c.dataset.exerciseId);
+        if (ex) currentEx[ex.name] = (currentEx[ex.name] || 0) + 1;
+      });
+      var otherEx = {};
+      other.clips.forEach(function(c) {
+        var ex = getExercise(c.exerciseId);
+        if (ex) otherEx[ex.name] = (otherEx[ex.name] || 0) + 1;
+      });
+      var shared = []; var onlyCurrent = []; var onlyOther = [];
+      Object.keys(currentEx).forEach(function(name) {
+        if (otherEx[name]) shared.push(name);
+        else onlyCurrent.push(name);
+      });
+      Object.keys(otherEx).forEach(function(name) {
+        if (!currentEx[name]) onlyOther.push(name);
+      });
+      var msg = 'Comparison: Current vs ' + saved[idx].name + '\n\n';
+      msg += 'Shared: ' + shared.length + ' exercises\n';
+      if (shared.length) msg += '  ' + shared.join(', ') + '\n';
+      msg += 'Only in current: ' + onlyCurrent.length + '\n';
+      if (onlyCurrent.length) msg += '  ' + onlyCurrent.join(', ') + '\n';
+      msg += 'Only in ' + saved[idx].name + ': ' + onlyOther.length + '\n';
+      if (onlyOther.length) msg += '  ' + onlyOther.join(', ') + '\n';
+      msg += '\nCurrent: ' + document.querySelectorAll('.clip').length + ' clips';
+      msg += '\n' + saved[idx].name + ': ' + other.clips.length + ' clips';
+      toast(msg);
+    });
+  } catch(e) { toast('Error loading workouts'); }
+}
+
+/* ===== BATCH 284: EXERCISE HISTORY ===== */
+function showExerciseHistory() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]');
+    var exerciseCounts = {};
+    saved.forEach(function(w) {
+      try {
+        var state = JSON.parse(w.state);
+        state.clips.forEach(function(c) {
+          var ex = getExercise(c.exerciseId);
+          if (ex) exerciseCounts[ex.name] = (exerciseCounts[ex.name] || 0) + 1;
+        });
+      } catch(e) {}
+    });
+    document.querySelectorAll('.clip').forEach(function(c) {
+      var ex = getExercise(c.dataset.exerciseId);
+      if (ex) exerciseCounts[ex.name] = (exerciseCounts[ex.name] || 0) + 1;
+    });
+    var sorted = Object.keys(exerciseCounts).sort(function(a, b) { return exerciseCounts[b] - exerciseCounts[a]; });
+    if (sorted.length === 0) { toast('No exercise history'); return; }
+    var msg = 'Most Used Exercises (all workouts)\n\n';
+    sorted.slice(0, 15).forEach(function(name, i) {
+      msg += (i + 1) + '. ' + name + ': ' + exerciseCounts[name] + ' times\n';
+    });
+    msg += '\nTotal unique: ' + sorted.length + ' exercises';
+    toast(msg);
+  } catch(e) { toast('Error loading history'); }
+}
+
+/* ===== BATCH 285: SMART AUTO-ARRANGE ===== */
+function smartAutoArrange() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips'); return; }
+  pushUndo();
+  var ho = 100;
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var clipW = beatPx * 4;
+  var gap = 4;
+  var byFamily = {};
+  clips.forEach(function(c) {
+    var tid = c.parentElement.dataset.track;
+    if (!byFamily[tid]) byFamily[tid] = [];
+    byFamily[tid].push(c);
+  });
+  var trackOrder = ['push', 'pull', 'core', 'legs', 'skills'];
+  var orderedFamilies = trackOrder.filter(function(t) { return byFamily[t] && byFamily[t].length > 0; });
+  var maxClips = 0;
+  orderedFamilies.forEach(function(tid) {
+    if (byFamily[tid].length > maxClips) maxClips = byFamily[tid].length;
+  });
+  var count = 0;
+  for (var round = 0; round < maxClips; round++) {
+    orderedFamilies.forEach(function(tid) {
+      if (round >= byFamily[tid].length) return;
+      var c = byFamily[tid][round];
+      if (c.classList.contains('clip-locked')) return;
+      var xPos = ho + round * (clipW + gap + beatPx) + (orderedFamilies.indexOf(tid) * 2);
+      c.style.left = xPos + 'px';
+      c.style.width = clipW + 'px';
+      count++;
+    });
+  }
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips auto-arranged by family rotation');
 }
 
 function selectClipsByStage(stage) {
