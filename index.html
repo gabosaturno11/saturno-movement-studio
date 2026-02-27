@@ -7933,6 +7933,14 @@ var CMD_ACTIONS = [
   {label:'Share Workout as URL', key:'', icon:'\u21C4', action: function() { shareWorkoutAsURL(); }},
   {label:'Cooldown Recommendations', key:'', icon:'\u2764', action: function() { suggestCooldown(); }},
   {label:'Download Summary Card (PNG)', key:'', icon:'\u2B50', action: function() { generateSummaryCard(); }},
+  {label:'Add Bookmark at Playhead', key:'', icon:'\u2691', action: function() { addBookmark(); }},
+  {label:'Show Bookmarks', key:'', icon:'\u2691', action: function() { showBookmarks(); }},
+  {label:'Clear All Bookmarks', key:'', icon:'\u2716', action: function() { clearAllBookmarks(); }},
+  {label:'Suggest Exercise Pairings', key:'', icon:'\u2295', action: function() { suggestPairings(); }},
+  {label:'Start Macro Recording', key:'', icon:'\u25CF', action: function() { startMacroRecord(); }},
+  {label:'Stop Macro Recording', key:'', icon:'\u25A0', action: function() { stopMacroRecord(); }},
+  {label:'Saved Macros', key:'', icon:'\u25B6', action: function() { showMacroList(); }},
+  {label:'Clear All Macros', key:'', icon:'\u2716', action: function() { clearMacros(); }},
 ];
 
 function openCmdPalette() {
@@ -15054,6 +15062,153 @@ function generateSummaryCard() {
     URL.revokeObjectURL(url);
     showToast('Summary card downloaded');
   }, 'image/png');
+}
+
+// Batch 343: Workout Bookmarks
+var _workoutBookmarks = [];
+function addBookmark() {
+  var playhead = 0;
+  var ph = document.getElementById('playhead');
+  if (ph) playhead = parseFloat(ph.style.left) || 0;
+  var label = 'Bookmark ' + (_workoutBookmarks.length + 1);
+  _workoutBookmarks.push({ position: playhead, label: label, time: new Date().toLocaleTimeString() });
+  showToast('Bookmark added at ' + Math.round(playhead) + 'px');
+}
+function showBookmarks() {
+  if (!_workoutBookmarks.length) { showToast('No bookmarks. Press Cmd+K and add one.'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:400px;width:90%;max-height:70vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Bookmarks (' + _workoutBookmarks.length + ')</span>';
+  _workoutBookmarks.forEach(function(bm, idx) {
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03)">';
+    html += '<button onclick="jumpToBookmark(' + idx + ');this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;text-align:left;flex:1;padding:0">' + bm.label + ' <span style="color:#475569;font-size:9px">(' + bm.time + ')</span></button>';
+    html += '<button onclick="removeBookmark(' + idx + ');this.closest(\'div[style*=fixed]\').remove();showBookmarks()" style="background:none;border:none;color:#f87171;cursor:pointer;font-family:Sora,sans-serif;font-size:10px;padding:0 4px">X</button></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function jumpToBookmark(idx) {
+  var bm = _workoutBookmarks[idx];
+  if (!bm) return;
+  var ph = document.getElementById('playhead');
+  if (ph) ph.style.left = bm.position + 'px';
+  showToast('Jumped to: ' + bm.label);
+}
+function removeBookmark(idx) {
+  _workoutBookmarks.splice(idx, 1);
+  showToast('Bookmark removed');
+}
+function clearAllBookmarks() {
+  _workoutBookmarks = [];
+  showToast('All bookmarks cleared');
+}
+
+// Batch 344: Exercise Pairing Suggestions
+function suggestPairings() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('Add exercises first'); return; }
+  var families = {};
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || 'core';
+    if (!families[fam]) families[fam] = [];
+    families[fam].push(c.dataset.exercise || c.textContent.trim().split('\n')[0]);
+  });
+  var pairingRules = [
+    { a: 'push', b: 'pull', reason: 'Antagonist pairing: balanced push-pull load' },
+    { a: 'legs', b: 'core', reason: 'Lower body + stability: functional chain' },
+    { a: 'push', b: 'core', reason: 'Upper + stability: core engaged during press' },
+    { a: 'pull', b: 'legs', reason: 'Pull + lower: full body distribution' },
+    { a: 'skills', b: 'core', reason: 'Skill + stability: balance foundation' }
+  ];
+  var suggestions = [];
+  pairingRules.forEach(function(rule) {
+    if (families[rule.a] && families[rule.a].length && families[rule.b] && families[rule.b].length) {
+      var exA = families[rule.a][Math.floor(Math.random() * families[rule.a].length)];
+      var exB = families[rule.b][Math.floor(Math.random() * families[rule.b].length)];
+      suggestions.push({ exA: exA, famA: rule.a, exB: exB, famB: rule.b, reason: rule.reason });
+    }
+  });
+  var missing = [];
+  ['push', 'pull', 'core', 'legs'].forEach(function(f) {
+    if (!families[f] || !families[f].length) missing.push(f);
+  });
+  var famColors = { push: '#f87171', pull: '#60a5fa', core: '#fbbf24', legs: '#4ade80', skills: '#c084fc', flow: '#22d3ee' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Superset Pairing Suggestions</span>';
+  if (!suggestions.length) {
+    html += '<p style="color:#94a3b8;font-size:11px">Need exercises from multiple families for pairing suggestions.</p>';
+  }
+  suggestions.forEach(function(s) {
+    html += '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05)">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+    html += '<span style="color:' + (famColors[s.famA] || '#94a3b8') + ';font-size:11px;font-weight:600">' + s.exA + '</span>';
+    html += '<span style="color:#475569;font-size:10px">+</span>';
+    html += '<span style="color:' + (famColors[s.famB] || '#94a3b8') + ';font-size:11px;font-weight:600">' + s.exB + '</span></div>';
+    html += '<span style="color:#64748b;font-size:9px">' + s.reason + '</span></div>';
+  });
+  if (missing.length) {
+    html += '<div style="margin-top:12px;padding:10px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.1);border-radius:6px">';
+    html += '<span style="color:#fbbf24;font-size:9px;font-weight:600">Missing families: ' + missing.join(', ') + '</span></div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 345: Keyboard Macro Recorder
+var _macroRecording = false;
+var _macroActions = [];
+var _savedMacros = {};
+function startMacroRecord() {
+  _macroRecording = true;
+  _macroActions = [];
+  showToast('Macro recording started... execute commands, then stop.');
+}
+function stopMacroRecord() {
+  _macroRecording = false;
+  if (!_macroActions.length) { showToast('No actions recorded'); return; }
+  var name = 'Macro ' + (Object.keys(_savedMacros).length + 1);
+  _savedMacros[name] = _macroActions.slice();
+  try { localStorage.setItem('sms_macros', JSON.stringify(_savedMacros)); } catch(e) {}
+  showToast('Macro saved: ' + name + ' (' + _macroActions.length + ' actions)');
+  _macroActions = [];
+}
+function recordMacroAction(label, actionFn) {
+  if (_macroRecording) {
+    _macroActions.push({ label: label, fn: actionFn.toString() });
+  }
+}
+function showMacroList() {
+  try { var d = localStorage.getItem('sms_macros'); if (d) _savedMacros = JSON.parse(d); } catch(e) {}
+  var keys = Object.keys(_savedMacros);
+  if (!keys.length) { showToast('No saved macros. Record one first.'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:400px;width:90%;max-height:70vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Saved Macros</span>';
+  keys.forEach(function(k) {
+    var actions = _savedMacros[k];
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.03)">';
+    html += '<div><span style="color:#e2e8f0;font-size:11px;font-weight:600">' + k + '</span>';
+    html += '<div style="color:#64748b;font-size:9px;margin-top:2px">' + actions.length + ' actions: ' + actions.map(function(a) { return a.label; }).join(', ').slice(0, 60) + '</div></div>';
+    html += '<button onclick="playMacro(\'' + k.replace(/'/g, "\\'") + '\');this.closest(\'div[style*=fixed]\').remove()" style="padding:4px 12px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.2);border-radius:6px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:9px;flex-shrink:0">Play</button></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function playMacro(name) {
+  var macro = _savedMacros[name];
+  if (!macro || !macro.length) { showToast('Macro not found'); return; }
+  showToast('Playing macro: ' + name + ' (' + macro.length + ' actions)');
+  macro.forEach(function(action, idx) {
+    setTimeout(function() {
+      try { var fn = new Function(action.fn); fn(); } catch(e) {}
+    }, idx * 200);
+  });
+}
+function clearMacros() {
+  _savedMacros = {};
+  try { localStorage.removeItem('sms_macros'); } catch(e) {}
+  showToast('All macros cleared');
 }
 
 function selectClipsByStage(stage) {
