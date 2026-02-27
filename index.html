@@ -8110,6 +8110,12 @@ var CMD_ACTIONS = [
   {label:'Split Detector', key:'', icon:'\ud83d\udd0d', action: function() { showSplitDetector(); }},
   {label:'Rotation Queue', key:'', icon:'\ud83d\udd04', action: function() { showRotationQueue(); }},
   {label:'Complexity V2', key:'', icon:'\ud83e\udde9', action: function() { showComplexityV2(); }},
+  {label:'Overload Tracker', key:'', icon:'\ud83d\udcc8', action: function() { showOverloadHistory(); }},
+  {label:'Tempo Prescription', key:'', icon:'\ud83c\udfb5', action: function() { showTempoPrescription(); }},
+  {label:'Quality Score', key:'', icon:'\u2728', action: function() { showQualityScore(); }},
+  {label:'Streak Calendar', key:'', icon:'\ud83d\uddd3', action: function() { showStreakCalendar(); }},
+  {label:'Template Diff', key:'', icon:'\ud83d\udd00', action: function() { showTemplateDiff(); }},
+  {label:'Discipline Mix', key:'', icon:'\ud83c\udf96', action: function() { showDisciplineDistribution(); }},
 ];
 
 function openCmdPalette() {
@@ -23140,6 +23146,227 @@ function showComplexityV2() {
     html += '<div style="margin-bottom:12px;">';
     html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="color:#e2e8f0;font-size:13px;">' + f.label + '</span><span style="color:#94a3b8;font-size:12px;">' + f.val + '/' + f.max + ' — ' + f.desc + '</span></div>';
     html += '<div style="background:#1e293b;border-radius:3px;height:6px;"><div style="background:#06b6d4;height:6px;border-radius:3px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 487: Progressive Overload Tracker — track key metrics over time
+function showOverloadHistory() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var recent = saved.slice(-8);
+  if (recent.length < 2) { showToast('Need 2+ saved workouts'); return; }
+  var data = recent.map(function(w) {
+    var totalSets = 0;
+    var totalReps = 0;
+    var totalRPE = 0;
+    var clips = w.clips || [];
+    clips.forEach(function(c) {
+      totalSets += parseInt(c.sets || '3');
+      totalReps += parseInt(c.reps || '8');
+      totalRPE += parseInt(c.rpe || '7');
+    });
+    return { name: w.name || 'Unnamed', sets: totalSets, reps: totalReps, avgRPE: clips.length > 0 ? (totalRPE / clips.length).toFixed(1) : '0', exercises: clips.length };
+  });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:550px;width:90%;max-height:80vh;overflow-y:auto;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Overload Tracker</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<table style="width:100%;border-collapse:collapse;">';
+  html += '<tr><th style="text-align:left;padding:8px;color:#94a3b8;font-size:12px;border-bottom:1px solid #1e293b;">Session</th><th style="padding:8px;color:#94a3b8;font-size:12px;border-bottom:1px solid #1e293b;">Ex</th><th style="padding:8px;color:#94a3b8;font-size:12px;border-bottom:1px solid #1e293b;">Sets</th><th style="padding:8px;color:#94a3b8;font-size:12px;border-bottom:1px solid #1e293b;">Reps</th><th style="padding:8px;color:#94a3b8;font-size:12px;border-bottom:1px solid #1e293b;">RPE</th></tr>';
+  data.forEach(function(d, i) {
+    var prevSets = i > 0 ? data[i - 1].sets : d.sets;
+    var setsColor = d.sets > prevSets ? '#4ade80' : d.sets < prevSets ? '#ef4444' : '#94a3b8';
+    html += '<tr><td style="padding:8px;color:#e2e8f0;font-size:13px;border-bottom:1px solid #0f172a;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + d.name + '</td>';
+    html += '<td style="padding:8px;text-align:center;color:#94a3b8;font-size:13px;border-bottom:1px solid #0f172a;">' + d.exercises + '</td>';
+    html += '<td style="padding:8px;text-align:center;color:' + setsColor + ';font-size:13px;border-bottom:1px solid #0f172a;">' + d.sets + '</td>';
+    html += '<td style="padding:8px;text-align:center;color:#94a3b8;font-size:13px;border-bottom:1px solid #0f172a;">' + d.reps + '</td>';
+    html += '<td style="padding:8px;text-align:center;color:#06b6d4;font-size:13px;border-bottom:1px solid #0f172a;">' + d.avgRPE + '</td></tr>';
+  });
+  html += '</table>';
+  var firstSets = data[0].sets;
+  var lastSets = data[data.length - 1].sets;
+  var delta = lastSets - firstSets;
+  var trend = delta > 0 ? 'Increasing' : delta < 0 ? 'Decreasing' : 'Stable';
+  var trendColor = delta > 0 ? '#4ade80' : delta < 0 ? '#ef4444' : '#facc15';
+  html += '<div style="text-align:center;margin-top:16px;color:#94a3b8;font-size:13px;">Volume trend: <span style="color:' + trendColor + ';font-weight:600;">' + trend + ' (' + (delta > 0 ? '+' : '') + delta + ' sets)</span></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 488: Tempo Prescription — suggest tempos by goal
+function showTempoPrescription() {
+  var goals = [
+    { name: 'Strength', tempo: '3-1-2', desc: '3s eccentric, 1s pause, 2s concentric', color: '#ef4444' },
+    { name: 'Hypertrophy', tempo: '4-0-2', desc: '4s eccentric, no pause, 2s concentric', color: '#06b6d4' },
+    { name: 'Power', tempo: '1-0-X', desc: '1s eccentric, explosive concentric', color: '#f97316' },
+    { name: 'Endurance', tempo: '2-0-2', desc: '2s each phase, steady rhythm', color: '#4ade80' },
+    { name: 'Time Under Tension', tempo: '5-2-3', desc: '5s eccentric, 2s pause, 3s concentric', color: '#a78bfa' },
+    { name: 'Skill/Control', tempo: '3-3-3', desc: 'Slow and controlled throughout', color: '#facc15' }
+  ];
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:450px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Tempo Prescription</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  goals.forEach(function(g) {
+    html += '<div style="padding:14px 16px;margin-bottom:10px;background:rgba(30,41,59,0.3);border-left:3px solid ' + g.color + ';border-radius:0 8px 8px 0;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:15px;font-weight:600;">' + g.name + '</span><span style="color:' + g.color + ';font-size:16px;font-weight:700;font-family:monospace;">' + g.tempo + '</span></div>';
+    html += '<div style="color:#94a3b8;font-size:12px;">' + g.desc + '</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 489: Movement Quality Score — estimate form quality from stage + RPE
+function showQualityScore() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var totalScore = 0;
+  var details = [];
+  clips.forEach(function(c) {
+    var stage = c.dataset.stage || 'S1';
+    var rpe = parseInt(c.dataset.rpe || '7');
+    var stageVal = stage === 'S1' ? 3 : stage === 'S2' ? 2 : 1;
+    var rpepenalty = rpe > 8 ? 2 : rpe > 6 ? 1 : 0;
+    var score = Math.max(stageVal - rpepenalty, 0);
+    totalScore += score;
+    if (score === 0) details.push(c.dataset.exercise || 'Unknown');
+  });
+  var maxScore = clips.length * 3;
+  var pct = Math.round(totalScore / maxScore * 100);
+  var grade = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Good' : pct >= 40 ? 'Fair' : 'Needs Work';
+  var gradeColor = pct >= 80 ? '#4ade80' : pct >= 60 ? '#06b6d4' : pct >= 40 ? '#facc15' : '#ef4444';
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Quality Score</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:24px;"><div style="color:' + gradeColor + ';font-size:48px;font-weight:700;">' + pct + '%</div><div style="color:' + gradeColor + ';font-size:16px;">' + grade + '</div></div>';
+  html += '<div style="background:#1e293b;border-radius:6px;height:12px;margin-bottom:16px;"><div style="background:' + gradeColor + ';height:12px;border-radius:6px;width:' + pct + '%;"></div></div>';
+  html += '<div style="color:#94a3b8;font-size:13px;margin-bottom:8px;">Formula: Stage difficulty vs RPE demand</div>';
+  html += '<div style="color:#64748b;font-size:12px;">Higher stage + lower RPE = better quality</div>';
+  if (details.length > 0) {
+    html += '<div style="margin-top:16px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px;color:#f87171;font-size:13px;">At-risk exercises: ' + details.slice(0, 5).join(', ') + '</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 490: Workout Streak Calendar — visual streak view
+function showStreakCalendar() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var activeDates = {};
+  saved.forEach(function(w) { if (w.date) activeDates[w.date.substring(0, 10)] = true; });
+  ratings.forEach(function(r) { if (r.date) activeDates[r.date.substring(0, 10)] = true; });
+  var today = new Date();
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:500px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Streak Calendar</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var currentStreak = 0;
+  var bestStreak = 0;
+  var tempStreak = 0;
+  for (var i = 0; i < 90; i++) {
+    var d = new Date(today);
+    d.setDate(d.getDate() - i);
+    var key = d.toISOString().substring(0, 10);
+    if (activeDates[key]) {
+      tempStreak++;
+      if (i === 0 || currentStreak > 0) currentStreak = tempStreak;
+    } else {
+      if (tempStreak > bestStreak) bestStreak = tempStreak;
+      tempStreak = 0;
+      if (i === 0) currentStreak = 0;
+    }
+  }
+  if (tempStreak > bestStreak) bestStreak = tempStreak;
+  html += '<div style="display:flex;justify-content:center;gap:24px;margin-bottom:24px;">';
+  html += '<div style="text-align:center;"><div style="color:#f59e0b;font-size:32px;font-weight:700;">' + currentStreak + '</div><div style="color:#94a3b8;font-size:12px;">current</div></div>';
+  html += '<div style="text-align:center;"><div style="color:#22d3ee;font-size:32px;font-weight:700;">' + bestStreak + '</div><div style="color:#94a3b8;font-size:12px;">best</div></div>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">';
+  var dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  dayLabels.forEach(function(l) { html += '<div style="text-align:center;color:#64748b;font-size:10px;">' + l + '</div>'; });
+  for (var j = 29; j >= 0; j--) {
+    var dd = new Date(today);
+    dd.setDate(dd.getDate() - j);
+    var kk = dd.toISOString().substring(0, 10);
+    var active = activeDates[kk];
+    var isToday = j === 0;
+    html += '<div style="aspect-ratio:1;border-radius:4px;background:' + (active ? '#06b6d4' : '#1e293b') + ';border:' + (isToday ? '2px solid #22d3ee' : '1px solid transparent') + ';" title="' + kk + '"></div>';
+  }
+  html += '</div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 491: Workout Template Diff — compare current vs template
+function showTemplateDiff() {
+  var templates = [];
+  try { templates = JSON.parse(localStorage.getItem('sms_workout_templates') || '[]'); } catch(e) {}
+  if (templates.length === 0) { showToast('Save a template first'); return; }
+  var clips = document.querySelectorAll('.clip');
+  var currentExercises = {};
+  clips.forEach(function(c) {
+    var ex = c.dataset.exercise || 'Unknown';
+    if (!currentExercises[ex]) currentExercises[ex] = 0;
+    currentExercises[ex]++;
+  });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:550px;width:90%;max-height:80vh;overflow-y:auto;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Template Diff</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  templates.slice(0, 5).forEach(function(t) {
+    var tExercises = {};
+    (t.clips || []).forEach(function(c) {
+      var ex = c.exercise || 'Unknown';
+      if (!tExercises[ex]) tExercises[ex] = 0;
+      tExercises[ex]++;
+    });
+    var added = 0;
+    var removed = 0;
+    var same = 0;
+    Object.keys(currentExercises).forEach(function(e) { if (!tExercises[e]) added++; else same++; });
+    Object.keys(tExercises).forEach(function(e) { if (!currentExercises[e]) removed++; });
+    html += '<div style="padding:12px;margin-bottom:10px;background:rgba(30,41,59,0.3);border-radius:8px;border:1px solid #1e293b;">';
+    html += '<div style="color:#e2e8f0;font-size:14px;font-weight:600;margin-bottom:8px;">' + (t.name || 'Unnamed') + '</div>';
+    html += '<div style="display:flex;gap:16px;">';
+    html += '<span style="color:#4ade80;font-size:13px;">+' + added + ' new</span>';
+    html += '<span style="color:#ef4444;font-size:13px;">-' + removed + ' missing</span>';
+    html += '<span style="color:#94a3b8;font-size:13px;">=' + same + ' same</span>';
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 492: Discipline Distribution — breakdown by training discipline
+function showDisciplineDistribution() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var disciplines = {};
+  clips.forEach(function(c) {
+    var disc = c.dataset.discipline || 'Unknown';
+    if (!disciplines[disc]) disciplines[disc] = 0;
+    disciplines[disc]++;
+  });
+  var total = clips.length;
+  var discColors = {
+    'Calisthenics': '#06b6d4', 'Power-Free': '#f97316', 'Bodybuilding': '#ef4444',
+    'Street Lifting': '#facc15', 'Hand-Balancing': '#a78bfa', 'Freestyle': '#4ade80',
+    'Mobility': '#fb923c'
+  };
+  var sorted = Object.keys(disciplines).sort(function(a, b) { return disciplines[b] - disciplines[a]; });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Discipline Mix</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  sorted.forEach(function(d) {
+    var count = disciplines[d];
+    var pct = Math.round(count / total * 100);
+    var color = discColors[d] || '#64748b';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + d + '</span><span style="color:' + color + ';font-size:13px;">' + count + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + color + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
     html += '</div>';
   });
   html += '</div></div>';
