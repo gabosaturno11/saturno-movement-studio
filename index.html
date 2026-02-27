@@ -4320,7 +4320,8 @@ var CMD_ACTIONS = [
   {label:'Zoom In', key:'Cmd++', icon:'+', action: function() { zoomIn(); }},
   {label:'Zoom Out', key:'Cmd+-', icon:'-', action: function() { zoomOut(); }},
   {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
-  {label:'Quantize All Clips', key:'', icon:'\u2593', action: function() { quantizeClips(); }},
+  {label:'Quantize All Clips', key:'Q', icon:'\u2593', action: function() { quantizeClips(); }},
+  {label:'Auto-Arrange Clips', key:'', icon:'\u21F6', action: function() { autoArrange(); }},
   {label:'Clear All Clips', key:'', icon:'\u2716', action: function() { clearAllClips(); }},
   {label:'Save Session', key:'Cmd+S', icon:'\u2913', action: function() { saveSession(); sfx('click'); toast('Session saved'); }},
   {label:'Save as Named Workout', key:'', icon:'\u2913', action: function() { saveNamedWorkout(); }},
@@ -4661,6 +4662,30 @@ function pasteClips() {
   updateStats(); saveSession();
   sfx('drop');
   toast(clipboardData.length + ' clip' + (clipboardData.length > 1 ? 's' : '') + ' pasted');
+}
+
+/* ===== AUTO-ARRANGE — Lay Out Clips Sequentially ===== */
+function autoArrange() {
+  var tracks = document.querySelectorAll('.track-content');
+  var totalMoved = 0;
+  pushUndo();
+  tracks.forEach(function(track) {
+    if (track.dataset.track === 'music') return;
+    var clips = Array.from(track.querySelectorAll('.clip'));
+    if (clips.length === 0) return;
+    clips.sort(function(a, b) { return (parseInt(a.style.left) || 0) - (parseInt(b.style.left) || 0); });
+    var pos = 0;
+    var gap = 2;
+    clips.forEach(function(c) {
+      var old = parseInt(c.style.left) || 0;
+      c.style.left = pos + 'px';
+      if (old !== pos) totalMoved++;
+      pos += (parseInt(c.style.width) || 80) + gap;
+    });
+  });
+  saveSession(); updateStats();
+  sfx('snap');
+  toast(totalMoved + ' clips arranged');
 }
 
 function clearAllClips() {
