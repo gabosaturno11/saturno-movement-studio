@@ -1958,6 +1958,14 @@ button:focus-visible, .transport-btn:focus-visible {
   margin-left: 16px;
 }
 .ctx-sep { height: 1px; background: rgba(255,255,255,0.04); margin: 3px 4px; }
+.ctx-color-swatch {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.15);
+  cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
+  display: inline-block;
+}
+.ctx-color-swatch:hover { transform: scale(1.3); box-shadow: 0 0 6px rgba(255,255,255,0.2); }
+.ctx-color-swatch[data-color=""] { background: transparent; }
 .ctx-item.danger:hover { background: rgba(239,68,68,0.08); color: var(--accent-red); }
 
 /* ===== PLAYHEAD GLOW ANIMATION ===== */
@@ -2528,6 +2536,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="rpe-up">RPE + 1<span class="ctx-key">&#9650;</span></div>
   <div class="ctx-item" data-action="rpe-down">RPE - 1<span class="ctx-key">&#9660;</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item ctx-color-row" data-action="color">Color<span style="display:inline-flex;gap:3px;margin-left:auto"><span class="ctx-color-swatch" data-color="" title="Default"></span><span class="ctx-color-swatch" data-color="#ef4444" style="background:#ef4444"></span><span class="ctx-color-swatch" data-color="#f97316" style="background:#f97316"></span><span class="ctx-color-swatch" data-color="#eab308" style="background:#eab308"></span><span class="ctx-color-swatch" data-color="#22c55e" style="background:#22c55e"></span><span class="ctx-color-swatch" data-color="#06b6d4" style="background:#06b6d4"></span><span class="ctx-color-swatch" data-color="#8b5cf6" style="background:#8b5cf6"></span><span class="ctx-color-swatch" data-color="#ec4899" style="background:#ec4899"></span></span></div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="move-push" style="font-size:8px;color:var(--accent-blue)">Move to Push</div>
   <div class="ctx-item" data-action="move-pull" style="font-size:8px;color:var(--accent-purple)">Move to Pull</div>
@@ -4602,7 +4612,8 @@ function saveSession() {
         tempo: clip.dataset.tempo,
         rest: clip.dataset.rest,
         rpe: clip.dataset.rpe,
-        notes: clip.dataset.notes || ''
+        notes: clip.dataset.notes || '',
+        customColor: clip.dataset.customColor || ''
       });
     });
     document.querySelectorAll('[data-fader]').forEach(function(f) {
@@ -4634,6 +4645,11 @@ function loadSession() {
           sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
         });
         if (c.notes) clip.dataset.notes = c.notes;
+        if (c.customColor) {
+          clip.dataset.customColor = c.customColor;
+          clip.style.background = 'linear-gradient(180deg, ' + c.customColor + '44 0%, ' + c.customColor + '22 100%)';
+          clip.style.borderTopColor = c.customColor;
+        }
         track.appendChild(clip);
       });
     }
@@ -5095,7 +5111,8 @@ function captureState() {
       tempo: clip.dataset.tempo,
       rest: clip.dataset.rest,
       rpe: clip.dataset.rpe,
-      notes: clip.dataset.notes || ''
+      notes: clip.dataset.notes || '',
+      customColor: clip.dataset.customColor || ''
     });
   });
   return JSON.stringify(state);
@@ -5148,6 +5165,11 @@ function restoreState(state) {
       sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
     });
     if (c.notes) clip.dataset.notes = c.notes;
+    if (c.customColor) {
+      clip.dataset.customColor = c.customColor;
+      clip.style.background = 'linear-gradient(180deg, ' + c.customColor + '44 0%, ' + c.customColor + '22 100%)';
+      clip.style.borderTopColor = c.customColor;
+    }
     track.appendChild(clip);
   });
   updateStats();
@@ -5372,6 +5394,28 @@ document.addEventListener('DOMContentLoaded', function() {
         updateStats(); saveSession();
         sfx('drop');
         toast('Moved to ' + targetTrackId);
+      }
+    } else if (action === 'color') {
+      var swatch = e.target.closest('.ctx-color-swatch');
+      if (swatch) {
+        var newColor = swatch.dataset.color;
+        pushUndo();
+        if (newColor) {
+          ctxClip.dataset.customColor = newColor;
+          ctxClip.style.background = 'linear-gradient(180deg, ' + newColor + '44 0%, ' + newColor + '22 100%)';
+          ctxClip.style.borderTopColor = newColor;
+        } else {
+          delete ctxClip.dataset.customColor;
+          var ex = getExercise(ctxClip.dataset.exerciseId);
+          if (ex) {
+            var fm = FAMILY_MAP[ex.family] || {};
+            var baseColor = fm.color || '#3b82f6';
+            ctxClip.style.background = 'linear-gradient(180deg, ' + baseColor + '44 0%, ' + baseColor + '22 100%)';
+            ctxClip.style.borderTopColor = baseColor;
+          }
+        }
+        saveSession();
+        toast(newColor ? 'Color set' : 'Color reset');
       }
     } else if (action === 'delete') {
       pushUndo();
