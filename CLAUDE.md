@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~9,800 lines). No build step. No framework.
+Single-file HTML app (index.html, ~10,836 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-249)
+### Features (Batches 1-276)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -272,7 +272,35 @@ saturno-movement-studio/
 - **Select duplicate exercises** (select all clips with same exercise)
 - **Time-range selection** (select clips in first 30s/60s)
 - **Workout templates** (save/load reusable templates, localStorage, up to 10)
-- **Command palette** (Cmd+K, 156+ commands)
+- **Workout version tracking** (bump on save, footer display, persists in session/export)
+- **Half-time / Double-time BPM** (quick tempo preset commands)
+- **Export HTML report** (standalone dark-theme HTML with per-track tables, RPE badges)
+- **Suggest progression** (harder/easier exercise by pattern+stage)
+- **Track color theme** (per-track accent color override)
+- **Insert rest between clips** (4-beat gaps between selected clips)
+- **Workout diff** (compare current vs saved state, exercise-level changes)
+- **Auto-generate warmup** (4 mobility exercises at timeline start, shifts existing clips)
+- **Auto-generate cooldown** (4 stretches after last clip, longer holds)
+- **Split clip equal** (split into 2/3/4 equal parts, sets distributed)
+- **Workout timer countdown** (fullscreen overlay, set-by-set with rest countdown, ESC exits)
+- **Track volume bars** (per-track set density visualization in track headers)
+- **Auto phase markers** (Warmup/Main/Cooldown/End at 15%/85% timeline split)
+- **RPE curve visualization** (SVG bar chart in new tab, per-clip RPE with exercise names)
+- **Superset group naming** (A1/B1/C1 labels on overlapping cross-track clips)
+- **Density heatmap** (SVG visualization of timeline activity in 15s buckets)
+- **Exercise search and replace** (interactive 2-step swap across all clips)
+- **Progressive RPE** (ascending 4->9 or descending 9->4 across timeline)
+- **Circuit mode** (arrange clips in round-robin superset circuit pattern)
+- **Time Under Tension calculator** (per-exercise + total TUT report)
+- **Enhanced clip tooltips** (native title with full info: exercise, pattern, TUT, notes)
+- **Workout rating** (1-5 stars, localStorage history, last 50 ratings)
+- **Rating history** (last 10 rated workouts with stars + dates)
+- **Exercise substitution table** (same-pattern + same-family alternatives)
+- **Undo history viewer** (stack size + recent state clip/BPM summaries)
+- **Muscle group coverage** (pattern->muscle map, missing groups warning, bar chart)
+- **Workout calendar** (recent workout dates from ratings + saved workouts)
+- **Clip crossfade** (auto fade-out/fade-in on adjacent clips in active track)
+- **Command palette** (Cmd+K, 193+ commands)
 - **Keyboard shortcuts panel** (?, 62+ shortcuts)
 
 ## Source References
