@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~16,450 lines). No build step. No framework.
+Single-file HTML app (index.html, ~16,793 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-354)
+### Features (Batches 1-360)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -389,7 +389,13 @@ saturno-movement-studio/
 - **Challenge mode** (Speed Build, Family Blitz, Volume King, Perfect Balance)
 - **Movement cues editor** (per-exercise coaching cues, form reminders)
 - **Audio narration** (Web Speech TTS reads workout sequence aloud)
-- **Command palette** (Cmd+K, 280+ commands)
+- **Visual themes** (Cosmic Blue, Midnight, Ember, Frost, Neon, persists)
+- **Progression tracker** (per-pattern S1/S2/S3 stage tracking)
+- **Quick access toolbar** (pin up to 8 commands, floating bar)
+- **Stats dashboard** (workout trends, rating chart, mood distribution)
+- **Exercise mastery system** (sessions/reps/days tracking, 5 levels)
+- **Import from text** (paste exercises, auto-parse to clips with fuzzy match)
+- **Command palette** (Cmd+K, 290+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
