@@ -7974,6 +7974,12 @@ var CMD_ACTIONS = [
   {label:'Log Workout Mastery', key:'', icon:'\u2191', action: function() { logCurrentWorkoutMastery(); }},
   {label:'Mastery Overview', key:'', icon:'\u2191', action: function() { showMasteryOverview(); }},
   {label:'Import Workout from Text', key:'', icon:'\u2709', action: function() { importFromText(); }},
+  {label:'Share Workout to Social', key:'', icon:'\u21e7', action: function() { shareToSocial(); }},
+  {label:'Lookup Exercise Video', key:'', icon:'\u25b6', action: function() { lookupExerciseVideo(); }},
+  {label:'Lookup Exercise Image', key:'', icon:'\u25a3', action: function() { lookupExerciseImage(); }},
+  {label:'Show Training Cycle', key:'', icon:'\u21bb', action: function() { showCycleTracker(); }},
+  {label:'Advance Cycle Week', key:'', icon:'\u2192', action: function() { advanceCycleWeek(); }},
+  {label:'Reset Training Cycle', key:'', icon:'\u21ba', action: function() { resetCycle(); }},
 ];
 
 function openCmdPalette() {
@@ -16010,6 +16016,123 @@ function parseTextImport() {
   if (modal) modal.remove();
   showToast('Imported ' + added + ' exercises from text');
 }
+
+// Batch 361: Workout Social Sharing
+function shareToSocial() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No workout to share'); return; }
+  var workoutName = '';
+  var nameEl = document.getElementById('workout-name') || document.querySelector('.breadcrumb-name');
+  if (nameEl) workoutName = nameEl.textContent || 'Workout';
+  var totalSets = 0, families = {};
+  var exerciseList = [];
+  clips.forEach(function(c) {
+    totalSets += parseInt(c.dataset.sets) || 3;
+    families[c.dataset.family || 'core'] = true;
+    var name = c.dataset.exercise || c.textContent.trim().split('\n')[0];
+    var sets = c.dataset.sets || '3';
+    var reps = c.dataset.reps || '8';
+    exerciseList.push(name + ' ' + sets + 'x' + reps);
+  });
+  var bpm = typeof _bpm !== 'undefined' ? _bpm : 100;
+  var text = workoutName + '\n\n';
+  text += clips.length + ' exercises | ' + totalSets + ' sets | ' + Object.keys(families).length + ' families | ' + bpm + ' BPM\n\n';
+  exerciseList.forEach(function(e) { text += '- ' + e + '\n'; });
+  text += '\nBuilt with Saturno Movement Studio\nsaturnomovement.com';
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:420px;width:90%">';
+  html += '<span style="color:#e2e8f0;font-size:13px;font-weight:600;display:block;margin-bottom:12px">Share Workout</span>';
+  html += '<pre style="color:#cbd5e1;font-size:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:12px;white-space:pre-wrap;max-height:200px;overflow-y:auto;font-family:Sora,sans-serif;line-height:1.5">' + text + '</pre>';
+  html += '<button onclick="navigator.clipboard.writeText(document.querySelector(\'pre\').textContent).then(function(){showToast(\'Copied!\')});this.closest(\'div[style*=fixed]\').remove()" style="width:100%;margin-top:8px;padding:10px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:600">Copy to Clipboard</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 362: Exercise Video Lookup
+function lookupExerciseVideo() {
+  var clip = document.querySelector('.clip.selected');
+  if (!clip) { showToast('Select a clip first'); return; }
+  var name = clip.dataset.exercise || clip.textContent.trim().split('\n')[0];
+  var query = encodeURIComponent(name + ' exercise tutorial calisthenics');
+  var url = 'https://www.youtube.com/results?search_query=' + query;
+  window.open(url, '_blank');
+  showToast('Searching YouTube for: ' + name);
+}
+function lookupExerciseImage() {
+  var clip = document.querySelector('.clip.selected');
+  if (!clip) { showToast('Select a clip first'); return; }
+  var name = clip.dataset.exercise || clip.textContent.trim().split('\n')[0];
+  var query = encodeURIComponent(name + ' exercise form calisthenics');
+  var url = 'https://www.google.com/search?q=' + query + '&tbm=isch';
+  window.open(url, '_blank');
+  showToast('Searching images for: ' + name);
+}
+
+// Batch 363: Training Cycle Tracker
+var _trainingCycle = { week: 1, phase: 'Build', startDate: null, history: [] };
+function loadCycle() {
+  try { var d = localStorage.getItem('sms_training_cycle'); if (d) _trainingCycle = JSON.parse(d); } catch(e) {}
+}
+function saveCycle() {
+  try { localStorage.setItem('sms_training_cycle', JSON.stringify(_trainingCycle)); } catch(e) {}
+}
+function showCycleTracker() {
+  loadCycle();
+  var phases = ['Build', 'Intensify', 'Peak', 'Deload'];
+  var phaseColors = { Build: '#4ade80', Intensify: '#fbbf24', Peak: '#f87171', Deload: '#60a5fa' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:400px;width:90%">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Training Cycle</span>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+  html += '<div><span style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:0.1em">Current Phase</span>';
+  html += '<div style="color:' + (phaseColors[_trainingCycle.phase] || '#22d3ee') + ';font-size:24px;font-weight:700">' + _trainingCycle.phase + '</div></div>';
+  html += '<div style="text-align:right"><span style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:0.1em">Week</span>';
+  html += '<div style="color:#e2e8f0;font-size:24px;font-weight:700">' + _trainingCycle.week + '</div></div></div>';
+  html += '<div style="display:flex;gap:4px;margin-bottom:16px">';
+  for (var w = 1; w <= 4; w++) {
+    var active = w === _trainingCycle.week;
+    html += '<div style="flex:1;height:6px;border-radius:3px;background:' + (active ? (phaseColors[_trainingCycle.phase] || '#22d3ee') : 'rgba(255,255,255,0.05)') + '"></div>';
+  }
+  html += '</div>';
+  html += '<span style="color:#94a3b8;font-size:10px;display:block;margin-bottom:8px">Set Phase:</span>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:12px">';
+  phases.forEach(function(p) {
+    var active = p === _trainingCycle.phase;
+    var col = phaseColors[p];
+    html += '<button onclick="setCyclePhase(\'' + p + '\');this.closest(\'div[style*=fixed]\').remove();showCycleTracker()" style="flex:1;padding:8px 4px;background:' + (active ? col + '20' : 'rgba(255,255,255,0.02)') + ';border:1px solid ' + (active ? col + '60' : 'rgba(255,255,255,0.06)') + ';border-radius:6px;color:' + (active ? col : '#64748b') + ';cursor:pointer;font-family:Sora,sans-serif;font-size:9px;font-weight:600">' + p + '</button>';
+  });
+  html += '</div>';
+  html += '<div style="display:flex;gap:6px">';
+  html += '<button onclick="advanceCycleWeek();this.closest(\'div[style*=fixed]\').remove();showCycleTracker()" style="flex:1;padding:8px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:6px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:10px;font-weight:600">Next Week</button>';
+  html += '<button onclick="resetCycle();this.closest(\'div[style*=fixed]\').remove();showCycleTracker()" style="flex:1;padding:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:10px">Reset</button></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function setCyclePhase(phase) {
+  loadCycle();
+  _trainingCycle.phase = phase;
+  saveCycle();
+  showToast('Phase: ' + phase);
+}
+function advanceCycleWeek() {
+  loadCycle();
+  _trainingCycle.week++;
+  if (_trainingCycle.week > 4) {
+    _trainingCycle.week = 1;
+    var phases = ['Build', 'Intensify', 'Peak', 'Deload'];
+    var idx = phases.indexOf(_trainingCycle.phase);
+    _trainingCycle.phase = phases[(idx + 1) % phases.length];
+    _trainingCycle.history.push({ phase: _trainingCycle.phase, date: new Date().toISOString().split('T')[0] });
+  }
+  saveCycle();
+  showToast('Week ' + _trainingCycle.week + ' (' + _trainingCycle.phase + ')');
+}
+function resetCycle() {
+  _trainingCycle = { week: 1, phase: 'Build', startDate: new Date().toISOString().split('T')[0], history: [] };
+  saveCycle();
+  showToast('Cycle reset to Week 1 Build');
+}
+loadCycle();
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
