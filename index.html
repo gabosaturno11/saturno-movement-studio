@@ -3230,6 +3230,7 @@ document.addEventListener('DOMContentLoaded', function() {
   buildKnobs();
   buildMeters();
   loadSession();
+  loadFromHash();
   updateBPMMode();
   updateEmptyState();
 });
@@ -4340,6 +4341,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var totalW = maxRight + 200;
     var container = document.getElementById('timeline-container');
     container.scrollLeft = ratio * totalW - container.clientWidth / 2;
+    // Also seek playhead to this position
+    var pps = 80 / 15;
+    currentTime = Math.max(0, (ratio * totalW) / pps);
+    updateTimeDisplay();
+    updatePlayheadPosition();
     updateMinimap();
   }
   minimap.addEventListener('mousedown', function(e) {
@@ -5510,6 +5516,62 @@ function exportWorkout() {
   a.download = safeName + '-' + new Date().toISOString().split('T')[0] + '.json';
   a.click();
   toast('Workout exported');
+}
+
+function shareWorkout() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add clips first'); return; }
+  var data = {n: workoutName || 'Workout', b: bpm, c: []};
+  clips.forEach(function(clip) {
+    data.c.push({
+      e: clip.dataset.exerciseId,
+      t: clip.parentElement.dataset.track,
+      l: parseInt(clip.style.left) || 0,
+      w: parseInt(clip.style.width) || 80,
+      s: clip.dataset.sets, r: clip.dataset.reps,
+      p: clip.dataset.rpe
+    });
+  });
+  var json = JSON.stringify(data);
+  var encoded = btoa(unescape(encodeURIComponent(json)));
+  var url = window.location.origin + window.location.pathname + '#share=' + encoded;
+  try {
+    navigator.clipboard.writeText(url).then(function() {
+      toast('Share URL copied to clipboard');
+      sfx('click');
+    });
+  } catch(e) {
+    toast('URL generated (check console)');
+  }
+}
+
+function loadFromHash() {
+  try {
+    var hash = window.location.hash;
+    if (!hash || hash.indexOf('#share=') !== 0) return;
+    var encoded = hash.substring(7);
+    var json = decodeURIComponent(escape(atob(encoded)));
+    var data = JSON.parse(json);
+    if (!data.c || !data.c.length) return;
+    pushUndo();
+    document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+    selectedClip = null;
+    document.getElementById('inspector').style.display = 'none';
+    if (data.b) { bpm = data.b; document.getElementById('bpm-input').value = bpm; updateBPMMode(); buildRuler(); }
+    data.c.forEach(function(item) {
+      var track = document.querySelector('.track-content[data-track="'+item.t+'"]');
+      var ex = getExercise(item.e);
+      if (!track || !ex) return;
+      var clip = createClipElement(ex, item.l, item.w, {
+        sets: item.s, reps: item.r, rpe: item.p
+      });
+      track.appendChild(clip);
+    });
+    updateStats(); saveSession();
+    setWorkoutName(data.n || 'Shared Workout');
+    toast('Loaded shared workout: ' + (data.n || 'Workout'));
+    window.location.hash = '';
+  } catch(e) {}
 }
 
 /* ===== IMPORT WORKOUT ===== */
@@ -6739,6 +6801,8 @@ var CMD_ACTIONS = [
   {label:'Delete Selected Clips', key:'Del', icon:'\u2716', action: function() { deleteSelectedClips(); }},
   {label:'Group Selected Clips', key:'Cmd+G', icon:'\u2B1C', action: function() { groupSelectedClips(); }},
   {label:'Ungroup Selected Clips', key:'Cmd+Shift+G', icon:'\u2B1C', action: function() { ungroupSelectedClips(); }},
+  {label:'Share Workout (URL)', key:'', icon:'\u21A6', action: function() { shareWorkout(); }},
+  {label:'Copy Workout as Text', key:'', icon:'\u2398', action: function() { copyWorkoutText(); }},
 ];
 
 function openCmdPalette() {
