@@ -219,6 +219,21 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
   .presets-drawer{padding:8px 12px}
 }
 
+/* ===== SAVED WORKOUTS MODAL ===== */
+.saved-modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(5,7,17,0.85);align-items:center;justify-content:center}
+.saved-modal.open{display:flex}
+.saved-modal-content{background:var(--bg-panel);border:1px solid var(--border);width:90%;max-width:420px;max-height:70vh;overflow-y:auto;padding:16px}
+.saved-modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.saved-modal-header h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em}
+.saved-modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;padding:4px}
+.saved-item{padding:10px;border:1px solid var(--border);margin-bottom:6px;cursor:pointer;transition:border-color 0.15s}
+.saved-item:hover{border-color:var(--accent-cyan)}
+.saved-item-name{font-size:11px;font-weight:600}
+.saved-item-info{font-size:9px;color:var(--text-muted);margin-top:3px}
+.saved-item-delete{float:right;font-size:9px;color:var(--accent-red);cursor:pointer;padding:2px 6px;border:1px solid transparent}
+.saved-item-delete:hover{border-color:var(--accent-red)}
+.saved-empty{text-align:center;padding:20px;color:var(--text-muted);font-size:11px}
+
 /* ===== PRESETS DRAWER ===== */
 .presets-drawer{display:none;position:absolute;top:52px;left:0;right:0;background:var(--bg-panel);border-bottom:2px solid var(--accent-cyan);z-index:50;padding:12px 20px}
 .presets-drawer.open{display:flex;gap:12px;flex-wrap:wrap}
@@ -244,7 +259,8 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
     <nav class="header-nav">
       <button class="nav-btn" id="btn-presets" onclick="togglePresets()">PRESETS</button>
       <button class="nav-btn" onclick="clearTimeline()">CLEAR</button>
-      <button class="nav-btn" onclick="saveSession()">SAVE</button>
+      <button class="nav-btn" onclick="saveNamedWorkout()">SAVE AS</button>
+      <button class="nav-btn" onclick="showSavedWorkouts()">LOAD</button>
       <button class="nav-btn" onclick="exportWorkout()">EXPORT</button>
       <button class="nav-btn" id="btn-video" onclick="toggleVideo()">VIDEO</button>
       <button class="nav-btn" onclick="toggleMusic()">MUSIC</button>
@@ -440,6 +456,16 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:8px;color:var(--accent-cyan);text-decoration:none;padding:3px 8px;border:1px solid var(--border)">Back to Vault</a>
     </div>
   </footer>
+</div>
+
+<div class="saved-modal" id="saved-modal">
+  <div class="saved-modal-content">
+    <div class="saved-modal-header">
+      <h3>Saved Workouts</h3>
+      <button class="saved-modal-close" onclick="closeSavedWorkouts()">&times;</button>
+    </div>
+    <div id="saved-list"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -692,6 +718,7 @@ var isRecording = false, tempoLinked = false;
 var selectedClip = null, musicPlaying = false, musicIndex = 0;
 var audioEl = null;
 var meterInterval = null;
+var undoStack = [], redoStack = [], maxUndo = 30;
 
 /* Music tracks (from Vercel Blob CDN) */
 var MUSIC_TRACKS = [
@@ -951,6 +978,7 @@ function createClipElement(exercise, left, width, dna) {
     lastTap = now;
   });
   clip.addEventListener('dblclick', function() {
+    pushUndo();
     clip.remove();
     if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
     updateStats(); saveSession();
@@ -961,6 +989,7 @@ function createClipElement(exercise, left, width, dna) {
 }
 
 function addClip(track, exercise, x) {
+  pushUndo();
   var clip = createClipElement(exercise, x, 80);
   track.appendChild(clip);
   selectClipEl(clip);
@@ -1410,6 +1439,7 @@ function togglePresets() {
 function loadPreset(id) {
   var p = PRESETS[id];
   if (!p) return;
+  pushUndo();
   // Clear timeline
   document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
   selectedClip = null;
@@ -1449,6 +1479,7 @@ function loadPreset(id) {
 
 /* ===== CLEAR ===== */
 function clearTimeline() {
+  pushUndo();
   document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
   selectedClip = null;
   document.getElementById('inspector').style.display = 'none';
@@ -1558,13 +1589,155 @@ function toast(msg) {
   setTimeout(function() { t.classList.remove('show'); }, 2000);
 }
 
+/* ===== SAVED WORKOUTS ===== */
+function getSavedWorkouts() {
+  try { return JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) { return []; }
+}
+
+function saveNamedWorkout() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add clips first'); return; }
+  var name = prompt('Workout name:');
+  if (!name || !name.trim()) return;
+  var workout = {
+    name: name.trim(),
+    created: new Date().toISOString(),
+    bpm: bpm,
+    clipCount: clips.length,
+    state: captureState()
+  };
+  var saved = getSavedWorkouts();
+  saved.unshift(workout);
+  if (saved.length > 20) saved = saved.slice(0, 20);
+  try { localStorage.setItem('sms_saved_workouts', JSON.stringify(saved)); } catch(e) {}
+  toast('Saved: ' + name.trim());
+}
+
+function showSavedWorkouts() {
+  var saved = getSavedWorkouts();
+  var list = document.getElementById('saved-list');
+  if (saved.length === 0) {
+    list.innerHTML = '<div class="saved-empty">No saved workouts yet. Use SAVE AS to save one.</div>';
+  } else {
+    var html = '';
+    saved.forEach(function(w, i) {
+      var date = new Date(w.created).toLocaleDateString();
+      html += '<div class="saved-item" onclick="loadSavedWorkout('+i+')">';
+      html += '<span class="saved-item-delete" onclick="event.stopPropagation();deleteSavedWorkout('+i+')">delete</span>';
+      html += '<div class="saved-item-name">'+w.name+'</div>';
+      html += '<div class="saved-item-info">'+w.clipCount+' clips / '+w.bpm+' BPM / '+date+'</div>';
+      html += '</div>';
+    });
+    list.innerHTML = html;
+  }
+  document.getElementById('saved-modal').classList.add('open');
+}
+
+function closeSavedWorkouts() {
+  document.getElementById('saved-modal').classList.remove('open');
+}
+
+function loadSavedWorkout(index) {
+  var saved = getSavedWorkouts();
+  if (!saved[index]) return;
+  pushUndo();
+  var state = JSON.parse(saved[index].state);
+  restoreState(state);
+  closeSavedWorkouts();
+  toast('Loaded: ' + saved[index].name);
+}
+
+function deleteSavedWorkout(index) {
+  var saved = getSavedWorkouts();
+  var name = saved[index] ? saved[index].name : '';
+  saved.splice(index, 1);
+  try { localStorage.setItem('sms_saved_workouts', JSON.stringify(saved)); } catch(e) {}
+  showSavedWorkouts();
+  toast('Deleted: ' + name);
+}
+
+/* Close modal on overlay click */
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = document.getElementById('saved-modal');
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeSavedWorkouts();
+  });
+});
+
+/* ===== UNDO / REDO ===== */
+function captureState() {
+  var state = {bpm: bpm, clips: []};
+  document.querySelectorAll('.clip').forEach(function(clip) {
+    state.clips.push({
+      exerciseId: clip.dataset.exerciseId,
+      track: clip.parentElement.dataset.track,
+      left: clip.style.left,
+      width: clip.style.width,
+      sets: clip.dataset.sets,
+      reps: clip.dataset.reps,
+      tempo: clip.dataset.tempo,
+      rest: clip.dataset.rest,
+      rpe: clip.dataset.rpe
+    });
+  });
+  return JSON.stringify(state);
+}
+
+function pushUndo() {
+  var state = captureState();
+  if (undoStack.length > 0 && undoStack[undoStack.length - 1] === state) return;
+  undoStack.push(state);
+  if (undoStack.length > maxUndo) undoStack.shift();
+  redoStack = [];
+}
+
+function undo() {
+  if (undoStack.length === 0) { toast('Nothing to undo'); return; }
+  redoStack.push(captureState());
+  var state = JSON.parse(undoStack.pop());
+  restoreState(state);
+  toast('Undo');
+}
+
+function redo() {
+  if (redoStack.length === 0) { toast('Nothing to redo'); return; }
+  undoStack.push(captureState());
+  var state = JSON.parse(redoStack.pop());
+  restoreState(state);
+  toast('Redo');
+}
+
+function restoreState(state) {
+  document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+  selectedClip = null;
+  document.getElementById('inspector').style.display = 'none';
+  if (state.bpm) { bpm = state.bpm; document.getElementById('bpm-input').value = bpm; updateBPMMode(); }
+  state.clips.forEach(function(c) {
+    var track = document.querySelector('.track-content[data-track="'+c.track+'"]');
+    var ex = getExercise(c.exerciseId);
+    if (!track || !ex) return;
+    var clip = createClipElement(ex, c.left, c.width, {
+      sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
+    });
+    track.appendChild(clip);
+  });
+  updateStats();
+  saveSession();
+}
+
 /* ===== KEYBOARD SHORTCUTS ===== */
 document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
   if (e.code === 'Escape') { stopPlayback(); }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
+    e.preventDefault();
+    if (e.shiftKey) { redo(); } else { undo(); }
+    return;
+  }
   if (e.code === 'Delete' || e.code === 'Backspace') {
     if (selectedClip) {
+      pushUndo();
       selectedClip.remove();
       selectedClip = null;
       document.getElementById('inspector').style.display = 'none';
