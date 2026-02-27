@@ -2797,6 +2797,11 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>, .</kbd><span>Nudge Tempo</span></div>
       <div class="shortcut-item"><kbd>Shift+, .</kbd><span>Nudge Rest</span></div>
       <div class="shortcut-item"><kbd>Alt+&#8593;&#8595;</kbd><span>Dup to Track</span></div>
+      <div class="shortcut-item"><kbd>C</kbd><span>Collapse Track</span></div>
+      <div class="shortcut-item"><kbd>N</kbd><span>Next Marker</span></div>
+      <div class="shortcut-item"><kbd>Shift+N</kbd><span>Prev Marker</span></div>
+      <div class="shortcut-item"><kbd>Home</kbd><span>Jump to Start</span></div>
+      <div class="shortcut-item"><kbd>End</kbd><span>Jump to End</span></div>
       <div class="shortcut-item"><kbd>Cmd+I</kbd><span>Invert Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+A</kbd><span>Track Clips</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
@@ -7080,6 +7085,11 @@ var CMD_ACTIONS = [
   {label:'Lock / Unlock Clip', key:'Cmd+L', icon:'\u2693', action: function() { if(!selectedClip)return; selectedClip.classList.toggle('clip-locked'); selectedClip.dataset.locked=selectedClip.classList.contains('clip-locked')?'1':''; saveSession(); toast(selectedClip.classList.contains('clip-locked')?'Locked':'Unlocked'); }},
   {label:'Reset All Faders', key:'', icon:'\u21BA', action: function() { FADERS.forEach(function(f){resetFader(f.id);}); toast('All faders reset'); }},
   {label:'Reset All Knobs', key:'', icon:'\u21BA', action: function() { KNOBS.forEach(function(k){resetKnob(k.id);}); toast('All knobs reset'); }},
+  {label:'Next Marker', key:'N', icon:'\u25B8', action: function() { var e={code:'KeyN',shiftKey:false,metaKey:false,ctrlKey:false,preventDefault:function(){}}; if(markers.length===0){toast('No markers');return;} var sorted=markers.slice().sort(function(a,b){return a.time-b.time;}); var next=null; for(var i=0;i<sorted.length;i++){if(sorted[i].time>currentTime+0.1){next=sorted[i];break;}} if(next){currentTime=next.time;updateTimeDisplay();updatePlayheadPosition();toast('Marker: '+next.label);}else{toast('No next marker');} }},
+  {label:'Previous Marker', key:'Shift+N', icon:'\u25C2', action: function() { if(markers.length===0){toast('No markers');return;} var sorted=markers.slice().sort(function(a,b){return a.time-b.time;}); var prev=null; for(var i=sorted.length-1;i>=0;i--){if(sorted[i].time<currentTime-0.1){prev=sorted[i];break;}} if(prev){currentTime=prev.time;updateTimeDisplay();updatePlayheadPosition();toast('Marker: '+prev.label);}else{toast('No previous marker');} }},
+  {label:'Jump to Start', key:'Home', icon:'\u25C0', action: function() { currentTime=0; updateTimeDisplay(); updatePlayheadPosition(); toast('Start'); }},
+  {label:'Jump to End', key:'End', icon:'\u25B6', action: function() { var maxR=0; document.querySelectorAll('.clip').forEach(function(c){var r=(parseInt(c.style.left)+parseInt(c.style.width)-100)/(80/15); if(r>maxR)maxR=r;}); currentTime=Math.max(0,maxR); updateTimeDisplay(); updatePlayheadPosition(); toast('End'); }},
+  {label:'Collapse Active Track', key:'C', icon:'\u25BC', action: function() { var t=document.querySelector('.track.track-active'); if(t){t.classList.toggle('track-collapsed');toast(t.classList.contains('track-collapsed')?'Collapsed':'Expanded');} }},
 ];
 
 function openCmdPalette() {
@@ -7872,6 +7882,13 @@ document.addEventListener('keydown', function(e) {
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
   }
+  if (e.code === 'KeyC' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    var activeTrack = document.querySelector('.track.track-active');
+    if (activeTrack) {
+      activeTrack.classList.toggle('track-collapsed');
+      toast(activeTrack.classList.contains('track-collapsed') ? 'Track collapsed' : 'Track expanded');
+    }
+  }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyL') {
     e.preventDefault();
     if (selectedClip) {
@@ -7899,6 +7916,51 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyT' && !e.metaKey && !e.ctrlKey) {
     tapTempo();
+  }
+  if (e.code === 'KeyN' && !e.metaKey && !e.ctrlKey) {
+    if (markers.length === 0) { toast('No markers'); return; }
+    var sorted = markers.slice().sort(function(a, b) { return a.time - b.time; });
+    if (e.shiftKey) {
+      // Previous marker
+      var prev = null;
+      for (var mi = sorted.length - 1; mi >= 0; mi--) {
+        if (sorted[mi].time < currentTime - 0.1) { prev = sorted[mi]; break; }
+      }
+      if (prev) {
+        currentTime = prev.time;
+        updateTimeDisplay(); updatePlayheadPosition();
+        toast('Marker: ' + prev.label);
+      } else { toast('No previous marker'); }
+    } else {
+      // Next marker
+      var next = null;
+      for (var mi = 0; mi < sorted.length; mi++) {
+        if (sorted[mi].time > currentTime + 0.1) { next = sorted[mi]; break; }
+      }
+      if (next) {
+        currentTime = next.time;
+        updateTimeDisplay(); updatePlayheadPosition();
+        toast('Marker: ' + next.label);
+      } else { toast('No next marker'); }
+    }
+    return;
+  }
+  if (e.code === 'Home' && !e.metaKey && !e.ctrlKey) {
+    currentTime = 0;
+    updateTimeDisplay(); updatePlayheadPosition();
+    toast('Start');
+    return;
+  }
+  if (e.code === 'End' && !e.metaKey && !e.ctrlKey) {
+    var maxR = 0;
+    document.querySelectorAll('.clip').forEach(function(c) {
+      var r = (parseInt(c.style.left) + parseInt(c.style.width) - 100) / (80 / 15);
+      if (r > maxR) maxR = r;
+    });
+    currentTime = Math.max(0, maxR);
+    updateTimeDisplay(); updatePlayheadPosition();
+    toast('End');
+    return;
   }
   if (e.code === 'KeyG' && !e.metaKey && !e.ctrlKey) {
     generateRandom();
