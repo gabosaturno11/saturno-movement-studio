@@ -7375,6 +7375,9 @@ var CMD_ACTIONS = [
   {label:'Select Clips in Loop Range', key:'', icon:'\u2610', action: function() { selectClipsInLoopRange(); }},
   {label:'Sort Track Alphabetically', key:'', icon:'\u2193', action: function() { sortTrackByName(); }},
   {label:'Compact Track (Remove Gaps)', key:'', icon:'\u25A0', action: function() { compactTrack(); }},
+  {label:'Distribute Across Tracks', key:'', icon:'\u21F6', action: function() { distributeAcrossTracks(); }},
+  {label:'Cycle Exercise in Pattern', key:'', icon:'\u21BB', action: function() { cycleExerciseInPattern(); }},
+  {label:'Compact All Tracks', key:'', icon:'\u25A0', action: function() { compactAllTracks(); }},
 ];
 
 function openCmdPalette() {
@@ -8573,6 +8576,79 @@ function compactTrack() {
   });
   updateStats(); saveSession(); sfx('click');
   toast('Track compacted (' + count + ' clips moved)');
+}
+
+function distributeAcrossTracks() {
+  var sel = Array.from(document.querySelectorAll('.clip.selected'));
+  if (sel.length < 2) { toast('Select 2+ clips to distribute'); return; }
+  var trackIds = ['push', 'pull', 'core', 'legs', 'skills'];
+  pushUndo();
+  var count = 0;
+  sel.forEach(function(c, i) {
+    if (c.classList.contains('clip-locked')) return;
+    var targetTrack = document.querySelector('.track-content[data-track="' + trackIds[i % trackIds.length] + '"]');
+    if (targetTrack && c.parentElement !== targetTrack) {
+      c.parentElement.removeChild(c);
+      targetTrack.appendChild(c);
+      count++;
+    }
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips distributed across tracks');
+}
+
+function cycleExerciseInPattern() {
+  if (!selectedClip) { toast('Select a clip'); return; }
+  if (selectedClip.classList.contains('clip-locked')) { toast('Clip is locked'); return; }
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var samePattern = EXERCISES.filter(function(e) { return e.pattern === ex.pattern; });
+  samePattern.sort(function(a, b) { return a.stage - b.stage; });
+  var curIdx = -1;
+  for (var i = 0; i < samePattern.length; i++) {
+    if (samePattern[i].id === ex.id) { curIdx = i; break; }
+  }
+  var nextIdx = (curIdx + 1) % samePattern.length;
+  var next = samePattern[nextIdx];
+  pushUndo();
+  selectedClip.dataset.exerciseId = next.id;
+  var nameEl = selectedClip.querySelector('.clip-name');
+  if (nameEl) nameEl.textContent = next.name;
+  var dotsEl = selectedClip.querySelector('.clip-stage-dots');
+  if (dotsEl) {
+    var dots = dotsEl.querySelectorAll('.clip-stage-dot');
+    dots.forEach(function(d, i) { d.className = 'clip-stage-dot' + (i < next.stage ? ' filled' : ''); });
+  }
+  selectClipEl(selectedClip);
+  saveSession(); sfx('click');
+  toast(next.name + ' (S' + next.stage + ')');
+}
+
+function compactAllTracks() {
+  pushUndo();
+  var total = 0;
+  var trackIds = ['push', 'pull', 'core', 'legs', 'skills'];
+  trackIds.forEach(function(tid) {
+    var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+    if (!tc) return;
+    var clips = Array.from(tc.querySelectorAll('.clip'));
+    if (clips.length === 0) return;
+    clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+    var ho = 100;
+    var gap = 4;
+    var pos = ho;
+    clips.forEach(function(c) {
+      if (c.classList.contains('clip-locked')) {
+        pos = parseInt(c.style.left) + parseInt(c.style.width) + gap;
+        return;
+      }
+      if (parseInt(c.style.left) !== pos) total++;
+      c.style.left = pos + 'px';
+      pos += parseInt(c.style.width) + gap;
+    });
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast('All tracks compacted (' + total + ' clips moved)');
 }
 
 function selectClipsByStage(stage) {
