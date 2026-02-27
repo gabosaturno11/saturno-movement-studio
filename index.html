@@ -1168,7 +1168,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
     <!-- LEFT: Movement Library -->
     <aside class="panel-left">
       <div class="panel-header"><span>Movement Library</span><span id="lib-count">0</span></div>
-      <input type="text" class="lib-search" id="lib-search" placeholder="Search movements..." oninput="filterLibrary()">
+      <input type="text" class="lib-search" id="lib-search" placeholder="Search movements... (Enter to add)" oninput="filterLibrary()" onkeydown="if(event.key==='Enter')addFirstMatch()">
       <div id="library-container"></div>
     </aside>
 
@@ -1313,10 +1313,11 @@ a:focus-visible, button:focus-visible, input:focus-visible {
         </div>
       </div>
 
-      <!-- Export -->
-      <div class="mixer-section" style="display:flex;gap:4px;padding:10px 14px">
-        <button class="export-btn" onclick="exportWorkout()" style="flex:1">Export JSON</button>
-        <button class="export-btn" onclick="printWorkout()" style="flex:1">Print Sheet</button>
+      <!-- Export / Import -->
+      <div class="mixer-section" style="display:flex;flex-wrap:wrap;gap:4px;padding:10px 14px">
+        <button class="export-btn" onclick="exportWorkout()" style="flex:1;min-width:70px">Export</button>
+        <button class="export-btn" onclick="printWorkout()" style="flex:1;min-width:70px">Print</button>
+        <button class="export-btn" onclick="importWorkout()" style="flex:1;min-width:70px">Import</button>
       </div>
     </aside>
   </main>
@@ -1847,6 +1848,41 @@ function filterLibrary() {
     document.querySelectorAll('.movement-list').forEach(function(l) { l.classList.remove('hidden'); });
     document.querySelectorAll('.category-header').forEach(function(h) { h.classList.remove('collapsed'); });
   }
+}
+
+function addFirstMatch() {
+  var q = document.getElementById('lib-search').value.toLowerCase().trim();
+  if (!q) return;
+  // Find first matching exercise
+  var match = null;
+  for (var i = 0; i < EXERCISES.length; i++) {
+    if (EXERCISES[i].name.toLowerCase().indexOf(q) !== -1) {
+      match = EXERCISES[i]; break;
+    }
+  }
+  if (!match) { toast('No match found'); return; }
+  // Find active track or matching family track
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) {
+    // Find track by family
+    var familyToTrack = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills',Flow:'skills'};
+    var trackId = familyToTrack[match.family] || 'push';
+    activeTrack = document.querySelector('.track-content[data-track="'+trackId+'"]');
+  }
+  if (!activeTrack || activeTrack.dataset.track === 'music') {
+    var familyToTrack = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills',Flow:'skills'};
+    activeTrack = document.querySelector('.track-content[data-track="'+(familyToTrack[match.family] || 'push')+'"]');
+  }
+  // Place after last clip in that track
+  var clips = activeTrack.querySelectorAll('.clip');
+  var x = 0;
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > x) x = r;
+  });
+  addClip(activeTrack, match, x + 4);
+  document.getElementById('lib-search').value = '';
+  filterLibrary();
 }
 
 /* ===== TRACKS ===== */
@@ -3059,6 +3095,60 @@ function exportWorkout() {
   toast('Workout exported');
 }
 
+/* ===== IMPORT WORKOUT ===== */
+function importWorkout() {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = function() {
+    if (!input.files[0]) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var workout = JSON.parse(e.target.result);
+        if (!workout.tracks) { toast('Invalid workout file'); return; }
+        pushUndo();
+        document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+        selectedClip = null;
+        document.getElementById('inspector').style.display = 'none';
+        if (workout.bpm) {
+          bpm = workout.bpm;
+          document.getElementById('bpm-input').value = bpm;
+          updateBPMMode();
+          buildRuler();
+        }
+        var pps = 80 / 15;
+        Object.keys(workout.tracks).forEach(function(trackId) {
+          var track = document.querySelector('.track-content[data-track="'+trackId+'"]');
+          if (!track) return;
+          workout.tracks[trackId].forEach(function(item) {
+            var ex = null;
+            for (var i = 0; i < EXERCISES.length; i++) {
+              if (EXERCISES[i].name === item.movement) { ex = EXERCISES[i]; break; }
+            }
+            if (!ex) return;
+            var left = (item.startTime || 0) * pps;
+            var width = (item.duration || 15) * pps;
+            var clip = createClipElement(ex, left, width, {
+              sets: item.sets, reps: item.reps, tempo: item.tempo,
+              rest: item.rest, rpe: item.rpe
+            });
+            track.appendChild(clip);
+          });
+        });
+        updateStats();
+        saveSession();
+        sfx('preset');
+        toast('Imported: ' + (workout.name || 'workout'));
+      } catch(err) {
+        toast('Error importing file');
+      }
+    };
+    reader.readAsText(input.files[0]);
+  };
+  input.click();
+}
+
 /* ===== PRINT WORKOUT ===== */
 function printWorkout() {
   var clips = document.querySelectorAll('.clip');
@@ -3553,6 +3643,16 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     document.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
     toast('All clips selected');
+  }
+  // Tab to cycle through clips
+  if (e.code === 'Tab' && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault();
+    var allClips = Array.from(document.querySelectorAll('.clip'));
+    if (allClips.length === 0) return;
+    var currentIdx = selectedClip ? allClips.indexOf(selectedClip) : -1;
+    var nextIdx = e.shiftKey ? (currentIdx - 1 + allClips.length) % allClips.length : (currentIdx + 1) % allClips.length;
+    selectClipEl(allClips[nextIdx]);
+    sfx('click');
   }
 });
 </script>
