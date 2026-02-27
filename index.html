@@ -7343,6 +7343,8 @@ var CMD_ACTIONS = [
   {label:'Apply Inspector to Selected', key:'', icon:'\u2913', action: function() { applyInspectorToSelected(); }},
   {label:'Collect to Active Track', key:'', icon:'\u21B3', action: function() { collectToTrack(); }},
   {label:'Stagger Clips (2-beat offset)', key:'', icon:'\u21F6', action: function() { staggerClips(); }},
+  {label:'Random Exercise Swap', key:'', icon:'\u2684', action: function() { randomSwapExercise(); }},
+  {label:'Randomize All Exercises', key:'', icon:'\u2684', action: function() { randomizeAllExercises(); }},
 ];
 
 function openCmdPalette() {
@@ -8246,6 +8248,74 @@ function collectToTrack() {
   });
   updateStats(); saveSession(); sfx('click');
   toast(count + ' clips moved to active track');
+}
+
+function randomSwapExercise() {
+  if (!selectedClip) { toast('Select a clip'); return; }
+  if (selectedClip.classList.contains('clip-locked')) { toast('Clip is locked'); return; }
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var sameFamily = EXERCISES.filter(function(e) { return e.family === ex.family && e.id !== ex.id; });
+  if (sameFamily.length === 0) { toast('No other exercises in ' + ex.family); return; }
+  pushUndo();
+  var rand = sameFamily[Math.floor(Math.random() * sameFamily.length)];
+  selectedClip.dataset.exerciseId = rand.id;
+  var nameEl = selectedClip.querySelector('.clip-name');
+  if (nameEl) nameEl.textContent = rand.name;
+  var dotsEl = selectedClip.querySelector('.clip-stage-dots');
+  if (dotsEl) {
+    var dots = dotsEl.querySelectorAll('.clip-stage-dot');
+    dots.forEach(function(d, i) { d.className = 'clip-stage-dot' + (i < rand.stage ? ' filled' : ''); });
+  }
+  selectClipEl(selectedClip);
+  saveSession(); sfx('click');
+  toast('Swapped to: ' + rand.name + ' (S' + rand.stage + ')');
+}
+
+function randomizeAllExercises() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var swapped = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex) return;
+    var sameFamily = EXERCISES.filter(function(e) { return e.family === ex.family && e.id !== ex.id; });
+    if (sameFamily.length === 0) return;
+    var rand = sameFamily[Math.floor(Math.random() * sameFamily.length)];
+    c.dataset.exerciseId = rand.id;
+    var nameEl = c.querySelector('.clip-name');
+    if (nameEl) nameEl.textContent = rand.name;
+    var dotsEl = c.querySelector('.clip-stage-dots');
+    if (dotsEl) {
+      var dots = dotsEl.querySelectorAll('.clip-stage-dot');
+      dots.forEach(function(d, i) { d.className = 'clip-stage-dot' + (i < rand.stage ? ' filled' : ''); });
+    }
+    swapped++;
+  });
+  saveSession(); updateStats(); sfx('click');
+  toast(swapped + ' exercises randomized within families');
+}
+
+function quickAddExercise(exerciseId) {
+  var ex = getExercise(exerciseId);
+  if (!ex) return;
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) {
+    var fam = ex.family.toLowerCase();
+    activeTrack = document.querySelector('.track-content[data-track="' + fam + '"]');
+  }
+  if (!activeTrack) activeTrack = document.querySelector('.track-content[data-track="push"]');
+  pushUndo();
+  var pps = 80 / 15;
+  var ho = 100;
+  var left = ho + Math.round(currentTime * pps);
+  var clip = createClipElement(ex, left, 80);
+  activeTrack.appendChild(clip);
+  addToRecent(ex.id);
+  updateStats(); saveSession(); sfx('drop');
+  toast('Added: ' + ex.name);
 }
 
 function selectClipsByStage(stage) {
