@@ -2694,6 +2694,9 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
   <div class="ctx-item" data-action="stage-down">Stage Down</div>
   <div class="ctx-item" data-action="reset-fades">Reset Fades</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="group">Group<span class="ctx-key">Cmd+G</span></div>
+  <div class="ctx-item" data-action="ungroup">Ungroup<span class="ctx-key">Cmd+Shift+G</span></div>
+  <div class="ctx-sep"></div>
   <div class="ctx-item ctx-color-row" data-action="color">Color<span style="display:inline-flex;gap:3px;margin-left:auto"><span class="ctx-color-swatch" data-color="" title="Default"></span><span class="ctx-color-swatch" data-color="#ef4444" style="background:#ef4444"></span><span class="ctx-color-swatch" data-color="#f97316" style="background:#f97316"></span><span class="ctx-color-swatch" data-color="#eab308" style="background:#eab308"></span><span class="ctx-color-swatch" data-color="#22c55e" style="background:#22c55e"></span><span class="ctx-color-swatch" data-color="#06b6d4" style="background:#06b6d4"></span><span class="ctx-color-swatch" data-color="#8b5cf6" style="background:#8b5cf6"></span><span class="ctx-color-swatch" data-color="#ec4899" style="background:#ec4899"></span></span></div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="move-push" style="font-size:8px;color:var(--accent-blue)">Move to Push</div>
@@ -2722,6 +2725,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Cmd+D</kbd><span>Duplicate</span></div>
       <div class="shortcut-item"><kbd>B</kbd><span>Split Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+D</kbd><span>Dup Track</span></div>
+      <div class="shortcut-item"><kbd>Cmd+G</kbd><span>Group Clips</span></div>
+      <div class="shortcut-item"><kbd>Cmd+Shift+G</kbd><span>Ungroup</span></div>
       <div class="shortcut-item"><kbd>&#8592; &#8594;</kbd><span>Nudge (beat)</span></div>
       <div class="shortcut-item"><kbd>Shift+&#8592; &#8594;</kbd><span>Nudge (bar)</span></div>
       <div class="shortcut-item"><kbd>Alt+&#8592; &#8594;</kbd><span>Resize (beat)</span></div>
@@ -3702,37 +3707,42 @@ function createClipElement(exercise, left, width, dna) {
     document.addEventListener('mouseup', onUp);
   });
 
-  // Drag clip
+  // Drag clip (with group support)
   clip.addEventListener('mousedown', function(e) {
     if (e.target === resize || e.target.classList.contains('clip-resize') || e.target === resizeL || e.target.classList.contains('clip-resize-left')) return;
     e.preventDefault();
     selectClipEl(clip, e.shiftKey);
     var startX = e.clientX, startLeft = parseInt(clip.style.left);
+    var groupSibs = getGroupSiblings(clip);
+    var sibStarts = groupSibs.map(function(s) { return {el: s, left: parseInt(s.style.left) || 0}; });
     clip.classList.add('clip-dragging');
     function onMove(e) {
-      var newLeft = Math.max(0, startLeft + e.clientX - startX);
+      var delta = e.clientX - startX;
+      var newLeft = Math.max(0, startLeft + delta);
       newLeft = snapValue(newLeft);
       // Clip-to-clip edge snapping
       if (snapEnabled) {
         var clipW = parseInt(clip.style.width) || 80;
         var rightEdge = newLeft + clipW;
         var threshold = 6;
-        var siblings = clip.parentElement.querySelectorAll('.clip');
-        for (var si = 0; si < siblings.length; si++) {
-          if (siblings[si] === clip) continue;
-          var sL = parseInt(siblings[si].style.left) || 0;
-          var sR = sL + (parseInt(siblings[si].style.width) || 80);
-          // Snap left edge to sibling right edge
+        var neighbors = clip.parentElement.querySelectorAll('.clip');
+        for (var si = 0; si < neighbors.length; si++) {
+          if (neighbors[si] === clip || groupSibs.indexOf(neighbors[si]) !== -1) continue;
+          var sL = parseInt(neighbors[si].style.left) || 0;
+          var sR = sL + (parseInt(neighbors[si].style.width) || 80);
           if (Math.abs(newLeft - sR) < threshold) { newLeft = sR; break; }
-          // Snap right edge to sibling left edge
           if (Math.abs(rightEdge - sL) < threshold) { newLeft = sL - clipW; break; }
-          // Snap left edge to sibling left edge
           if (Math.abs(newLeft - sL) < threshold) { newLeft = sL; break; }
-          // Snap right edge to sibling right edge
           if (Math.abs(rightEdge - sR) < threshold) { newLeft = sR - clipW; break; }
         }
       }
       clip.style.left = Math.max(0, newLeft) + 'px';
+      // Move group siblings by same delta
+      var actualDelta = (parseInt(clip.style.left) || 0) - startLeft;
+      sibStarts.forEach(function(s) {
+        if (s.el === clip) return;
+        s.el.style.left = Math.max(0, s.left + actualDelta) + 'px';
+      });
     }
     function onUp() { clip.classList.remove('clip-dragging'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
     document.addEventListener('mousemove', onMove);
@@ -5180,7 +5190,8 @@ function _doSaveSession() {
         notes: clip.dataset.notes || '',
         customColor: clip.dataset.customColor || '',
         fadeIn: clip.dataset.fadeIn || '0',
-        fadeOut: clip.dataset.fadeOut || '0'
+        fadeOut: clip.dataset.fadeOut || '0',
+        group: clip.dataset.group || ''
       });
     });
     document.querySelectorAll('[data-fader]').forEach(function(f) {
@@ -5198,6 +5209,7 @@ function _doSaveSession() {
     session.loopEnabled = loopEnabled;
     session.loopStart = loopStart;
     session.loopEnd = loopEnd;
+    session.groupCounter = _groupCounter;
     localStorage.setItem('sms_session', JSON.stringify(session));
     // Flash save indicator
     var si = document.getElementById('save-indicator');
@@ -5229,9 +5241,15 @@ function loadSession() {
           clip.style.background = 'linear-gradient(180deg, ' + c.customColor + '44 0%, ' + c.customColor + '22 100%)';
           clip.style.borderTopColor = c.customColor;
         }
+        if (c.group) {
+          clip.dataset.group = c.group;
+          clip.style.outline = '1px dashed rgba(59,130,246,0.3)';
+        }
         track.appendChild(clip);
       });
     }
+    // Restore group counter
+    if (s.groupCounter) _groupCounter = s.groupCounter;
     if (s.faders) {
       Object.keys(s.faders).forEach(function(key) {
         var fader = document.querySelector('[data-fader="'+key+'"]');
@@ -5308,9 +5326,11 @@ function exportWorkout() {
       notes: clip.dataset.notes || '',
       fadeIn: parseInt(clip.dataset.fadeIn) || 0,
       fadeOut: parseInt(clip.dataset.fadeOut) || 0,
-      customColor: clip.dataset.customColor || ''
+      customColor: clip.dataset.customColor || '',
+      group: clip.dataset.group || ''
     });
   });
+  workout.groupCounter = _groupCounter;
   workout.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
   workout.loop = {enabled: loopEnabled, start: loopStart, end: loopEnd};
   var blob = new Blob([JSON.stringify(workout, null, 2)], {type: 'application/json'});
@@ -5368,9 +5388,14 @@ function importWorkout() {
               clip.style.background = 'linear-gradient(180deg, ' + item.customColor + '44 0%, ' + item.customColor + '22 100%)';
               clip.style.borderTopColor = item.customColor;
             }
+            if (item.group) {
+              clip.dataset.group = item.group;
+              clip.style.outline = '1px dashed rgba(59,130,246,0.3)';
+            }
             track.appendChild(clip);
           });
         });
+        if (workout.groupCounter) _groupCounter = workout.groupCounter;
         // Import markers
         if (workout.markers && workout.markers.length) {
           markers = workout.markers;
@@ -5771,11 +5796,13 @@ function captureState() {
       notes: clip.dataset.notes || '',
       customColor: clip.dataset.customColor || '',
       fadeIn: clip.dataset.fadeIn || '0',
-      fadeOut: clip.dataset.fadeOut || '0'
+      fadeOut: clip.dataset.fadeOut || '0',
+      group: clip.dataset.group || ''
     });
   });
   state.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
   state.markerCounter = markerCounter;
+  state.groupCounter = _groupCounter;
   state.loopEnabled = loopEnabled;
   state.loopStart = loopStart;
   state.loopEnd = loopEnd;
@@ -5835,8 +5862,14 @@ function restoreState(state) {
       clip.style.background = 'linear-gradient(180deg, ' + c.customColor + '44 0%, ' + c.customColor + '22 100%)';
       clip.style.borderTopColor = c.customColor;
     }
+    if (c.group) {
+      clip.dataset.group = c.group;
+      clip.style.outline = '1px dashed rgba(59,130,246,0.3)';
+    }
     track.appendChild(clip);
   });
+  // Restore group counter
+  if (state.groupCounter) _groupCounter = state.groupCounter;
   // Restore markers
   if (state.markers) {
     markers = state.markers;
@@ -6145,6 +6178,10 @@ document.addEventListener('DOMContentLoaded', function() {
           toast('No stage ' + targetStage + ' for this pattern');
         }
       }
+    } else if (action === 'group') {
+      groupSelectedClips();
+    } else if (action === 'ungroup') {
+      ungroupSelectedClips();
     } else if (action === 'reset-fades') {
       ctxClip.dataset.fadeIn = '0';
       ctxClip.dataset.fadeOut = '0';
@@ -6467,6 +6504,8 @@ var CMD_ACTIONS = [
   {label:'Move Clip Up', key:'\u2191', icon:'\u2191', action: function() { if(!selectedClip)return; var tids=['push','pull','core','legs','skills']; var ci=tids.indexOf(selectedClip.parentElement.dataset.track); if(ci>0){pushUndo();var nt=document.querySelector('.track-content[data-track="'+tids[ci-1]+'"]');selectedClip.parentElement.removeChild(selectedClip);nt.appendChild(selectedClip);saveSession();updateStats();toast('Moved up');} }},
   {label:'Move Clip Down', key:'\u2193', icon:'\u2193', action: function() { if(!selectedClip)return; var tids=['push','pull','core','legs','skills']; var ci=tids.indexOf(selectedClip.parentElement.dataset.track); if(ci>=0&&ci<tids.length-1){pushUndo();var nt=document.querySelector('.track-content[data-track="'+tids[ci+1]+'"]');selectedClip.parentElement.removeChild(selectedClip);nt.appendChild(selectedClip);saveSession();updateStats();toast('Moved down');} }},
   {label:'Delete Selected Clips', key:'Del', icon:'\u2716', action: function() { deleteSelectedClips(); }},
+  {label:'Group Selected Clips', key:'Cmd+G', icon:'\u2B1C', action: function() { groupSelectedClips(); }},
+  {label:'Ungroup Selected Clips', key:'Cmd+Shift+G', icon:'\u2B1C', action: function() { ungroupSelectedClips(); }},
 ];
 
 function openCmdPalette() {
@@ -6925,6 +6964,48 @@ function clearAllClips() {
   toast(clips.length + ' clips cleared');
 }
 
+/* ===== CLIP GROUPS — Cmd+G to group, Cmd+Shift+G to ungroup ===== */
+var _groupCounter = 0;
+function groupSelectedClips() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length < 2) { toast('Select 2+ clips to group'); return; }
+  pushUndo();
+  _groupCounter++;
+  var groupId = 'g' + _groupCounter;
+  sel.forEach(function(c) {
+    c.dataset.group = groupId;
+    c.style.outline = '1px dashed rgba(59,130,246,0.3)';
+  });
+  saveSession();
+  sfx('click');
+  toast(sel.length + ' clips grouped (' + groupId + ')');
+}
+
+function ungroupSelectedClips() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length === 0 && selectedClip) sel = [selectedClip];
+  if (sel.length === 0) { toast('Select a grouped clip first'); return; }
+  pushUndo();
+  var groups = {};
+  sel.forEach(function(c) {
+    if (c.dataset.group) groups[c.dataset.group] = true;
+  });
+  Object.keys(groups).forEach(function(gid) {
+    document.querySelectorAll('.clip[data-group="'+gid+'"]').forEach(function(c) {
+      delete c.dataset.group;
+      c.style.outline = '';
+    });
+  });
+  saveSession();
+  sfx('click');
+  toast('Ungrouped');
+}
+
+function getGroupSiblings(clip) {
+  if (!clip.dataset.group) return [];
+  return Array.from(document.querySelectorAll('.clip[data-group="'+clip.dataset.group+'"]'));
+}
+
 function resetSession() {
   pushUndo();
   document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
@@ -6990,6 +7071,16 @@ document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyD') {
     e.preventDefault();
     duplicateTrackClips();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyG') {
+    e.preventDefault();
+    ungroupSelectedClips();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyG') {
+    e.preventDefault();
+    groupSelectedClips();
     return;
   }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyC') {
