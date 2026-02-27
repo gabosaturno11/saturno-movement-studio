@@ -2802,6 +2802,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Shift+N</kbd><span>Prev Marker</span></div>
       <div class="shortcut-item"><kbd>Home</kbd><span>Jump to Start</span></div>
       <div class="shortcut-item"><kbd>End</kbd><span>Jump to End</span></div>
+      <div class="shortcut-item"><kbd>PgUp</kbd><span>Stage Up</span></div>
+      <div class="shortcut-item"><kbd>PgDn</kbd><span>Stage Down</span></div>
       <div class="shortcut-item"><kbd>Cmd+I</kbd><span>Invert Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+A</kbd><span>Track Clips</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
@@ -7090,6 +7092,9 @@ var CMD_ACTIONS = [
   {label:'Jump to Start', key:'Home', icon:'\u25C0', action: function() { currentTime=0; updateTimeDisplay(); updatePlayheadPosition(); toast('Start'); }},
   {label:'Jump to End', key:'End', icon:'\u25B6', action: function() { var maxR=0; document.querySelectorAll('.clip').forEach(function(c){var r=(parseInt(c.style.left)+parseInt(c.style.width)-100)/(80/15); if(r>maxR)maxR=r;}); currentTime=Math.max(0,maxR); updateTimeDisplay(); updatePlayheadPosition(); toast('End'); }},
   {label:'Collapse Active Track', key:'C', icon:'\u25BC', action: function() { var t=document.querySelector('.track.track-active'); if(t){t.classList.toggle('track-collapsed');toast(t.classList.contains('track-collapsed')?'Collapsed':'Expanded');} }},
+  {label:'Clear Track Clips', key:'', icon:'\u2716', action: function() { clearTrackClips(); }},
+  {label:'Stage Up', key:'PgUp', icon:'\u25B2', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage+1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage+1)+': '+sib.name);}else{toast('Max stage');} }},
+  {label:'Stage Down', key:'PgDn', icon:'\u25BC', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage-1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage-1)+': '+sib.name);}else{toast('Min stage');} }},
 ];
 
 function openCmdPalette() {
@@ -7611,6 +7616,25 @@ function clearAllClips() {
   toast(clips.length + ' clips cleared');
 }
 
+function clearTrackClips() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('Select a track first'); return; }
+  var clips = activeTrack.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips in track'); return; }
+  pushUndo();
+  var count = clips.length;
+  clips.forEach(function(c) {
+    if (c === selectedClip) {
+      selectedClip = null;
+      document.getElementById('inspector').style.display = 'none';
+    }
+    c.remove();
+  });
+  updateStats(); saveSession();
+  sfx('delete');
+  toast(count + ' track clips cleared');
+}
+
 /* ===== CLIP GROUPS — Cmd+G to group, Cmd+Shift+G to ungroup ===== */
 var _groupCounter = 0;
 function groupSelectedClips() {
@@ -7888,6 +7912,23 @@ document.addEventListener('keydown', function(e) {
       activeTrack.classList.toggle('track-collapsed');
       toast(activeTrack.classList.contains('track-collapsed') ? 'Track collapsed' : 'Track expanded');
     }
+  }
+  // PageUp/PageDown: stage up/down selected clip exercise
+  if ((e.code === 'PageUp' || e.code === 'PageDown') && selectedClip && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault();
+    var curEx = getExercise(selectedClip.dataset.exerciseId);
+    if (curEx) {
+      var targetStage = e.code === 'PageUp' ? curEx.stage + 1 : curEx.stage - 1;
+      var sibling = EXERCISES.filter(function(ex) { return ex.pattern === curEx.pattern && ex.stage === targetStage; })[0];
+      if (sibling) {
+        pushUndo();
+        swapClipExercise(sibling.id);
+        toast('Stage ' + targetStage + ': ' + sibling.name);
+      } else {
+        toast('No stage ' + targetStage + ' for this pattern');
+      }
+    }
+    return;
   }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyL') {
     e.preventDefault();
