@@ -7380,6 +7380,10 @@ var CMD_ACTIONS = [
   {label:'Compact All Tracks', key:'', icon:'\u25A0', action: function() { compactAllTracks(); }},
   {label:'Select Overlapping Clips', key:'', icon:'\u25C9', action: function() { selectOverlappingClips(); }},
   {label:'Select Superset Clips', key:'', icon:'\u25C9', action: function() { selectSupersetClips(); }},
+  {label:'Shift All Clips Right 1 Bar', key:'', icon:'\u25B6', action: function() { shiftAllClips(1); }},
+  {label:'Shift All Clips Left 1 Bar', key:'', icon:'\u25C0', action: function() { shiftAllClips(-1); }},
+  {label:'Insert Silence at Playhead', key:'', icon:'\u25B8', action: function() { insertSilenceAtPlayhead(); }},
+  {label:'Remove Silence at Playhead', key:'', icon:'\u25C2', action: function() { removeSilenceAtPlayhead(); }},
 ];
 
 function openCmdPalette() {
@@ -8673,6 +8677,71 @@ function selectSupersetClips() {
   });
   if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
   toast(count + ' superset clip' + (count !== 1 ? 's' : '') + ' selected');
+}
+
+function shiftAllClips(direction) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var barPx = Math.round(bpb * (60 / bpm) * (80 / 15));
+  var ho = 100;
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var left = parseInt(c.style.left);
+    var newLeft = left + (direction * barPx);
+    if (newLeft >= ho) {
+      c.style.left = newLeft + 'px';
+      count++;
+    }
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips shifted ' + (direction > 0 ? 'right' : 'left') + ' 1 bar');
+}
+
+function insertSilenceAtPlayhead() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var pps = 80 / 15;
+  var ho = 100;
+  var playheadPx = ho + Math.round(currentTime * pps);
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var barPx = Math.round(bpb * (60 / bpm) * pps);
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var left = parseInt(c.style.left);
+    if (left >= playheadPx) {
+      c.style.left = (left + barPx) + 'px';
+      count++;
+    }
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast('Inserted 1 bar silence (' + count + ' clips shifted)');
+}
+
+function removeSilenceAtPlayhead() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var pps = 80 / 15;
+  var ho = 100;
+  var playheadPx = ho + Math.round(currentTime * pps);
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var barPx = Math.round(bpb * (60 / bpm) * pps);
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var left = parseInt(c.style.left);
+    if (left >= playheadPx + barPx) {
+      c.style.left = Math.max(ho, left - barPx) + 'px';
+      count++;
+    }
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast('Removed 1 bar silence (' + count + ' clips shifted)');
 }
 
 function selectClipsByStage(stage) {
