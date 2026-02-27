@@ -1850,6 +1850,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Shift+Click</kbd><span>Multi-Select</span></div>
       <div class="shortcut-item"><kbd>Tab</kbd><span>Cycle Clips</span></div>
       <div class="shortcut-item"><kbd>Enter</kbd><span>Add from Search</span></div>
+      <div class="shortcut-item"><kbd>Q</kbd><span>Quantize All</span></div>
       <div class="shortcut-item"><kbd>R</kbd><span>Record Toggle</span></div>
       <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
       <div class="shortcut-item"><kbd>Cmd+K</kbd><span>Command Palette</span></div>
@@ -2664,9 +2665,15 @@ function createClipElement(exercise, left, width, dna) {
       var durS = durSec % 60;
       var durStr = durM > 0 ? durM + ':' + durS.toString().padStart(2,'0') : durSec + 's';
       clip.title = exercise.name + ' - ' + durStr;
+      info.textContent = durStr;
       updateStats();
     }
-    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      info.textContent = clip.dataset.sets + 'x' + clip.dataset.reps;
+      saveSession(); updateStats();
+    }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
@@ -2905,6 +2912,10 @@ function updateMinimap() {
   var vpLeft = container.scrollLeft * scale;
   var vpW = container.clientWidth * scale;
   html += '<div class="minimap-viewport" style="left:'+vpLeft+'px;width:'+vpW+'px"></div>';
+  // Minimap playhead
+  var pps = 80 / 15;
+  var phX = (100 + currentTime * pps) * scale;
+  html += '<div style="position:absolute;left:'+phX+'px;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.6);z-index:3;pointer-events:none"></div>';
   // Remove old viewport element since we're regenerating
   var oldVp = document.getElementById('minimap-viewport');
   if (oldVp) oldVp.remove();
@@ -4761,6 +4772,9 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey) {
     toggleRec();
+  }
+  if (e.code === 'KeyQ' && !e.metaKey && !e.ctrlKey) {
+    quantizeClips();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
