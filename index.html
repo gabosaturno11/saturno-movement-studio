@@ -2392,6 +2392,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
         </div>
         <div id="bars-display" style="font-size:10px;font-weight:600;color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums;min-width:50px;text-align:center">1.1.1</div>
+        <div id="remaining-time" style="font-size:8px;color:var(--micro);font-variant-numeric:tabular-nums;min-width:30px;opacity:0" data-tip="Time remaining"></div>
         <div id="beat-indicator" style="display:flex;gap:2px;padding:0 4px" data-tip="Beat position">
           <div class="beat-dot" id="beat-1" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
           <div class="beat-dot" id="beat-2" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
@@ -4647,6 +4648,24 @@ function updateTimeDisplay() {
         dot.style.background = 'rgba(255,255,255,0.1)';
         dot.style.boxShadow = 'none';
       }
+    }
+  }
+  // Remaining time display (shows during playback)
+  var remEl = document.getElementById('remaining-time');
+  if (remEl) {
+    if (isPlaying) {
+      var maxR = 0;
+      document.querySelectorAll('.clip').forEach(function(c) {
+        var r = (parseInt(c.style.left) + parseInt(c.style.width) - 100) / (80 / 15);
+        if (r > maxR) maxR = r;
+      });
+      var remaining = Math.max(0, maxR - currentTime);
+      var rm = Math.floor(remaining / 60);
+      var rs = Math.floor(remaining % 60);
+      remEl.textContent = '-' + rm + ':' + rs.toString().padStart(2, '0');
+      remEl.style.opacity = '0.6';
+    } else {
+      remEl.style.opacity = '0';
     }
   }
 }
@@ -7348,6 +7367,9 @@ var CMD_ACTIONS = [
   {label:'Consolidate Adjacent Clips', key:'', icon:'\u25A0', action: function() { consolidateClips(); }},
   {label:'Exercise Frequency', key:'', icon:'\u2139', action: function() { showExerciseFrequency(); }},
   {label:'Balance Report', key:'', icon:'\u2261', action: function() { showBalanceReport(); }},
+  {label:'Scale Durations 0.5x (Half)', key:'', icon:'\u21F6', action: function() { scaleClipDurations(0.5); }},
+  {label:'Scale Durations 2x (Double)', key:'', icon:'\u21F6', action: function() { scaleClipDurations(2); }},
+  {label:'Quantize Selected Clips', key:'', icon:'\u2593', action: function() { quantizeSelected(); }},
 ];
 
 function openCmdPalette() {
@@ -8383,6 +8405,46 @@ function showBalanceReport() {
   });
   var pushPull = (famSets['Push'] || 0) + '/' + (famSets['Pull'] || 0);
   toast('Balance: ' + report.join(' | ') + ' (Push/Pull: ' + pushPull + ')');
+}
+
+function scaleClipDurations(factor) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var count = 0;
+  var ho = 100;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var left = parseInt(c.style.left);
+    var w = parseInt(c.style.width);
+    var relLeft = left - ho;
+    c.style.left = Math.round(ho + relLeft * factor) + 'px';
+    c.style.width = Math.max(20, Math.round(w * factor)) + 'px';
+    updateClipInfo(c);
+    count++;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips scaled ' + factor + 'x');
+}
+
+function quantizeSelected() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length === 0) { toast('Select clips to quantize'); return; }
+  pushUndo();
+  var snapSz = (typeof getSnapSize === 'function') ? getSnapSize() : 20;
+  if (snapSz < 4) snapSz = 4;
+  var count = 0;
+  sel.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var left = parseInt(c.style.left);
+    var ho = 100;
+    var rel = left - ho;
+    var snapped = Math.round(rel / snapSz) * snapSz;
+    c.style.left = (ho + snapped) + 'px';
+    count++;
+  });
+  updateStats(); saveSession(); sfx('snap');
+  toast(count + ' clips quantized to grid');
 }
 
 function selectClipsByStage(stage) {
