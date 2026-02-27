@@ -8019,6 +8019,10 @@ var CMD_ACTIONS = [
   {label:'Color Legend', key:'', icon:'\u25a0', action: function() { showColorLegend(); }},
   {label:'Exercise Pool Manager', key:'', icon:'\u2630', action: function() { showPoolManager(); }},
   {label:'Session Comparison', key:'', icon:'\u2262', action: function() { showSessionComparison(); }},
+  {label:'Workout Insights', key:'', icon:'\u2139', action: function() { showWorkoutInsights(); }},
+  {label:'Toggle Favorite Exercise', key:'', icon:'\u2605', action: function() { toggleFavorite(); }},
+  {label:'Show Favorites', key:'', icon:'\u2605', action: function() { showFavorites(); }},
+  {label:'About Saturno Movement Studio', key:'', icon:'\u24d8', action: function() { showAbout(); }},
 ];
 
 function openCmdPalette() {
@@ -18656,6 +18660,152 @@ function showSessionComparison() {
   html += '<div style="color:#64748b;font-size:10px">Duration trend</div>';
   html += '</div>';
   html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 397: Workout Insights
+function showWorkoutInsights() {
+  var clips = document.querySelectorAll('.clip');
+  var data = { total: 0, families: {}, patterns: {}, rpeSum: 0, setsSum: 0, repsSum: 0, exercises: {}, stages: {} };
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    data.total++;
+    data.rpeSum += parseFloat(c.dataset.rpe) || 7;
+    data.setsSum += parseInt(c.dataset.sets) || 3;
+    data.repsSum += (parseInt(c.dataset.sets)||3) * (parseInt(c.dataset.reps)||10);
+    var f = c.dataset.family || ''; data.families[f] = (data.families[f]||0) + 1;
+    var p = c.dataset.pattern || ''; data.patterns[p] = (data.patterns[p]||0) + 1;
+    var s = c.dataset.stage || 'S1'; data.stages[s] = (data.stages[s]||0) + 1;
+    var n = c.dataset.exercise || ''; data.exercises[n] = (data.exercises[n]||0) + 1;
+  });
+  if (data.total === 0) { showToast('Add clips to get insights'); return; }
+  var insights = [];
+  var avgRpe = data.rpeSum / data.total;
+  // Volume insight
+  if (data.setsSum < 10) insights.push({ type: 'warning', text: 'Low volume workout (' + data.setsSum + ' total sets). Consider adding more exercises for hypertrophy.' });
+  else if (data.setsSum > 30) insights.push({ type: 'warning', text: 'High volume (' + data.setsSum + ' sets). Watch for fatigue accumulation.' });
+  else insights.push({ type: 'good', text: 'Solid volume: ' + data.setsSum + ' sets across ' + data.total + ' exercises.' });
+  // Balance insight
+  var famKeys = Object.keys(data.families);
+  if (famKeys.length === 1) insights.push({ type: 'warning', text: 'Single-family workout. Consider adding variety for balanced development.' });
+  else if (famKeys.length >= 4) insights.push({ type: 'good', text: 'Great diversity with ' + famKeys.length + ' families covered.' });
+  // RPE insight
+  if (avgRpe >= 8.5) insights.push({ type: 'warning', text: 'Very high average RPE (' + avgRpe.toFixed(1) + '). Ensure adequate recovery.' });
+  else if (avgRpe <= 5) insights.push({ type: 'info', text: 'Low intensity session (RPE ' + avgRpe.toFixed(1) + '). Good for active recovery.' });
+  else insights.push({ type: 'good', text: 'Well-calibrated intensity at RPE ' + avgRpe.toFixed(1) + '.' });
+  // Stage insight
+  var s3Count = data.stages['S3'] || 0;
+  var s1Count = data.stages['S1'] || 0;
+  if (s3Count > data.total * 0.6) insights.push({ type: 'info', text: 'Heavy on S3 exercises (' + s3Count + '/' + data.total + '). Advanced workout.' });
+  if (s1Count > data.total * 0.8) insights.push({ type: 'info', text: 'Mostly S1 exercises. Consider progressing to S2 as you improve.' });
+  // Push/Pull balance
+  var push = data.families['Push'] || 0;
+  var pull = data.families['Pull'] || 0;
+  if (push > 0 && pull > 0) {
+    var ratio = push / pull;
+    if (ratio > 1.5) insights.push({ type: 'warning', text: 'Push-heavy workout (Push:Pull = ' + push + ':' + pull + '). Add more pulling.' });
+    else if (ratio < 0.67) insights.push({ type: 'warning', text: 'Pull-heavy workout (Push:Pull = ' + push + ':' + pull + '). Balance with more pushing.' });
+    else insights.push({ type: 'good', text: 'Good push-pull balance (' + push + ':' + pull + ').' });
+  }
+  // Duplicate exercises
+  var dupes = Object.keys(data.exercises).filter(function(n) { return data.exercises[n] > 2; });
+  if (dupes.length > 0) insights.push({ type: 'info', text: dupes.length + ' exercise(s) used 3+ times: consider swapping for variety.' });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var icons = { good: '\u2713', warning: '\u26a0', info: '\u2139' };
+  var colors = { good: '#4ade80', warning: '#fbbf24', info: '#60a5fa' };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Workout Insights</div>';
+  insights.forEach(function(ins) {
+    html += '<div style="display:flex;gap:10px;padding:10px;background:rgba(34,211,238,0.03);border-radius:6px;margin-bottom:6px;align-items:flex-start">';
+    html += '<span style="color:' + colors[ins.type] + ';font-size:14px;flex-shrink:0">' + icons[ins.type] + '</span>';
+    html += '<span style="color:#e2e8f0;font-size:12px;line-height:1.5">' + ins.text + '</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 398: Exercise Favorites
+function toggleFavorite() {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) { showToast('Select a clip to favorite its exercise'); return; }
+  var name = sel.dataset.exercise || '';
+  if (!name) return;
+  var favs = {};
+  try { favs = JSON.parse(localStorage.getItem('sms_favorites') || '{}'); } catch(e) {}
+  if (favs[name]) {
+    delete favs[name];
+    showToast(name + ' removed from favorites');
+  } else {
+    favs[name] = true;
+    showToast(name + ' added to favorites');
+  }
+  try { localStorage.setItem('sms_favorites', JSON.stringify(favs)); } catch(e) {}
+}
+function showFavorites() {
+  var favs = {};
+  try { favs = JSON.parse(localStorage.getItem('sms_favorites') || '{}'); } catch(e) {}
+  var favNames = Object.keys(favs);
+  if (favNames.length === 0) { showToast('No favorites yet (select a clip and use Toggle Favorite)'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa',Mobility:'#818cf8'};
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:400px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Favorite Exercises (' + favNames.length + ')</div>';
+  favNames.forEach(function(name) {
+    var ex = null;
+    EXERCISES.forEach(function(e) { if(e.name === name) ex = e; });
+    var family = ex ? ex.family : '';
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(34,211,238,0.03);border-radius:6px;margin-bottom:4px">';
+    html += '<span style="color:#fbbf24;font-size:14px">\u2605</span>';
+    html += '<span style="flex:1;color:#e2e8f0;font-size:13px">' + name + '</span>';
+    if (family) html += '<span style="color:' + (famColors[family]||'#22d3ee') + ';font-size:10px">' + family + '</span>';
+    html += '<button onclick="removeFavorite(\'' + name.replace(/'/g,"\\'") + '\')" style="padding:2px 6px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.15);border-radius:4px;cursor:pointer;font-size:10px;font-family:Sora,sans-serif">x</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function removeFavorite(name) {
+  var favs = {};
+  try { favs = JSON.parse(localStorage.getItem('sms_favorites') || '{}'); } catch(e) {}
+  delete favs[name];
+  try { localStorage.setItem('sms_favorites', JSON.stringify(favs)); } catch(e) {}
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showFavorites();
+}
+
+// Batch 399: About & Credits Modal
+function showAbout() {
+  var cmdCount = typeof CMD_ACTIONS !== 'undefined' ? CMD_ACTIONS.length : '330+';
+  var exCount = typeof EXERCISES !== 'undefined' ? EXERCISES.length : 58;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:32px;width:420px;text-align:center">';
+  html += '<div style="margin-bottom:16px"><img src="assets/planet-logo.svg" onerror="this.src=\'assets/planet-logo.png\'" style="width:48px;height:48px;opacity:0.8"></div>';
+  html += '<div style="color:#e2e8f0;font-size:20px;font-weight:700;margin-bottom:4px">Saturno Movement Studio</div>';
+  html += '<div style="color:#22d3ee;font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px">The Ableton of Movement</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:20px;text-align:left">';
+  html += 'A DAW-style workout composition tool where exercises are instruments, sets are bars, reps are beats, and BPM controls both music and training tempo.';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px">';
+  html += '<div style="padding:8px;background:rgba(34,211,238,0.05);border-radius:6px"><div style="color:#22d3ee;font-size:18px;font-weight:700">' + exCount + '</div><div style="color:#64748b;font-size:10px">Exercises</div></div>';
+  html += '<div style="padding:8px;background:rgba(34,211,238,0.05);border-radius:6px"><div style="color:#22d3ee;font-size:18px;font-weight:700">' + cmdCount + '</div><div style="color:#64748b;font-size:10px">Commands</div></div>';
+  html += '<div style="padding:8px;background:rgba(34,211,238,0.05);border-radius:6px"><div style="color:#22d3ee;font-size:18px;font-weight:700">6</div><div style="color:#64748b;font-size:10px">Tracks</div></div>';
+  html += '</div>';
+  html += '<div style="color:#64748b;font-size:10px;line-height:1.6">';
+  html += 'Part of the Saturno Movement ecosystem<br>';
+  html += 'Built by Gabo Saturno with Claude Code<br>';
+  html += 'saturnomovement.com';
+  html += '</div>';
+  html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
 }
