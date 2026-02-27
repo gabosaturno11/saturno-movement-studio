@@ -3571,6 +3571,7 @@ function createClipElement(exercise, left, width, dna) {
   var discColors = {'Calisthenics':'#3b82f6','Power-Free':'#f97316','Bodybuilding':'#ef4444','Street Lifting':'#a855f7','Hand-Balancing':'#06b6d4','Freestyle':'#ec4899','Mobility':'#22c55e'};
   var discColor = discColors[exercise.discipline] || baseColor;
   clip.style.borderBottom = '1px solid ' + discColor + '40';
+  clip.setAttribute('data-tip', exercise.name + ' | ' + exercise.family + ' | S' + exercise.stage + ' | ' + exercise.discipline);
   clip.style.left = (typeof left === 'string' ? left : Math.max(0, left) + 'px');
   clip.style.width = (typeof width === 'string' ? width : (width || 80) + 'px');
   clip.style.color = 'rgba(255,255,255,0.9)';
@@ -5284,6 +5285,17 @@ function _doSaveSession() {
     session.loopStart = loopStart;
     session.loopEnd = loopEnd;
     session.groupCounter = _groupCounter;
+    // Track states (solo/mute/armed)
+    session.trackStates = {};
+    document.querySelectorAll('.track').forEach(function(t) {
+      var tid = t.dataset.track;
+      if (!tid) return;
+      session.trackStates[tid] = {
+        muted: t.classList.contains('track-muted'),
+        soloed: t.classList.contains('track-soloed'),
+        collapsed: t.classList.contains('track-collapsed')
+      };
+    });
     localStorage.setItem('sms_session', JSON.stringify(session));
     // Flash save indicator
     var si = document.getElementById('save-indicator');
@@ -5363,6 +5375,24 @@ function loadSession() {
       var region = document.getElementById('loop-region');
       region.classList.toggle('active', loopEnabled);
       if (loopEnabled) updateLoopRegion();
+    }
+    // Restore track states
+    if (s.trackStates) {
+      Object.keys(s.trackStates).forEach(function(tid) {
+        var ts = s.trackStates[tid];
+        var track = document.querySelector('.track[data-track="'+tid+'"]');
+        if (!track) return;
+        track.classList.toggle('track-muted', !!ts.muted);
+        track.classList.toggle('track-soloed', !!ts.soloed);
+        track.classList.toggle('track-collapsed', !!ts.collapsed);
+        var muteBtn = track.querySelector('.track-btn[data-action="mute"]');
+        var soloBtn = track.querySelector('.track-btn[data-action="solo"]');
+        if (muteBtn) muteBtn.classList.toggle('muted', !!ts.muted);
+        if (soloBtn) soloBtn.classList.toggle('soloed', !!ts.soloed);
+      });
+      var hasSolo = !!document.querySelector('.track-btn.soloed');
+      var tracksEl = document.getElementById('timeline-tracks');
+      if (tracksEl) tracksEl.classList.toggle('has-solo', hasSolo);
     }
     updateStats();
   } catch(e) {}
