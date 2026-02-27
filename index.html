@@ -2333,6 +2333,16 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <button class="lib-stage-btn" data-stage="1" onclick="filterByStage(1)" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif" data-tip="Beginner exercises">S1</button>
         <button class="lib-stage-btn" data-stage="2" onclick="filterByStage(2)" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif" data-tip="Intermediate exercises">S2</button>
         <button class="lib-stage-btn" data-stage="3" onclick="filterByStage(3)" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif" data-tip="Advanced exercises">S3</button>
+        <select id="lib-disc-filter" onchange="filterByDiscipline(this.value)" style="font-size:7px;padding:1px 4px;border:1px solid rgba(255,255,255,0.06);border-radius:2px;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif;cursor:pointer;margin-left:auto" data-tip="Filter by discipline">
+          <option value="all">All Disc.</option>
+          <option value="Calisthenics">Calisthenics</option>
+          <option value="Power-Free">Power-Free</option>
+          <option value="Bodybuilding">Bodybuilding</option>
+          <option value="Street Lifting">Street Lift.</option>
+          <option value="Hand-Balancing">Hand-Bal.</option>
+          <option value="Freestyle">Freestyle</option>
+          <option value="Mobility">Mobility</option>
+        </select>
       </div>
       <div class="movement-category" style="display:none">
         <div class="category-header" style="font-size:8px;color:var(--accent-cyan);padding:5px 12px"><span>Recent</span></div>
@@ -2670,7 +2680,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
 
 <!-- WORKOUT SUMMARY OVERLAY -->
 <div class="summary-overlay" id="summary-overlay">
-  <div class="summary-close" onclick="closeSummary()">ESC / CLOSE</div>
+  <div style="display:flex;justify-content:space-between;padding:0 24px">
+    <button onclick="copyWorkoutText()" style="font-size:8px;padding:4px 12px;border:1px solid rgba(255,255,255,0.08);border-radius:3px;background:rgba(255,255,255,0.03);color:var(--muted);cursor:pointer;font-family:Sora,sans-serif;letter-spacing:0.05em" data-tip="Copy workout as plain text">COPY TEXT</button>
+    <div class="summary-close" onclick="closeSummary()">ESC / CLOSE</div>
+  </div>
   <div class="summary-inner" id="summary-content"></div>
 </div>
 
@@ -3292,6 +3305,7 @@ function restoreCategoryState() {
 }
 
 var _libStageFilter = 'all';
+var _libDiscFilter = 'all';
 function filterByStage(stage) {
   _libStageFilter = stage;
   document.querySelectorAll('.lib-stage-btn').forEach(function(btn) {
@@ -3299,6 +3313,10 @@ function filterByStage(stage) {
     btn.style.background = isActive ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)';
     btn.style.color = isActive ? 'var(--text-secondary)' : 'var(--muted)';
   });
+  filterLibrary();
+}
+function filterByDiscipline(disc) {
+  _libDiscFilter = disc;
   filterLibrary();
 }
 function filterLibrary() {
@@ -3309,12 +3327,13 @@ function filterLibrary() {
     var ex = getExercise(item.dataset.id);
     var matchText = item.textContent.toLowerCase().indexOf(q) !== -1;
     var matchStage = _libStageFilter === 'all' || (ex && ex.stage === _libStageFilter);
-    var show = matchText && matchStage;
+    var matchDisc = _libDiscFilter === 'all' || (ex && ex.discipline === _libDiscFilter);
+    var show = matchText && matchStage && matchDisc;
     item.style.display = show ? '' : 'none';
     if (show) count++;
   });
   document.getElementById('lib-count').textContent = count;
-  if (q || _libStageFilter !== 'all') {
+  if (q || _libStageFilter !== 'all' || _libDiscFilter !== 'all') {
     document.querySelectorAll('.movement-list').forEach(function(l) { l.classList.remove('hidden'); });
     document.querySelectorAll('.category-header').forEach(function(h) { h.classList.remove('collapsed'); });
   }
@@ -5820,6 +5839,54 @@ function showSummary() {
 
 function closeSummary() {
   document.getElementById('summary-overlay').classList.remove('open');
+}
+
+function copyWorkoutText() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No exercises to copy'); return; }
+  var lines = [];
+  var name = workoutName && workoutName !== 'Untitled' ? workoutName : 'Workout';
+  lines.push(name + ' | ' + bpm + ' BPM | ' + document.getElementById('bpm-mode').textContent);
+  lines.push('');
+  var trackNames = {push:'PUSH',pull:'PULL',core:'CORE',legs:'LEGS',skills:'SKILLS'};
+  var trackOrder = ['push','pull','legs','core','skills'];
+  var groups = {};
+  clips.forEach(function(c) {
+    var tid = c.parentElement.dataset.track;
+    if (!groups[tid]) groups[tid] = [];
+    var ex = getExercise(c.dataset.exerciseId);
+    groups[tid].push({
+      name: ex ? ex.name : 'Exercise',
+      sets: c.dataset.sets || '3',
+      reps: c.dataset.reps || '8',
+      tempo: c.dataset.tempo || '3',
+      rest: c.dataset.rest || '60',
+      rpe: c.dataset.rpe || '7',
+      notes: c.dataset.notes || '',
+      left: parseInt(c.style.left) || 0
+    });
+  });
+  trackOrder.forEach(function(tid) {
+    if (!groups[tid] || groups[tid].length === 0) return;
+    groups[tid].sort(function(a, b) { return a.left - b.left; });
+    lines.push('--- ' + (trackNames[tid] || tid) + ' ---');
+    groups[tid].forEach(function(ex, i) {
+      var line = (i+1) + '. ' + ex.name + ' - ' + ex.sets + 'x' + ex.reps + ' @' + ex.tempo + 's | Rest ' + ex.rest + 's | RPE ' + ex.rpe;
+      if (ex.notes) line += ' | Note: ' + ex.notes;
+      lines.push(line);
+    });
+    lines.push('');
+  });
+  lines.push('Made with Saturno Movement Studio');
+  var text = lines.join('\n');
+  try {
+    navigator.clipboard.writeText(text).then(function() {
+      toast('Workout copied to clipboard');
+      sfx('click');
+    });
+  } catch(e) {
+    toast('Could not copy');
+  }
 }
 
 // Click overlay background to close summary
