@@ -451,14 +451,16 @@ body {
 .track:hover { background: rgba(10,14,26,0.8); }
 .track:nth-child(even) { background: rgba(10,14,26,0.3); }
 .track:nth-child(even):hover { background: rgba(10,14,26,0.6); }
-/* Track grip dots (reorder indicator) */
+/* Track grip dots (reorder indicator) — 6-dot matrix like Ableton */
 .track-grip {
-  display: flex; flex-direction: column; gap: 2px;
+  display: grid; grid-template-columns: 2px 2px; gap: 2px;
   position: absolute; left: 4px; top: 50%;
   transform: translateY(-50%);
   opacity: 0; transition: opacity 0.15s;
+  cursor: grab;
 }
 .track-header:hover .track-grip { opacity: 0.4; }
+.track-grip:active { cursor: grabbing; opacity: 0.7 !important; }
 .track-grip-dot {
   width: 2px; height: 2px;
   background: var(--muted);
@@ -1280,6 +1282,25 @@ button:focus-visible, .transport-btn:focus-visible {
   box-shadow: inset 0 0 6px rgba(239,68,68,0.1);
 }
 
+/* Locate / scroll-to-playhead button in transport */
+.locate-btn {
+  padding: 0 8px; height: 22px; font-size: 7px;
+  font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  color: var(--micro); cursor: pointer; font-family: 'Sora', sans-serif;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.locate-btn:hover { color: var(--text-secondary); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+
+/* Panel section gradient dividers — frosted glass separators */
+.panel-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(59,130,246,0.08) 30%, rgba(139,92,246,0.06) 70%, transparent 95%);
+  margin: 0;
+}
+
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
   0% { transform: translateX(-100%); }
@@ -1851,6 +1872,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
           <button class="transport-btn" id="loop-btn" onclick="toggleLoop()" title="Loop region (L)" style="font-size:8px;letter-spacing:0.04em;border-radius:0 3px 3px 0;width:auto;padding:0 8px;border-left:none">LOOP</button>
         </div>
+        <button class="locate-btn" onclick="scrollToPlayhead()" title="Scroll to playhead position">LOC</button>
         <div class="time-display" id="time-display">
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
         </div>
@@ -1927,12 +1949,14 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <div class="meter-group" id="meters"></div>
           <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
         </div>
+        <div class="panel-divider"></div>
 
         <!-- Faders -->
         <div class="mixer-section">
           <div class="mixer-title">Master Faders</div>
           <div class="fader-group" id="fader-group"></div>
         </div>
+        <div class="panel-divider"></div>
 
         <!-- Knobs -->
         <div class="mixer-section">
@@ -2720,7 +2744,7 @@ function buildTracks() {
     } else {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
-      html += '<div class="track-header"><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
+      html += '<div class="track-header"><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
       html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
       html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
       html += '</div>';
@@ -4641,6 +4665,19 @@ function setZoomFromSlider(val) {
   }
 }
 
+/* ===== SCROLL TO PLAYHEAD (Locate) ===== */
+function scrollToPlayhead() {
+  var container = document.getElementById('timeline-container');
+  var playhead = document.getElementById('playhead');
+  if (!container || !playhead) return;
+  var phLeft = parseInt(playhead.style.left) || 100;
+  var scale = zoomLevel / 100;
+  var viewCenter = container.clientWidth / 2;
+  container.scrollLeft = (phLeft * scale) - viewCenter;
+  sfx('click');
+  toast('Locate: playhead');
+}
+
 /* ===== CONTEXT MENU ===== */
 var ctxClip = null, ctxExercise = null;
 function showClipContextMenu(x, y, clip, exercise) {
@@ -4981,6 +5018,7 @@ var CMD_ACTIONS = [
   {label:'Toggle Presets', key:'P', icon:'\u2630', action: function() { togglePresets(); }},
   {label:'Keyboard Shortcuts', key:'?', icon:'\u2328', action: function() { toggleShortcuts(); }},
   {label:'Reset Session', key:'', icon:'\u21BA', action: function() { resetSession(); }},
+  {label:'Scroll to Playhead', key:'', icon:'\u25B8', action: function() { scrollToPlayhead(); }},
 ];
 
 function openCmdPalette() {
