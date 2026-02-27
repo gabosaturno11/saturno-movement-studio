@@ -1361,6 +1361,42 @@ button:focus-visible, .transport-btn:focus-visible {
 .track-content { cursor: crosshair; }
 .track-content .clip { cursor: move; }
 
+/* Minimap playhead — thin line with glow during playback */
+.minimap-playhead {
+  position: absolute; top: 0; bottom: 0;
+  width: 1px; background: rgba(255,255,255,0.5);
+  z-index: 3; pointer-events: none;
+  transition: box-shadow 0.2s;
+}
+.minimap-playhead.playing {
+  background: rgba(96,165,250,0.8);
+  box-shadow: 0 0 4px rgba(59,130,246,0.6), 0 0 8px rgba(59,130,246,0.3);
+}
+
+/* Fader handle active state — glow when dragging */
+.fader-handle.dragging {
+  background: linear-gradient(180deg, rgba(100,116,139,0.9) 0%, rgba(71,85,105,0.8) 100%);
+  border-color: rgba(59,130,246,0.4);
+  box-shadow: 0 0 8px rgba(59,130,246,0.3), 0 2px 8px rgba(0,0,0,0.5);
+}
+
+/* Knob dial active state */
+.knob-dial.dragging {
+  border-color: rgba(59,130,246,0.4);
+  box-shadow: 0 0 12px rgba(59,130,246,0.2);
+}
+
+/* Track header subtle scale on hover */
+.track-header {
+  transition: background 0.15s;
+}
+.track-name {
+  transition: letter-spacing 0.2s;
+}
+.track-header:hover .track-name {
+  letter-spacing: 0.13em;
+}
+
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
   0% { transform: translateX(-100%); }
@@ -3464,10 +3500,10 @@ function updateMinimap() {
   var vpLeft = container.scrollLeft * scale;
   var vpW = container.clientWidth * scale;
   html += '<div class="minimap-viewport" style="left:'+vpLeft+'px;width:'+vpW+'px"></div>';
-  // Minimap playhead
+  // Minimap playhead with glow during playback
   var pps = 80 / 15;
   var phX = (100 + currentTime * pps) * scale;
-  html += '<div style="position:absolute;left:'+phX+'px;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.6);z-index:3;pointer-events:none"></div>';
+  html += '<div class="minimap-playhead'+(isPlaying?' playing':'')+'" style="left:'+phX+'px"></div>';
   // Remove old viewport element since we're regenerating
   var oldVp = document.getElementById('minimap-viewport');
   if (oldVp) oldVp.remove();
@@ -3877,10 +3913,12 @@ function startFaderDrag(e, faderId) {
     track.querySelector('.fader-handle').style.bottom = (pct - 3) + '%';
     document.getElementById('fader-val-' + faderId).textContent = (pct / 10).toFixed(0);
   }
+  var handle = track.querySelector('.fader-handle');
+  handle.classList.add('dragging');
   function onMouseMove(e) { updatePos(e.clientY); }
-  function onMouseUp() { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); saveSession(); }
+  function onMouseUp() { handle.classList.remove('dragging'); document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); saveSession(); }
   function onTouchMove(e) { e.preventDefault(); updatePos(e.touches[0].clientY); }
-  function onTouchEnd() { document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onTouchEnd); saveSession(); }
+  function onTouchEnd() { handle.classList.remove('dragging'); document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onTouchEnd); saveSession(); }
   if (e.type === 'touchstart') {
     updatePos(e.touches[0].clientY);
     document.addEventListener('touchmove', onTouchMove, {passive: false});
@@ -3915,6 +3953,7 @@ function startKnobDrag(e, knobId) {
   var dial = e.currentTarget;
   var indicator = dial.querySelector('.knob-indicator');
   var startDeg = parseFloat(indicator.style.transform.match(/rotate\(([^)]+)deg\)/)[1]);
+  dial.classList.add('dragging');
   function updateKnob(clientY) {
     var delta = (startY - clientY) * 1.5;
     var deg = Math.max(-135, Math.min(135, startDeg + delta));
@@ -3923,9 +3962,9 @@ function startKnobDrag(e, knobId) {
     document.getElementById('knob-val-' + knobId).textContent = (val * 100).toFixed(0) + '%';
   }
   function onMouseMove(e) { updateKnob(e.clientY); }
-  function onMouseUp() { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); saveSession(); }
+  function onMouseUp() { dial.classList.remove('dragging'); document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); saveSession(); }
   function onTouchMove(e) { e.preventDefault(); updateKnob(e.touches[0].clientY); }
-  function onTouchEnd() { document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onTouchEnd); saveSession(); }
+  function onTouchEnd() { dial.classList.remove('dragging'); document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onTouchEnd); saveSession(); }
   if (e.type === 'touchstart') {
     document.addEventListener('touchmove', onTouchMove, {passive: false});
     document.addEventListener('touchend', onTouchEnd);
