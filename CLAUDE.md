@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~8,400 lines). No build step. No framework.
+Single-file HTML app (index.html, ~8,650 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-159)
+### Features (Batches 1-195)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -188,8 +188,41 @@ saturno-movement-studio/
 - **Print creation date** (shows "Created" date in print meta bar)
 - **Arrow scrub playhead** (Left/Right scrubs by beat when no clip selected, Shift=bar)
 - **Paste at playhead** (Cmd+Shift+V pastes clips aligned to current playhead position)
-- **Command palette** (Cmd+K, 70+ commands including paste-at-playhead, auto-name)
-- **Keyboard shortcuts panel** (?, 55+ shortcuts including []/,. nudge, PgUp/PgDn)
+- **Command palette** (Cmd+K, 90+ commands including paste-at-playhead, auto-name)
+- **Keyboard shortcuts panel** (?, 60+ shortcuts including []/,. nudge, PgUp/PgDn)
+- **Smart quantize** (selection-aware, lock-aware, uses getSnapSize)
+- **Lock-aware operations** (arrange, spread, reverse, humanize, nudge skip locked clips)
+- **Lock in export/import** (JSON round-trip for clip locked state)
+- **Inspector lock badge** (red LOCKED tag when clip is locked)
+- **Footer selection/locked counts** (cyan selection + red lock count)
+- **Multi-nudge** (arrow keys move ALL selected clips when multi-selected)
+- **Print training mode** (BPM mode description in print meta bar)
+- **Zoom toast feedback** (shows "Zoom: 150%" on zoom change)
+- **Multi-duplicate** (Cmd+D duplicates ALL selected clips, lock-aware)
+- **Shift+C collapse all** (toggles all tracks collapse/expand)
+- **Inspector lock button** (LOCK/UNLOCK inline with DUP/SPLIT/DEL)
+- **Select clips by family** (5 command palette entries: Push/Pull/Core/Legs/Skills)
+- **Clipboard footer indicator** (CLIP: N shown when clipboard has data)
+- **Quick BPM presets** (Set BPM 60/80/100/120/140/160 in command palette)
+- **Command count** (palette shows filtered/total command count)
+- **0 key playhead reset** (returns to 0:00)
+- **Inspector discipline/pattern tags** (blue discipline + purple pattern badges)
+- **Workout Stats command** (clips, exercises, sets, reps + family breakdown)
+- **/ key library search focus** (shortcut to jump to search input)
+- **Toggle grid lines** (command palette, grid-hidden CSS class)
+- **Recent exercises** (limit 8, clear recent command)
+- **Clip RPE badge** (bottom-right numeric RPE, updates on change, hidden when collapsed)
+- **Summary family breakdown** (color-coded family counts below stats)
+- **Print family breakdown** (family counts in print output)
+- **RPE color indicator** (inspector slider shows value with green->red gradient)
+- **Export version** (JSON export includes version:2 for compatibility)
+- **Print track exercise count** (group labels show "(N)" count)
+- **Clip select flash** (blue glow animation on selection)
+- **Ruler snap to beat** (seek snaps to beat when snap is enabled)
+- **Reset clip colors** (command restores all clips to family defaults)
+- **Copy Clip Info** (clipboard text with exercise details)
+- **Shift All RPE** (+1/-1 bulk RPE adjustment commands)
+- **Select by stage** (S1/S2/S3 command palette entries)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
