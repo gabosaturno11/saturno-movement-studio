@@ -8098,6 +8098,18 @@ var CMD_ACTIONS = [
   {label:'Joint Stress', key:'', icon:'\ud83e\uddb4', action: function() { showJointStress(); }},
   {label:'Common Pairings', key:'', icon:'\ud83e\uddf2', action: function() { showPairingHistory(); }},
   {label:'Time Distribution', key:'', icon:'\u23f0', action: function() { showTimeDistribution(); }},
+  {label:'Velocity Zones', key:'', icon:'\ud83c\udfc3', action: function() { showVelocityZones(); }},
+  {label:'Compound Ratio', key:'', icon:'\ud83d\udcaa', action: function() { showCompoundRatio(); }},
+  {label:'Session Tags', key:'', icon:'\ud83c\udff7', action: function() { showSessionTags(); }},
+  {label:'Duration Estimate V2', key:'', icon:'\u231b', action: function() { showDurationEstimateV2(); }},
+  {label:'Exercise Popularity', key:'', icon:'\ud83c\udfc6', action: function() { showExercisePopularity(); }},
+  {label:'Volume by Stage', key:'', icon:'\ud83d\udcca', action: function() { showVolumeByStage(); }},
+  {label:'Rest Analysis', key:'', icon:'\u23f8', action: function() { showRestAnalysis(); }},
+  {label:'Rep Ranges', key:'', icon:'\ud83d\udd22', action: function() { showRepRanges(); }},
+  {label:'Name Suggestions', key:'', icon:'\ud83d\udcdd', action: function() { showNameSuggestions(); }},
+  {label:'Split Detector', key:'', icon:'\ud83d\udd0d', action: function() { showSplitDetector(); }},
+  {label:'Rotation Queue', key:'', icon:'\ud83d\udd04', action: function() { showRotationQueue(); }},
+  {label:'Complexity V2', key:'', icon:'\ud83e\udde9', action: function() { showComplexityV2(); }},
 ];
 
 function openCmdPalette() {
@@ -22651,6 +22663,485 @@ function showTimeDistribution() {
   });
   var best = Object.keys(buckets).sort(function(a, b) { return buckets[b] - buckets[a]; })[0];
   html += '<div style="text-align:center;margin-top:12px;color:#94a3b8;font-size:13px;">Preferred time: <span style="color:' + colors[best] + ';font-weight:600;">' + best + '</span></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 475: Movement Velocity Zones — categorize exercises by speed demand
+function showVelocityZones() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var zones = { Explosive: 0, Fast: 0, Controlled: 0, Slow: 0 };
+  var zoneMap = {
+    'Skills': 'Explosive', 'Mobility': 'Slow'
+  };
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var tempo = parseInt(c.dataset.tempo || '3');
+    var zone = zoneMap[fam];
+    if (!zone) {
+      if (tempo <= 2) zone = 'Explosive';
+      else if (tempo <= 3) zone = 'Fast';
+      else if (tempo <= 4) zone = 'Controlled';
+      else zone = 'Slow';
+    }
+    zones[zone]++;
+  });
+  var total = clips.length;
+  var colors = { Explosive: '#ef4444', Fast: '#f97316', Controlled: '#06b6d4', Slow: '#4ade80' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Velocity Zones</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  ['Explosive', 'Fast', 'Controlled', 'Slow'].forEach(function(z) {
+    var count = zones[z];
+    var pct = Math.round(count / total * 100);
+    html += '<div style="margin-bottom:14px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + z + '</span><span style="color:' + colors[z] + ';font-size:13px;">' + count + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + colors[z] + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 476: Compound vs Isolation Ratio
+function showCompoundRatio() {
+  var compoundPatterns = ['Horizontal Push', 'Horizontal Pull', 'Vertical Pull', 'Downward Press', 'Overhead Press', 'Knee-Dominant', 'Hip-Dominant'];
+  var isolationPatterns = ['Core', 'Mobility'];
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var compound = 0;
+  var isolation = 0;
+  clips.forEach(function(c) {
+    var pat = c.dataset.pattern || '';
+    if (compoundPatterns.indexOf(pat) !== -1) compound++;
+    else isolation++;
+  });
+  var total = clips.length;
+  var ratio = isolation > 0 ? (compound / isolation).toFixed(1) : compound + ':0';
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Compound vs Isolation</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:20px;">';
+  html += '<div style="color:#22d3ee;font-size:36px;font-weight:700;">' + (typeof ratio === 'string' ? ratio : ratio + ':1') + '</div>';
+  html += '<div style="color:#94a3b8;font-size:13px;">compound to isolation ratio</div>';
+  html += '</div>';
+  var cPct = Math.round(compound / total * 100);
+  var iPct = 100 - cPct;
+  html += '<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;margin-bottom:16px;">';
+  html += '<div style="background:#06b6d4;width:' + cPct + '%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">' + (cPct > 15 ? 'Compound ' + cPct + '%' : '') + '</div>';
+  html += '<div style="background:#a78bfa;width:' + iPct + '%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">' + (iPct > 15 ? 'Isolation ' + iPct + '%' : '') + '</div>';
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;">';
+  html += '<span style="color:#06b6d4;font-size:14px;">Compound: ' + compound + '</span>';
+  html += '<span style="color:#a78bfa;font-size:14px;">Isolation: ' + isolation + '</span>';
+  html += '</div>';
+  var idealMin = 60; var idealMax = 80;
+  if (cPct < idealMin) {
+    html += '<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:12px;margin-top:16px;color:#fb923c;font-size:13px;">Consider adding more compound movements (target: 60-80%)</div>';
+  } else if (cPct > idealMax) {
+    html += '<div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:8px;padding:12px;margin-top:16px;color:#4ade80;font-size:13px;">Heavy compound emphasis. Add isolation work for weak points.</div>';
+  } else {
+    html += '<div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:8px;padding:12px;margin-top:16px;color:#4ade80;font-size:13px;">Great compound/isolation balance.</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 477: Session Tags — categorize workouts with custom tags
+function showSessionTags() {
+  var tags = [];
+  try { tags = JSON.parse(localStorage.getItem('sms_session_tags') || '[]'); } catch(e) {}
+  var presets = ['Strength', 'Hypertrophy', 'Endurance', 'Skills', 'Recovery', 'Test', 'PR Attempt', 'Deload', 'Competition Prep'];
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:450px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Session Tags</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Click to toggle tags for this session:</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">';
+  presets.forEach(function(t) {
+    var active = tags.indexOf(t) !== -1;
+    html += '<span onclick="toggleSessionTag(\'' + t + '\')" style="padding:6px 14px;border-radius:20px;cursor:pointer;font-size:13px;background:' + (active ? 'rgba(6,182,212,0.2)' : 'rgba(30,41,59,0.5)') + ';border:1px solid ' + (active ? '#06b6d4' : '#1e293b') + ';color:' + (active ? '#22d3ee' : '#94a3b8') + ';">' + t + '</span>';
+  });
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;">';
+  html += '<input id="smsCustomTagInput" placeholder="Custom tag..." style="flex:1;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:8px 12px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:14px;outline:none;" />';
+  html += '<button onclick="addCustomSessionTag()" style="background:#06b6d4;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;">Add</button>';
+  html += '</div>';
+  if (tags.length > 0) {
+    html += '<div style="margin-top:16px;color:#94a3b8;font-size:12px;">Active: ' + tags.join(', ') + '</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function toggleSessionTag(tag) {
+  var tags = [];
+  try { tags = JSON.parse(localStorage.getItem('sms_session_tags') || '[]'); } catch(e) {}
+  var idx = tags.indexOf(tag);
+  if (idx !== -1) { tags.splice(idx, 1); } else { tags.push(tag); }
+  try { localStorage.setItem('sms_session_tags', JSON.stringify(tags)); } catch(e) {}
+  showToast(idx !== -1 ? 'Removed: ' + tag : 'Added: ' + tag);
+  document.querySelectorAll('[onclick*="toggleSessionTag"]').forEach(function(el) { el.parentElement.parentElement.parentElement.remove(); });
+  showSessionTags();
+}
+function addCustomSessionTag() {
+  var input = document.getElementById('smsCustomTagInput');
+  if (!input || !input.value.trim()) return;
+  var tag = input.value.trim().substring(0, 30);
+  var tags = [];
+  try { tags = JSON.parse(localStorage.getItem('sms_session_tags') || '[]'); } catch(e) {}
+  if (tags.indexOf(tag) === -1) { tags.push(tag); }
+  try { localStorage.setItem('sms_session_tags', JSON.stringify(tags)); } catch(e) {}
+  showToast('Tag added: ' + tag);
+  input.closest('[onclick*="event.target===this"]').remove();
+  showSessionTags();
+}
+
+// Batch 478: Workout Duration Estimator V2 — detailed breakdown
+function showDurationEstimateV2() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var warmup = 5;
+  var cooldown = 3;
+  var transition = clips.length * 0.25;
+  var workTime = 0;
+  var restTime = 0;
+  clips.forEach(function(c) {
+    var sets = parseInt(c.dataset.sets || '3');
+    var reps = parseInt(c.dataset.reps || '8');
+    var tempo = parseInt(c.dataset.tempo || '3');
+    var rest = parseInt(c.dataset.rest || '60');
+    workTime += sets * reps * tempo;
+    restTime += (sets - 1) * rest;
+  });
+  var workMin = Math.round(workTime / 60);
+  var restMin = Math.round(restTime / 60);
+  var transMin = Math.round(transition);
+  var totalMin = warmup + workMin + restMin + transMin + cooldown;
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Duration Estimate</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:24px;"><div style="color:#22d3ee;font-size:48px;font-weight:700;">' + totalMin + '</div><div style="color:#94a3b8;font-size:14px;">estimated minutes</div></div>';
+  var items = [
+    { label: 'Warm-up', val: warmup, color: '#facc15' },
+    { label: 'Working time', val: workMin, color: '#06b6d4' },
+    { label: 'Rest periods', val: restMin, color: '#a78bfa' },
+    { label: 'Transitions', val: transMin, color: '#64748b' },
+    { label: 'Cool-down', val: cooldown, color: '#4ade80' }
+  ];
+  items.forEach(function(item) {
+    var pct = Math.round(item.val / totalMin * 100);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:' + item.color + ';"></div><span style="color:#e2e8f0;font-size:14px;">' + item.label + '</span></div>';
+    html += '<span style="color:#94a3b8;font-size:14px;">' + item.val + ' min (' + pct + '%)</span>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 479: Exercise Popularity — most used exercises across all saved workouts
+function showExercisePopularity() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length === 0) { showToast('Save workouts to track popularity'); return; }
+  var counts = {};
+  saved.forEach(function(w) {
+    (w.clips || []).forEach(function(c) {
+      var ex = c.exercise || 'Unknown';
+      if (!counts[ex]) counts[ex] = 0;
+      counts[ex]++;
+    });
+  });
+  var sorted = Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; }).slice(0, 20);
+  var maxCount = counts[sorted[0]] || 1;
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Exercise Popularity</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  sorted.forEach(function(ex, idx) {
+    var count = counts[ex];
+    var pct = Math.round(count / maxCount * 100);
+    var medal = idx === 0 ? ' #1' : idx === 1 ? ' #2' : idx === 2 ? ' #3' : '';
+    var color = idx < 3 ? '#22d3ee' : '#94a3b8';
+    html += '<div style="margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span style="color:#e2e8f0;font-size:13px;">' + ex + medal + '</span><span style="color:' + color + ';font-size:13px;">' + count + 'x</span></div>';
+    html += '<div style="background:#1e293b;border-radius:3px;height:6px;"><div style="background:' + (idx < 3 ? '#06b6d4' : '#334155') + ';height:6px;border-radius:3px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 480: Set Volume by Stage — compare volume across S1/S2/S3
+function showVolumeByStage() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var stages = { S1: { sets: 0, reps: 0, count: 0 }, S2: { sets: 0, reps: 0, count: 0 }, S3: { sets: 0, reps: 0, count: 0 } };
+  clips.forEach(function(c) {
+    var stage = c.dataset.stage || 'S1';
+    if (!stages[stage]) stages[stage] = { sets: 0, reps: 0, count: 0 };
+    stages[stage].sets += parseInt(c.dataset.sets || '3');
+    stages[stage].reps += parseInt(c.dataset.reps || '8');
+    stages[stage].count++;
+  });
+  var total = clips.length;
+  var stageColors = { S1: '#4ade80', S2: '#facc15', S3: '#ef4444' };
+  var stageLabels = { S1: 'Beginner', S2: 'Intermediate', S3: 'Advanced' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:450px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Volume by Stage</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  ['S1', 'S2', 'S3'].forEach(function(s) {
+    var d = stages[s];
+    var pct = total > 0 ? Math.round(d.count / total * 100) : 0;
+    html += '<div style="margin-bottom:20px;padding:16px;background:rgba(30,41,59,0.3);border-radius:8px;border-left:3px solid ' + stageColors[s] + ';">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:' + stageColors[s] + ';font-size:16px;font-weight:600;">' + s + ' — ' + stageLabels[s] + '</span><span style="color:#94a3b8;font-size:13px;">' + pct + '%</span></div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
+    html += '<div><div style="color:#e2e8f0;font-size:18px;font-weight:600;">' + d.count + '</div><div style="color:#64748b;font-size:11px;">exercises</div></div>';
+    html += '<div><div style="color:#e2e8f0;font-size:18px;font-weight:600;">' + d.sets + '</div><div style="color:#64748b;font-size:11px;">total sets</div></div>';
+    html += '<div><div style="color:#e2e8f0;font-size:18px;font-weight:600;">' + d.reps + '</div><div style="color:#64748b;font-size:11px;">total reps</div></div>';
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 481: Rest Period Analysis — distribution of rest times
+function showRestAnalysis() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var buckets = { '0-30s': 0, '31-60s': 0, '61-90s': 0, '91-120s': 0, '120s+': 0 };
+  var totalRest = 0;
+  clips.forEach(function(c) {
+    var rest = parseInt(c.dataset.rest || '60');
+    totalRest += rest;
+    if (rest <= 30) buckets['0-30s']++;
+    else if (rest <= 60) buckets['31-60s']++;
+    else if (rest <= 90) buckets['61-90s']++;
+    else if (rest <= 120) buckets['91-120s']++;
+    else buckets['120s+']++;
+  });
+  var avgRest = Math.round(totalRest / clips.length);
+  var total = clips.length;
+  var colors = { '0-30s': '#ef4444', '31-60s': '#f97316', '61-90s': '#facc15', '91-120s': '#06b6d4', '120s+': '#a78bfa' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Rest Analysis</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:20px;"><div style="color:#22d3ee;font-size:36px;font-weight:700;">' + avgRest + 's</div><div style="color:#94a3b8;font-size:13px;">average rest period</div></div>';
+  Object.keys(buckets).forEach(function(b) {
+    var count = buckets[b];
+    var pct = Math.round(count / total * 100);
+    html += '<div style="margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="color:#e2e8f0;font-size:13px;">' + b + '</span><span style="color:' + colors[b] + ';font-size:13px;">' + count + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:3px;height:6px;"><div style="background:' + colors[b] + ';height:6px;border-radius:3px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  var style = avgRest <= 30 ? 'Circuit/HIIT' : avgRest <= 60 ? 'Hypertrophy' : avgRest <= 90 ? 'Balanced' : avgRest <= 120 ? 'Strength' : 'Power/Max Effort';
+  html += '<div style="text-align:center;margin-top:12px;color:#94a3b8;font-size:13px;">Training style: <span style="color:#22d3ee;font-weight:600;">' + style + '</span></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 482: Rep Range Breakdown — distribution across rep ranges
+function showRepRanges() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var ranges = { '1-5 (Strength)': 0, '6-8 (Power)': 0, '8-12 (Hypertrophy)': 0, '12-15 (Endurance)': 0, '15+ (Metabolic)': 0 };
+  clips.forEach(function(c) {
+    var reps = parseInt(c.dataset.reps || '8');
+    if (reps <= 5) ranges['1-5 (Strength)']++;
+    else if (reps <= 8) ranges['6-8 (Power)']++;
+    else if (reps <= 12) ranges['8-12 (Hypertrophy)']++;
+    else if (reps <= 15) ranges['12-15 (Endurance)']++;
+    else ranges['15+ (Metabolic)']++;
+  });
+  var total = clips.length;
+  var rangeColors = { '1-5 (Strength)': '#ef4444', '6-8 (Power)': '#f97316', '8-12 (Hypertrophy)': '#06b6d4', '12-15 (Endurance)': '#4ade80', '15+ (Metabolic)': '#a78bfa' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Rep Ranges</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  Object.keys(ranges).forEach(function(r) {
+    var count = ranges[r];
+    var pct = Math.round(count / total * 100);
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + r + '</span><span style="color:' + rangeColors[r] + ';font-size:13px;">' + count + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + rangeColors[r] + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 483: Workout Naming Suggestions — smart name ideas based on content
+function showNameSuggestions() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var familyCounts = {};
+  var totalRPE = 0;
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || 'Other';
+    if (!familyCounts[fam]) familyCounts[fam] = 0;
+    familyCounts[fam]++;
+    totalRPE += parseInt(c.dataset.rpe || '7');
+  });
+  var dominant = Object.keys(familyCounts).sort(function(a, b) { return familyCounts[b] - familyCounts[a]; })[0];
+  var avgRPE = totalRPE / clips.length;
+  var intensity = avgRPE < 5 ? 'Easy' : avgRPE < 7 ? 'Moderate' : avgRPE < 8.5 ? 'Hard' : 'Brutal';
+  var day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+  var suggestions = [
+    dominant + ' Focus — ' + intensity,
+    day + ' ' + dominant + ' Session',
+    clips.length + '-Exercise ' + dominant + ' Workout',
+    intensity + ' ' + dominant + ' Training',
+    dominant + ' ' + (clips.length <= 5 ? 'Quick Hit' : clips.length <= 10 ? 'Full Session' : 'Marathon'),
+    'The ' + dominant + ' Protocol',
+    dominant + ' x ' + (Object.keys(familyCounts).length > 1 ? Object.keys(familyCounts).sort(function(a, b) { return familyCounts[b] - familyCounts[a]; })[1] || '' : '') + ' Combo'
+  ];
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:450px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Name Suggestions</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="color:#94a3b8;font-size:13px;margin-bottom:16px;">Click to apply as workout name:</div>';
+  suggestions.forEach(function(s) {
+    html += '<div onclick="applyWorkoutName(\'' + s.replace(/'/g, "\\'") + '\');this.parentElement.parentElement.remove()" style="padding:12px 16px;margin-bottom:8px;background:rgba(30,41,59,0.5);border:1px solid #1e293b;border-radius:8px;cursor:pointer;color:#e2e8f0;font-size:14px;">' + s + '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function applyWorkoutName(name) {
+  var nameEl = document.querySelector('.breadcrumb-name') || document.querySelector('[data-workout-name]');
+  if (nameEl) nameEl.textContent = name;
+  if (typeof workoutName !== 'undefined') workoutName = name;
+  document.title = name + ' — Saturno Movement Studio';
+  showToast('Name: ' + name);
+}
+
+// Batch 484: Training Split Detector — auto-detect current split type
+function showSplitDetector() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var recent = saved.slice(-7);
+  if (recent.length < 2) { showToast('Need 2+ saved workouts'); return; }
+  var dayFamilies = [];
+  recent.forEach(function(w) {
+    var fams = {};
+    (w.clips || []).forEach(function(c) { fams[c.family || 'Other'] = true; });
+    dayFamilies.push(Object.keys(fams));
+  });
+  var avgFamilies = 0;
+  dayFamilies.forEach(function(f) { avgFamilies += f.length; });
+  avgFamilies = avgFamilies / dayFamilies.length;
+  var hasPush = false, hasPull = false, hasLegs = false;
+  dayFamilies.forEach(function(f) {
+    if (f.indexOf('Push') !== -1 && f.length <= 2) hasPush = true;
+    if (f.indexOf('Pull') !== -1 && f.length <= 2) hasPull = true;
+    if (f.indexOf('Legs') !== -1 && f.length <= 2) hasLegs = true;
+  });
+  var split = 'Unknown';
+  var desc = '';
+  if (hasPush && hasPull && hasLegs) { split = 'Push/Pull/Legs'; desc = 'Classic PPL split detected'; }
+  else if (avgFamilies >= 4) { split = 'Full Body'; desc = 'Multiple families per session'; }
+  else if (avgFamilies >= 2.5) { split = 'Upper/Lower'; desc = 'Mixed upper and lower sessions'; }
+  else if (avgFamilies <= 1.5) { split = 'Body Part Split'; desc = 'Isolated family focus per day'; }
+  else { split = 'Hybrid'; desc = 'Mix of approaches'; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Split Detector</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:20px;"><div style="color:#22d3ee;font-size:28px;font-weight:700;">' + split + '</div><div style="color:#94a3b8;font-size:14px;margin-top:4px;">' + desc + '</div></div>';
+  html += '<div style="background:rgba(30,41,59,0.3);border-radius:8px;padding:16px;">';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:8px;">Last ' + recent.length + ' sessions analyzed:</div>';
+  dayFamilies.forEach(function(fams, i) {
+    html += '<div style="padding:4px 0;color:#e2e8f0;font-size:13px;">Day ' + (i + 1) + ': <span style="color:#06b6d4;">' + fams.join(', ') + '</span></div>';
+  });
+  html += '</div>';
+  html += '<div style="margin-top:16px;color:#64748b;font-size:12px;text-align:center;">Avg families/session: ' + avgFamilies.toFixed(1) + '</div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 485: Exercise Rotation Queue — suggest what to do next based on least recent
+function showRotationQueue() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var lastUsed = {};
+  saved.forEach(function(w, idx) {
+    (w.clips || []).forEach(function(c) {
+      lastUsed[c.exercise || 'Unknown'] = idx;
+    });
+  });
+  var allExercises = [];
+  if (typeof EXERCISES !== 'undefined') {
+    EXERCISES.forEach(function(e) { allExercises.push(e.name); });
+  }
+  var neverUsed = allExercises.filter(function(e) { return typeof lastUsed[e] === 'undefined'; });
+  var leastRecent = Object.keys(lastUsed).sort(function(a, b) { return lastUsed[a] - lastUsed[b]; }).slice(0, 10);
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Rotation Queue</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  if (neverUsed.length > 0) {
+    html += '<div style="color:#f59e0b;font-size:14px;font-weight:600;margin-bottom:8px;">Never Used (' + neverUsed.length + ')</div>';
+    neverUsed.slice(0, 8).forEach(function(e) {
+      html += '<div style="padding:6px 0;color:#e2e8f0;font-size:13px;border-bottom:1px solid #1e293b;">' + e + '</div>';
+    });
+    if (neverUsed.length > 8) html += '<div style="color:#64748b;font-size:12px;padding:6px 0;">+' + (neverUsed.length - 8) + ' more</div>';
+  }
+  if (leastRecent.length > 0) {
+    html += '<div style="color:#06b6d4;font-size:14px;font-weight:600;margin:16px 0 8px;">Least Recent</div>';
+    leastRecent.forEach(function(e) {
+      var sessionsAgo = saved.length - lastUsed[e];
+      html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1e293b;">';
+      html += '<span style="color:#e2e8f0;font-size:13px;">' + e + '</span>';
+      html += '<span style="color:#94a3b8;font-size:12px;">' + sessionsAgo + ' sessions ago</span>';
+      html += '</div>';
+    });
+  }
+  if (neverUsed.length === 0 && leastRecent.length === 0) {
+    html += '<div style="color:#64748b;text-align:center;padding:20px;">Save workouts to build rotation data</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 486: Workout Complexity Score V2 — enhanced multi-factor scoring
+function showComplexityV2() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var families = {};
+  var patterns = {};
+  var stages = {};
+  var disciplines = {};
+  var totalRPE = 0;
+  clips.forEach(function(c) {
+    families[c.dataset.family || 'Other'] = true;
+    patterns[c.dataset.pattern || ''] = true;
+    stages[c.dataset.stage || 'S1'] = true;
+    disciplines[c.dataset.discipline || ''] = true;
+    totalRPE += parseInt(c.dataset.rpe || '7');
+  });
+  var famCount = Object.keys(families).length;
+  var patCount = Object.keys(patterns).length;
+  var stgCount = Object.keys(stages).length;
+  var discCount = Object.keys(disciplines).length;
+  var avgRPE = totalRPE / clips.length;
+  var diversityScore = Math.min(famCount * 15 + patCount * 10 + stgCount * 10 + discCount * 5, 60);
+  var volumeScore = Math.min(clips.length * 2, 20);
+  var intensityScore = Math.min(Math.round(avgRPE * 2), 20);
+  var total = diversityScore + volumeScore + intensityScore;
+  var grade = total >= 85 ? 'S' : total >= 70 ? 'A' : total >= 55 ? 'B' : total >= 40 ? 'C' : 'D';
+  var gradeColors = { S: '#22d3ee', A: '#4ade80', B: '#facc15', C: '#f97316', D: '#ef4444' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:420px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Complexity V2</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:24px;"><div style="color:' + gradeColors[grade] + ';font-size:56px;font-weight:700;">' + grade + '</div><div style="color:#94a3b8;font-size:14px;">' + total + ' / 100</div></div>';
+  var factors = [
+    { label: 'Diversity', val: diversityScore, max: 60, desc: famCount + ' families, ' + patCount + ' patterns' },
+    { label: 'Volume', val: volumeScore, max: 20, desc: clips.length + ' exercises' },
+    { label: 'Intensity', val: intensityScore, max: 20, desc: 'Avg RPE ' + avgRPE.toFixed(1) }
+  ];
+  factors.forEach(function(f) {
+    var pct = Math.round(f.val / f.max * 100);
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="color:#e2e8f0;font-size:13px;">' + f.label + '</span><span style="color:#94a3b8;font-size:12px;">' + f.val + '/' + f.max + ' — ' + f.desc + '</span></div>';
+    html += '<div style="background:#1e293b;border-radius:3px;height:6px;"><div style="background:#06b6d4;height:6px;border-radius:3px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
   html += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
 }
