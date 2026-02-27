@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~16,793 lines). No build step. No framework.
+Single-file HTML app (index.html, ~18,625 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-360)
+### Features (Batches 1-384)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -395,7 +395,31 @@ saturno-movement-studio/
 - **Stats dashboard** (workout trends, rating chart, mood distribution)
 - **Exercise mastery system** (sessions/reps/days tracking, 5 levels)
 - **Import from text** (paste exercises, auto-parse to clips with fuzzy match)
-- **Command palette** (Cmd+K, 290+ commands)
+- **Workout social sharing** (formatted text to clipboard)
+- **Exercise video/image lookup** (YouTube + Google Images search links)
+- **Training cycle tracker** (4-week mesocycle: Build/Intensify/Peak/Deload)
+- **Exercise combo creator** (save named exercise groupings, apply to timeline)
+- **Workout comparison matrix** (side-by-side metrics for up to 5 saved workouts)
+- **Auto-periodize** (4-week plan: Accumulation/Intensification/Overreach/Deload)
+- **Coaching notes search** (search across all exercise notes)
+- **Workout A/B variants** (6 types: stage swap, volume up, intensity, time crunch, random, alt)
+- **Session focus timer** (Pomodoro 25/50 min with auto-cycle work/break)
+- **Movement flow builder** (chain exercises into named sequences)
+- **Workout analytics export** (standalone dark-theme HTML report)
+- **Quick workout wizard** (3-step guided builder: focus, volume, intensity)
+- **Exercise encyclopedia** (searchable modal, family filter, difficulty stars, notes)
+- **Extended heatmap calendar** (6-month training history from ratings + journal)
+- **Custom countdown builder** (build/save/run custom interval sequences)
+- **Exercise relationships map** (family synergies, pattern pairings, balance analysis)
+- **Workout scoring system** (volume/intensity/variety/balance, S-F letter grades)
+- **Quick notes sidebar** (persistent notepad with auto-save)
+- **Workout playlist creator** (queue saved workouts for multi-workout sessions)
+- **Exercise frequency limiter** (warn when exercise appears 3+ times)
+- **Training split recommender** (PPL/Upper-Lower/Full Body with match percentage)
+- **Muscle fatigue tracker** (per-muscle bars from sets x RPE pattern mapping)
+- **Exercise substitution wizard** (same-pattern/stage/family alternatives, one-click swap)
+- **Workout time estimator** (per-track breakdown with transition estimates)
+- **Command palette** (Cmd+K, 320+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
