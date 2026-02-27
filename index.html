@@ -3580,7 +3580,8 @@ function createClipElement(exercise, left, width, dna) {
 
   var info = document.createElement('span');
   info.className = 'clip-info';
-  info.textContent = clip.dataset.sets + 'x' + clip.dataset.reps;
+  var clipSec = Math.round(parseInt(clip.style.width) / 80 * 15);
+  info.textContent = clip.dataset.sets + 'x' + clip.dataset.reps + ' ' + clipSec + 's';
   info.style.position = 'relative';
   info.style.zIndex = '1';
   clip.appendChild(info);
@@ -3681,7 +3682,14 @@ function createClipElement(exercise, left, width, dna) {
       addBeatMarkers(clip, newW);
       updateStats();
     }
-    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      var rSec = Math.round(parseInt(clip.style.width) / 80 * 15);
+      var rInfo = clip.querySelector('.clip-info');
+      if (rInfo) rInfo.textContent = clip.dataset.sets + 'x' + clip.dataset.reps + ' ' + rSec + 's';
+      saveSession(); updateStats();
+    }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
@@ -3723,7 +3731,8 @@ function createClipElement(exercise, left, width, dna) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      info.textContent = clip.dataset.sets + 'x' + clip.dataset.reps;
+      var finSec = Math.round(parseInt(clip.style.width) / 80 * 15);
+      info.textContent = clip.dataset.sets + 'x' + clip.dataset.reps + ' ' + finSec + 's';
       saveSession(); updateStats();
     }
     document.addEventListener('mousemove', onMove);
@@ -3833,6 +3842,23 @@ function selectClipEl(clip, addToSelection) {
   document.getElementById('insp-notes').value = clip.dataset.notes || '';
   updateInspectorTime();
   updateProgressionChain(ex);
+  // Auto-scroll timeline to show selected clip
+  scrollToClip(clip);
+}
+
+function scrollToClip(clip) {
+  var container = document.getElementById('timeline-container');
+  if (!container) return;
+  var clipLeft = parseInt(clip.style.left) || 0;
+  var clipW = parseInt(clip.style.width) || 80;
+  var scale = zoomLevel / 100;
+  var clipMid = clipLeft * scale;
+  var vpLeft = container.scrollLeft;
+  var vpW = container.clientWidth;
+  // Only scroll if clip is out of view
+  if (clipMid < vpLeft + 120 || clipMid + clipW * scale > vpLeft + vpW - 20) {
+    container.scrollLeft = Math.max(0, clipMid - vpW / 3);
+  }
 }
 
 function updateProgressionChain(exercise) {
@@ -3928,7 +3954,10 @@ function updateClipDNA() {
   selectedClip.dataset.rest = document.getElementById('insp-rest').value;
   selectedClip.dataset.rpe = document.getElementById('insp-rpe').value;
   var info = selectedClip.querySelector('.clip-info');
-  if (info) info.textContent = selectedClip.dataset.sets + 'x' + selectedClip.dataset.reps;
+  if (info) {
+    var infoSec = Math.round(parseInt(selectedClip.style.width) / 80 * 15);
+    info.textContent = selectedClip.dataset.sets + 'x' + selectedClip.dataset.reps + ' ' + infoSec + 's';
+  }
   // If tempo linked, update clip width based on exercise duration
   if (tempoLinked) {
     var sets = parseInt(selectedClip.dataset.sets) || 3;
