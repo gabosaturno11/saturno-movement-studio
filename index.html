@@ -6240,6 +6240,7 @@ function showSummary() {
   html += '<div class="summary-stat"><div class="summary-stat-val">' + totalSets + '</div><div class="summary-stat-label">Total Sets</div></div>';
   html += '<div class="summary-stat"><div class="summary-stat-val">' + totalReps + '</div><div class="summary-stat-label">Total Reps</div></div>';
   html += '<div class="summary-stat"><div class="summary-stat-val">' + estMin + '</div><div class="summary-stat-label">Est. Minutes</div></div>';
+  html += '<div class="summary-stat"><div class="summary-stat-val">' + getSessionElapsed() + '</div><div class="summary-stat-label">Session Time</div></div>';
   html += '</div>';
   // Family breakdown
   var famBreak = {};
@@ -7384,6 +7385,11 @@ var CMD_ACTIONS = [
   {label:'Shift All Clips Left 1 Bar', key:'', icon:'\u25C0', action: function() { shiftAllClips(-1); }},
   {label:'Insert Silence at Playhead', key:'', icon:'\u25B8', action: function() { insertSilenceAtPlayhead(); }},
   {label:'Remove Silence at Playhead', key:'', icon:'\u25C2', action: function() { removeSilenceAtPlayhead(); }},
+  {label:'Clone Track to Push', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('push'); }},
+  {label:'Clone Track to Pull', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('pull'); }},
+  {label:'Clone Track to Core', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('core'); }},
+  {label:'Clone Track to Legs', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('legs'); }},
+  {label:'Clone Track to Skills', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('skills'); }},
 ];
 
 function openCmdPalette() {
@@ -8742,6 +8748,46 @@ function removeSilenceAtPlayhead() {
   });
   updateStats(); saveSession(); sfx('click');
   toast('Removed 1 bar silence (' + count + ' clips shifted)');
+}
+
+function cloneTrackToTarget(targetId) {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('No active track'); return; }
+  var target = document.querySelector('.track-content[data-track="' + targetId + '"]');
+  if (!target) { toast('Target track not found'); return; }
+  if (activeTrack === target) { toast('Cannot clone to same track'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('No clips to clone'); return; }
+  pushUndo();
+  var count = 0;
+  clips.forEach(function(src) {
+    var ex = getExercise(src.dataset.exerciseId);
+    if (!ex) return;
+    var clip = createClipElement(ex, parseInt(src.style.left), parseInt(src.style.width), {
+      sets: src.dataset.sets, reps: src.dataset.reps,
+      tempo: src.dataset.tempo, rest: src.dataset.rest,
+      rpe: src.dataset.rpe,
+      fadeIn: src.dataset.fadeIn || '0', fadeOut: src.dataset.fadeOut || '0'
+    });
+    if (src.dataset.notes) clip.dataset.notes = src.dataset.notes;
+    if (src.dataset.customColor) {
+      clip.dataset.customColor = src.dataset.customColor;
+      clip.style.background = 'linear-gradient(180deg, ' + src.dataset.customColor + '44 0%, ' + src.dataset.customColor + '22 100%)';
+      clip.style.borderTopColor = src.dataset.customColor;
+    }
+    target.appendChild(clip);
+    count++;
+  });
+  updateStats(); saveSession(); sfx('drop');
+  toast(count + ' clips cloned to ' + targetId);
+}
+
+function getSessionElapsed() {
+  var elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+  var h = Math.floor(elapsed / 3600);
+  var m = Math.floor((elapsed % 3600) / 60);
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + ' min';
 }
 
 function selectClipsByStage(stage) {
