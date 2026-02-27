@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~15,641 lines). No build step. No framework.
+Single-file HTML app (index.html, ~16,450 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-339)
+### Features (Batches 1-354)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -374,7 +374,22 @@ saturno-movement-studio/
 - **Clone & modify workout** (load saved + progressive overload: +set/+rep/+RPE/-rest/stage up)
 - **Exercise tags system** (preset + custom tags per exercise, localStorage)
 - **Session goal setting** (sets/exercises/RPE/time/families targets with progress bars)
-- **Command palette** (Cmd+K, 260+ commands)
+- **Workout template sharing** (URL fragment encoding, load from URL)
+- **Cooldown recommendations** (family-based stretch suggestions)
+- **Session summary card** (canvas-rendered PNG download with stats)
+- **Workout bookmarks** (mark/jump/manage timeline positions)
+- **Exercise pairing suggestions** (push/pull antagonist balance logic)
+- **Keyboard macro recorder** (record/save/replay command sequences)
+- **Preview workout animation** (animated playhead sweep with clip highlighting)
+- **Library sort modes** (alphabetical, family, difficulty, frequency)
+- **Session debrief** (guided reflection: energy, focus, execution, enjoyment)
+- **Workout changelog** (auto-log edits with timestamp)
+- **Training week planner** (7-day slots, assign saved workouts, load today's)
+- **Complexity radar chart** (5-axis SVG: volume/intensity/variety/balance/complexity)
+- **Challenge mode** (Speed Build, Family Blitz, Volume King, Perfect Balance)
+- **Movement cues editor** (per-exercise coaching cues, form reminders)
+- **Audio narration** (Web Speech TTS reads workout sequence aloud)
+- **Command palette** (Cmd+K, 280+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
