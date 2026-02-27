@@ -2520,6 +2520,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <div style="display:flex;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">
           <button class="nav-btn" onclick="duplicateClip()" data-tip="Duplicate (Cmd+D)" style="font-size:8px;padding:4px 8px;flex:1">DUP</button>
           <button class="nav-btn" onclick="splitClipAtPlayhead()" data-tip="Split at playhead (B)" style="font-size:8px;padding:4px 8px;flex:1">SPLIT</button>
+          <button class="nav-btn" id="insp-lock-btn" onclick="toggleInspectorLock()" data-tip="Lock/Unlock (Cmd+L)" style="font-size:8px;padding:4px 8px;flex:1">LOCK</button>
           <button class="nav-btn" onclick="deleteSelectedClips()" data-tip="Delete (Del)" style="font-size:8px;padding:4px 8px;flex:1;color:var(--accent-red)">DEL</button>
         </div>
       </div>
@@ -2800,6 +2801,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Shift+, .</kbd><span>Nudge Rest</span></div>
       <div class="shortcut-item"><kbd>Alt+&#8593;&#8595;</kbd><span>Dup to Track</span></div>
       <div class="shortcut-item"><kbd>C</kbd><span>Collapse Track</span></div>
+      <div class="shortcut-item"><kbd>Shift+C</kbd><span>Collapse All</span></div>
       <div class="shortcut-item"><kbd>N</kbd><span>Next Marker</span></div>
       <div class="shortcut-item"><kbd>Shift+N</kbd><span>Prev Marker</span></div>
       <div class="shortcut-item"><kbd>Home</kbd><span>Jump to Start</span></div>
@@ -3993,6 +3995,7 @@ function selectClipEl(clip, addToSelection) {
   document.getElementById('insp-notes').value = clip.dataset.notes || '';
   updateInspectorTime();
   updateProgressionChain(ex);
+  syncInspectorLockBtn();
   // Auto-scroll timeline to show selected clip
   scrollToClip(clip);
 }
@@ -4128,6 +4131,24 @@ function updateClipNotes() {
   if (!selectedClip) return;
   selectedClip.dataset.notes = document.getElementById('insp-notes').value;
   saveSession();
+}
+
+function toggleInspectorLock() {
+  if (!selectedClip) return;
+  pushUndo();
+  selectedClip.classList.toggle('clip-locked');
+  selectedClip.dataset.locked = selectedClip.classList.contains('clip-locked') ? '1' : '';
+  saveSession();
+  syncInspectorLockBtn();
+  toast(selectedClip.classList.contains('clip-locked') ? 'Clip locked' : 'Clip unlocked');
+}
+
+function syncInspectorLockBtn() {
+  var btn = document.getElementById('insp-lock-btn');
+  if (!btn || !selectedClip) return;
+  var locked = selectedClip.classList.contains('clip-locked');
+  btn.textContent = locked ? 'UNLOCK' : 'LOCK';
+  btn.style.color = locked ? 'var(--accent-red)' : '';
 }
 
 function updateSummary() {
@@ -7164,7 +7185,7 @@ var CMD_ACTIONS = [
   {label:'Deselect All', key:'Esc', icon:'\u2610', action: function() { document.querySelectorAll('.clip.selected').forEach(function(c){c.classList.remove('selected')}); selectedClip=null; document.getElementById('inspector').style.display='none'; if(typeof updateSelectionBadge==='function')updateSelectionBadge(); toast('Deselected'); }},
   {label:'Toggle Record Mode', key:'R', icon:'\u23FA', action: function() { toggleRec(); }},
   {label:'Cycle Time Signature', key:'', icon:'4/4', action: function() { cycleTimeSig(); }},
-  {label:'Collapse All Tracks', key:'', icon:'\u25BC', action: function() { document.querySelectorAll('.track').forEach(function(t){if(t.dataset.track!=='music')t.classList.add('track-collapsed')}); toast('Tracks collapsed'); }},
+  {label:'Collapse All Tracks', key:'Shift+C', icon:'\u25BC', action: function() { document.querySelectorAll('.track').forEach(function(t){if(t.dataset.track!=='music')t.classList.add('track-collapsed')}); toast('Tracks collapsed'); }},
   {label:'Expand All Tracks', key:'', icon:'\u25B2', action: function() { document.querySelectorAll('.track').forEach(function(t){t.classList.remove('track-collapsed')}); toast('Tracks expanded'); }},
   {label:'Move Clip Up', key:'\u2191', icon:'\u2191', action: function() { if(!selectedClip)return; var tids=['push','pull','core','legs','skills']; var ci=tids.indexOf(selectedClip.parentElement.dataset.track); if(ci>0){pushUndo();var nt=document.querySelector('.track-content[data-track="'+tids[ci-1]+'"]');selectedClip.parentElement.removeChild(selectedClip);nt.appendChild(selectedClip);saveSession();updateStats();toast('Moved up');} }},
   {label:'Move Clip Down', key:'\u2193', icon:'\u2193', action: function() { if(!selectedClip)return; var tids=['push','pull','core','legs','skills']; var ci=tids.indexOf(selectedClip.parentElement.dataset.track); if(ci>=0&&ci<tids.length-1){pushUndo();var nt=document.querySelector('.track-content[data-track="'+tids[ci+1]+'"]');selectedClip.parentElement.removeChild(selectedClip);nt.appendChild(selectedClip);saveSession();updateStats();toast('Moved down');} }},
@@ -7191,6 +7212,11 @@ var CMD_ACTIONS = [
   {label:'Stage Down', key:'PgDn', icon:'\u25BC', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage-1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage-1)+': '+sib.name);}else{toast('Min stage');} }},
   {label:'Auto-Name Workout', key:'', icon:'\u270E', action: function() { autoNameWorkout(); }},
   {label:'Paste at Playhead', key:'Cmd+Shift+V', icon:'\u2398', action: function() { pasteAtPlayhead(); }},
+  {label:'Select Push Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Push'); }},
+  {label:'Select Pull Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Pull'); }},
+  {label:'Select Core Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Core'); }},
+  {label:'Select Legs Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Legs'); }},
+  {label:'Select Skills Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Skills'); }},
 ];
 
 function openCmdPalette() {
@@ -7772,6 +7798,17 @@ function clearTrackClips() {
   toast(count + ' track clips cleared');
 }
 
+function selectClipsByFamily(family) {
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex && ex.family === family) { c.classList.add('selected'); count++; }
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' ' + family + ' clip' + (count !== 1 ? 's' : '') + ' selected');
+}
+
 function autoNameWorkout() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('Add clips first'); return; }
@@ -8086,6 +8123,12 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
+  }
+  if (e.code === 'KeyC' && !e.metaKey && !e.ctrlKey && !e.altKey && e.shiftKey) {
+    var allCollapsed = true;
+    document.querySelectorAll('.track').forEach(function(t) { if (!t.classList.contains('track-collapsed') && t.dataset.track !== 'music') allCollapsed = false; });
+    document.querySelectorAll('.track').forEach(function(t) { if (t.dataset.track !== 'music') t.classList.toggle('track-collapsed', !allCollapsed); });
+    toast(allCollapsed ? 'All tracks expanded' : 'All tracks collapsed');
   }
   if (e.code === 'KeyC' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     var activeTrack = document.querySelector('.track.track-active');
