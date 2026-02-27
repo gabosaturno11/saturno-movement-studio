@@ -5225,6 +5225,7 @@ function exportWorkout() {
     });
   });
   workout.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
+  workout.loop = {enabled: loopEnabled, start: loopStart, end: loopEnd};
   var blob = new Blob([JSON.stringify(workout, null, 2)], {type: 'application/json'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -5288,6 +5289,17 @@ function importWorkout() {
           markers = workout.markers;
           markerCounter = markers.reduce(function(max, m) { return Math.max(max, m.id); }, 0);
           renderAllMarkers();
+        }
+        // Import loop
+        if (workout.loop) {
+          loopEnabled = workout.loop.enabled || false;
+          loopStart = workout.loop.start || 0;
+          loopEnd = workout.loop.end || 60;
+          var lBtn = document.getElementById('loop-btn');
+          if (lBtn) lBtn.classList.toggle('active', loopEnabled);
+          var lReg = document.getElementById('loop-region');
+          lReg.classList.toggle('active', loopEnabled);
+          if (loopEnabled) updateLoopRegion();
         }
         updateStats();
         saveSession();
@@ -5677,6 +5689,9 @@ function captureState() {
   });
   state.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
   state.markerCounter = markerCounter;
+  state.loopEnabled = loopEnabled;
+  state.loopStart = loopStart;
+  state.loopEnd = loopEnd;
   return JSON.stringify(state);
 }
 
@@ -5740,6 +5755,17 @@ function restoreState(state) {
     markers = state.markers;
     markerCounter = state.markerCounter || markers.length;
     renderAllMarkers();
+  }
+  // Restore loop state
+  if (typeof state.loopEnabled !== 'undefined') {
+    loopEnabled = state.loopEnabled;
+    loopStart = state.loopStart || 0;
+    loopEnd = state.loopEnd || 60;
+    var lBtn = document.getElementById('loop-btn');
+    if (lBtn) lBtn.classList.toggle('active', loopEnabled);
+    var lRegion = document.getElementById('loop-region');
+    lRegion.classList.toggle('active', loopEnabled);
+    if (loopEnabled) updateLoopRegion();
   }
   updateStats();
   saveSession();
@@ -6867,17 +6893,48 @@ document.addEventListener('keydown', function(e) {
   if (e.code === 'KeyB' && !e.metaKey && !e.ctrlKey) {
     splitClipAtPlayhead();
   }
-  // Arrow keys to nudge selected clip
+  // Arrow keys to nudge selected clip position or resize
   if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && selectedClip && !e.metaKey && !e.ctrlKey) {
     e.preventDefault();
     var pps = 80 / 15;
     var beatSec = 60 / bpm;
-    var nudge = e.shiftKey ? (beatSec * 4 * pps) : (beatSec * pps); // bar or beat
-    var curLeft = parseInt(selectedClip.style.left);
-    if (e.code === 'ArrowLeft') curLeft = Math.max(0, curLeft - nudge);
-    if (e.code === 'ArrowRight') curLeft = curLeft + nudge;
-    selectedClip.style.left = Math.round(curLeft) + 'px';
+    if (e.altKey) {
+      // Alt+Arrow: resize clip width
+      pushUndo();
+      var nudgeW = e.shiftKey ? (beatSec * 4 * pps) : (beatSec * pps);
+      var curW = parseInt(selectedClip.style.width) || 80;
+      if (e.code === 'ArrowLeft') curW = Math.max(20, curW - nudgeW);
+      if (e.code === 'ArrowRight') curW = curW + nudgeW;
+      selectedClip.style.width = Math.round(curW) + 'px';
+      updateFadeOverlay(selectedClip);
+    } else {
+      // Arrow: nudge position (Shift = bar, plain = beat)
+      pushUndo();
+      var nudge = e.shiftKey ? (beatSec * 4 * pps) : (beatSec * pps);
+      var curLeft = parseInt(selectedClip.style.left);
+      if (e.code === 'ArrowLeft') curLeft = Math.max(0, curLeft - nudge);
+      if (e.code === 'ArrowRight') curLeft = curLeft + nudge;
+      selectedClip.style.left = Math.round(curLeft) + 'px';
+    }
     saveSession(); updateStats();
+  }
+  // Up/Down arrow: move clip between tracks
+  if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && selectedClip && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    var trackIds = ['push','pull','core','legs','skills'];
+    var curTrackId = selectedClip.parentElement.dataset.track;
+    var idx = trackIds.indexOf(curTrackId);
+    if (idx === -1) return;
+    var newIdx = e.code === 'ArrowUp' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= trackIds.length) return;
+    pushUndo();
+    var newTrack = document.querySelector('.track-content[data-track="'+trackIds[newIdx]+'"]');
+    if (newTrack) {
+      selectedClip.parentElement.removeChild(selectedClip);
+      newTrack.appendChild(selectedClip);
+      saveSession(); updateStats();
+      toast('Moved to ' + trackIds[newIdx].charAt(0).toUpperCase() + trackIds[newIdx].slice(1));
+    }
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
