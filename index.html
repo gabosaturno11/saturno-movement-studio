@@ -8057,6 +8057,12 @@ var CMD_ACTIONS = [
   {label:'Share Card', key:'', icon:'\ud83d\udce4', action: function() { generateShareCard(); }},
   {label:'Session Bookmarks', key:'', icon:'\ud83d\udd16', action: function() { showSessionBookmarks(); }},
   {label:'Deload Check', key:'', icon:'\u26a0', action: function() { checkDeloadNeeded(); }},
+  {label:'Note Templates', key:'', icon:'\ud83d\udcdd', action: function() { showNoteTemplates(); }},
+  {label:'Workout Calendar', key:'', icon:'\ud83d\udcc5', action: function() { showWorkoutCalendar(); }},
+  {label:'RPE Distribution', key:'', icon:'\ud83c\udfaf', action: function() { showRPEDistribution(); }},
+  {label:'Training Density', key:'', icon:'\u26a1', action: function() { showTrainingDensity(); }},
+  {label:'Prerequisites Map', key:'', icon:'\ud83d\uddfa', action: function() { showPrerequisiteMap(); }},
+  {label:'Export Comparison', key:'', icon:'\ud83d\udccb', action: function() { exportWorkoutComparison(); }},
 ];
 
 function openCmdPalette() {
@@ -20732,6 +20738,257 @@ function checkDeloadNeeded() {
   html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
+}
+
+// Batch 434: Exercise Note Templates
+function showNoteTemplates() {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) { showToast('Select a clip first'); return; }
+  var templates = [
+    {category: 'Form Cues', items: [
+      'Keep core braced throughout the movement',
+      'Full range of motion, control the eccentric',
+      'Squeeze at the top for 1 second',
+      'Maintain neutral spine alignment',
+      'Drive through the heels, knees tracking toes'
+    ]},
+    {category: 'Intensity', items: [
+      'Leave 2 reps in reserve (RIR 2)',
+      'Go to technical failure on last set',
+      'Use a controlled 3-1-2 tempo',
+      'Progressive overload: add 1 rep from last session'
+    ]},
+    {category: 'Modifications', items: [
+      'If shoulder pain: reduce ROM or switch to neutral grip',
+      'Use bands for assistance if needed',
+      'Elevate feet for increased difficulty',
+      'Regress to previous stage if form breaks down'
+    ]}
+  ];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Note Templates</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Click to add to: ' + (sel.dataset.exercise || 'selected clip') + '</div>';
+  templates.forEach(function(cat) {
+    html += '<div style="font-weight:600;font-size:13px;color:#06b6d4;margin:12px 0 6px;">' + cat.category + '</div>';
+    cat.items.forEach(function(item) {
+      html += '<div onclick="applyNoteTemplate(\'' + item.replace(/'/g, "\\'") + '\')" style="padding:8px 10px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;cursor:pointer;font-size:13px;transition:background 0.15s;" onmouseover="this.style.background=\'rgba(6,182,212,0.12)\'" onmouseout="this.style.background=\'rgba(6,182,212,0.05)\'">' + item + '</div>';
+    });
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function applyNoteTemplate(text) {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) return;
+  var name = sel.dataset.exercise || '';
+  var notes = {};
+  try { notes = JSON.parse(localStorage.getItem('sms_coaching_notes') || '{}'); } catch(e) {}
+  var existing = notes[name] || '';
+  notes[name] = existing ? existing + '\n' + text : text;
+  try { localStorage.setItem('sms_coaching_notes', JSON.stringify(notes)); } catch(e) {}
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showToast('Note added to ' + name);
+}
+
+// Batch 435: Workout Calendar View
+function showWorkoutCalendar() {
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var dayData = {};
+  ratings.forEach(function(r) {
+    var d = new Date(r.date || r.timestamp).toISOString().split('T')[0];
+    if (!dayData[d]) dayData[d] = {count: 0, rating: 0};
+    dayData[d].count++;
+    dayData[d].rating = r.rating || 0;
+  });
+  saved.forEach(function(s) {
+    if (s.date || s.timestamp) {
+      var d = new Date(s.date || s.timestamp).toISOString().split('T')[0];
+      if (!dayData[d]) dayData[d] = {count: 0, rating: 0};
+      dayData[d].count++;
+    }
+  });
+  var now = new Date();
+  var year = now.getFullYear();
+  var month = now.getMonth();
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Workout Calendar</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  html += '<div style="text-align:center;font-weight:600;margin-bottom:12px;">' + monthNames[month] + ' ' + year + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;">';
+  ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(function(d) {
+    html += '<div style="font-size:11px;color:#64748b;padding:4px;">' + d + '</div>';
+  });
+  var firstDay = new Date(year, month, 1).getDay();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (var i = 0; i < firstDay; i++) html += '<div></div>';
+  for (var d = 1; d <= daysInMonth; d++) {
+    var key = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    var isToday = d === now.getDate();
+    var hasWorkout = dayData[key];
+    var bg = hasWorkout ? 'rgba(6,182,212,0.3)' : 'rgba(255,255,255,0.03)';
+    var border = isToday ? '2px solid #06b6d4' : '1px solid transparent';
+    html += '<div style="padding:8px 4px;border-radius:6px;background:' + bg + ';border:' + border + ';font-size:13px;' + (hasWorkout ? 'color:#06b6d4;font-weight:600;' : 'color:#94a3b8;') + '">' + d + '</div>';
+  }
+  html += '</div>';
+  var totalThisMonth = Object.keys(dayData).filter(function(k) { return k.startsWith(year + '-' + String(month + 1).padStart(2, '0')); }).length;
+  html += '<div style="text-align:center;margin-top:12px;font-size:12px;color:#94a3b8;">' + totalThisMonth + ' training days this month</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 436: RPE Distribution Chart
+function showRPEDistribution() {
+  var zones = {'1-3 (Warm-up)': 0, '4-5 (Easy)': 0, '6-7 (Moderate)': 0, '8-9 (Hard)': 0, '10 (Max)': 0};
+  var zoneColors = {'1-3 (Warm-up)': '#94a3b8', '4-5 (Easy)': '#4ade80', '6-7 (Moderate)': '#06b6d4', '8-9 (Hard)': '#fbbf24', '10 (Max)': '#f87171'};
+  var total = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var rpe = Math.round(parseFloat(c.dataset.rpe || 7));
+    total++;
+    if (rpe <= 3) zones['1-3 (Warm-up)']++;
+    else if (rpe <= 5) zones['4-5 (Easy)']++;
+    else if (rpe <= 7) zones['6-7 (Moderate)']++;
+    else if (rpe <= 9) zones['8-9 (Hard)']++;
+    else zones['10 (Max)']++;
+  });
+  if (total === 0) { showToast('Add exercises first'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">RPE Distribution</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="height:20px;display:flex;border-radius:10px;overflow:hidden;margin-bottom:16px;">';
+  Object.keys(zones).forEach(function(z) {
+    var pct = Math.round((zones[z] / total) * 100);
+    if (pct > 0) html += '<div style="width:' + pct + '%;background:' + zoneColors[z] + ';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:#050711;">' + (pct >= 10 ? pct + '%' : '') + '</div>';
+  });
+  html += '</div>';
+  Object.keys(zones).forEach(function(z) {
+    var pct = Math.round((zones[z] / total) * 100);
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;">';
+    html += '<div style="width:12px;height:12px;border-radius:3px;background:' + zoneColors[z] + ';"></div>';
+    html += '<span style="font-size:13px;">' + z + '</span></div>';
+    html += '<span style="font-size:13px;color:#94a3b8;">' + zones[z] + ' (' + pct + '%)</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 437: Training Density Score
+function showTrainingDensity() {
+  var totalSets = 0;
+  var totalWorkSec = 0;
+  var totalRestSec = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var sets = parseInt(c.dataset.sets || 3);
+    var reps = parseInt(c.dataset.reps || 8);
+    var tempo = parseInt(c.dataset.tempo || 3);
+    var rest = parseInt(c.dataset.rest || 60);
+    totalSets += sets;
+    totalWorkSec += sets * reps * tempo;
+    totalRestSec += (sets - 1) * rest;
+  });
+  var totalMin = (totalWorkSec + totalRestSec) / 60;
+  var density = totalMin > 0 ? (totalSets / totalMin).toFixed(2) : 0;
+  var rating = density >= 2 ? 'Very High' : density >= 1.2 ? 'High' : density >= 0.8 ? 'Moderate' : density >= 0.4 ? 'Low' : 'Very Low';
+  var ratingColor = density >= 2 ? '#f87171' : density >= 1.2 ? '#fbbf24' : density >= 0.8 ? '#4ade80' : density >= 0.4 ? '#06b6d4' : '#94a3b8';
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:400px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Training Density</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:20px 0;">';
+  html += '<div style="font-size:48px;font-weight:700;color:' + ratingColor + ';">' + density + '</div>';
+  html += '<div style="font-size:14px;color:' + ratingColor + ';">' + rating + '</div>';
+  html += '<div style="font-size:12px;color:#94a3b8;margin-top:4px;">Sets per Minute</div></div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:18px;font-weight:600;color:#06b6d4;">' + totalSets + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Total Sets</div></div>';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:18px;font-weight:600;color:#22d3ee;">' + Math.round(totalMin) + 'min</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Est. Duration</div></div></div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 438: Exercise Prerequisite Map
+function showPrerequisiteMap() {
+  var patterns = {};
+  EXERCISES.forEach(function(ex) {
+    var key = ex.pattern || ex.family || 'Other';
+    if (!patterns[key]) patterns[key] = {S1: [], S2: [], S3: []};
+    var stage = ex.stage || 'S1';
+    if (patterns[key][stage]) patterns[key][stage].push(ex.name);
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:700px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Progression Prerequisites</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Master each stage before progressing</div>';
+  Object.keys(patterns).sort().forEach(function(pat) {
+    var p = patterns[pat];
+    if (p.S1.length === 0 && p.S2.length === 0 && p.S3.length === 0) return;
+    html += '<div style="margin-bottom:12px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="font-weight:600;font-size:14px;color:#06b6d4;margin-bottom:8px;">' + pat + '</div>';
+    html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
+    ['S1', 'S2', 'S3'].forEach(function(s, i) {
+      var sColor = s === 'S3' ? '#a78bfa' : s === 'S2' ? '#06b6d4' : '#94a3b8';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-size:11px;font-weight:600;color:' + sColor + ';margin-bottom:4px;">' + s + (i > 0 ? ' (requires ' + ['S1', 'S2'][i - 1] + ')' : ' (Foundation)') + '</div>';
+      p[s].forEach(function(name) {
+        html += '<div style="font-size:11px;padding:2px 4px;margin-bottom:2px;background:rgba(255,255,255,0.04);border-radius:3px;">' + name + '</div>';
+      });
+      if (p[s].length === 0) html += '<div style="font-size:11px;color:#64748b;">-</div>';
+      html += '</div>';
+      if (i < 2) html += '<div style="color:#64748b;padding-top:12px;font-size:16px;">-></div>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 439: Workout Comparison Export
+function exportWorkoutComparison() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length < 2) { showToast('Need 2+ saved workouts'); return; }
+  var last = saved.slice(-5);
+  var text = '=== WORKOUT COMPARISON ===\n';
+  text += 'Generated: ' + new Date().toLocaleString() + '\n\n';
+  text += String('Workout').padEnd(20) + String('Clips').padEnd(8) + String('Sets').padEnd(8) + String('Families').padEnd(30) + '\n';
+  text += '-'.repeat(66) + '\n';
+  last.forEach(function(s) {
+    var clips = (s.clips || []).length;
+    var sets = 0;
+    var fams = {};
+    (s.clips || []).forEach(function(c) {
+      sets += parseInt(c.sets || c.dataset && c.dataset.sets || 3);
+      var f = c.family || (c.dataset && c.dataset.family) || '';
+      fams[f] = true;
+    });
+    var name = (s.name || 'Unnamed').substring(0, 18);
+    text += name.padEnd(20) + String(clips).padEnd(8) + String(sets).padEnd(8) + Object.keys(fams).join(', ').padEnd(30) + '\n';
+  });
+  try { navigator.clipboard.writeText(text); showToast('Comparison exported to clipboard'); } catch(e) { showToast('Copy failed'); }
 }
 
 function selectClipsByStage(stage) {
