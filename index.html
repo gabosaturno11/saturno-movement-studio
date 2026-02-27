@@ -2455,6 +2455,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <div class="inspector-field"><label>Rest (seconds)</label><input type="number" id="insp-rest" value="60" min="0" max="300" step="5" onchange="updateClipDNA()"></div>
         <div class="inspector-field"><label>RPE (1-10)</label><input type="range" id="insp-rpe" min="1" max="10" value="7" style="width:100%" oninput="updateClipDNA()"></div>
         <div class="inspector-tags" id="insp-tags"></div>
+        <div id="insp-progression" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:none"></div>
         <div id="insp-time" style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:8px;color:var(--muted);display:flex;justify-content:space-between">
           <span>Est. time: <span id="insp-est-time" style="color:var(--text-secondary)">-</span></span>
           <span>TUT: <span id="insp-tut" style="color:var(--accent-cyan)">-</span></span>
@@ -3774,6 +3775,76 @@ function selectClipEl(clip, addToSelection) {
     '<span class="inspector-tag">S'+ex.stage+'</span>';
   document.getElementById('insp-notes').value = clip.dataset.notes || '';
   updateInspectorTime();
+  updateProgressionChain(ex);
+}
+
+function updateProgressionChain(exercise) {
+  var container = document.getElementById('insp-progression');
+  if (!container) return;
+  // Find same pattern, different stages
+  var siblings = EXERCISES.filter(function(e) {
+    return e.pattern === exercise.pattern && e.name !== exercise.name;
+  });
+  if (siblings.length === 0) { container.style.display = 'none'; return; }
+  container.style.display = '';
+  var all = [exercise].concat(siblings).sort(function(a, b) { return a.stage - b.stage; });
+  var html = '<div style="font-size:7px;color:var(--micro);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">Progression</div>';
+  html += '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">';
+  all.forEach(function(e, i) {
+    var isCurrent = (e.id === exercise.id);
+    var fm = FAMILY_MAP[e.family] || {color:'#666'};
+    html += '<div style="font-size:8px;padding:2px 6px;border-radius:3px;cursor:'+(isCurrent?'default':'pointer')+';' +
+      'background:'+(isCurrent ? fm.color+'33' : 'rgba(255,255,255,0.03)')+';' +
+      'color:'+(isCurrent ? fm.color : 'var(--muted)')+';' +
+      'border:1px solid '+(isCurrent ? fm.color+'44' : 'var(--border)')+';' +
+      'font-weight:'+(isCurrent ? '600' : '400')+'"' +
+      (isCurrent ? '' : ' onclick="swapClipExercise(\''+e.id+'\')"') +
+      ' data-tip="'+e.name+' (S'+e.stage+')">' +
+      'S' + e.stage + '</div>';
+    if (i < all.length - 1) html += '<span style="font-size:7px;color:var(--micro)">&rarr;</span>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function swapClipExercise(newExId) {
+  if (!selectedClip) return;
+  var ex = getExercise(newExId);
+  if (!ex) return;
+  pushUndo();
+  selectedClip.dataset.exerciseId = ex.id;
+  var label = selectedClip.querySelector('.clip-name');
+  if (label) label.textContent = ex.name;
+  var fm = FAMILY_MAP[ex.family] || {color:'#666'};
+  selectedClip.style.borderTopColor = fm.color;
+  // Update background unless custom color
+  if (!selectedClip.dataset.customColor) {
+    var rpeVal = parseInt(selectedClip.dataset.rpe || '7');
+    var stageBase = ex.stage === 1 ? 170 : ex.stage === 2 ? 200 : 230;
+    var rpeBoost = Math.round((rpeVal / 10) * 25);
+    var alphaTop = Math.min(255, stageBase + rpeBoost).toString(16).padStart(2, '0');
+    var alphaBot = Math.min(255, 130 + rpeBoost).toString(16).padStart(2, '0');
+    selectedClip.style.background = 'linear-gradient(180deg, ' + fm.color + alphaTop + ' 0%, ' + fm.color + alphaBot + ' 100%)';
+  }
+  // Update stage dots
+  var dotsEl = selectedClip.querySelector('.clip-stage-dots');
+  if (dotsEl) {
+    var dots = dotsEl.querySelectorAll('.clip-stage-dot');
+    dots.forEach(function(d, i) { d.classList.toggle('filled', i < ex.stage); });
+  }
+  // Re-draw waveform
+  var canvas = selectedClip.querySelector('.clip-waveform');
+  if (canvas) {
+    var waveOpacity = ex.stage === 1 ? 0.35 : ex.stage === 2 ? 0.5 : 0.65;
+    drawClipWaveform(canvas, fm.color, selectedClip.style.width, waveOpacity);
+  }
+  // Update velocity strip
+  updateClipVisuals(selectedClip, parseInt(selectedClip.dataset.rpe) || 7);
+  // Re-populate inspector
+  selectClipEl(selectedClip);
+  saveSession();
+  sfx('click');
+  toast('Swapped to ' + ex.name + ' (S' + ex.stage + ')');
 }
 
 function updateInspectorTime() {
