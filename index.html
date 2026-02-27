@@ -1784,6 +1784,134 @@ button:focus-visible, .transport-btn:focus-visible {
   border-radius: var(--radius-sm);
 }
 
+/* ===== WORKOUT SUMMARY PANEL — Craft/Endel minimalism ===== */
+.summary-overlay {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(2,4,8,0.85);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  overflow-y: auto; overflow-x: hidden;
+  animation: summaryIn 0.2s ease-out;
+}
+.summary-overlay.open { display: block; }
+@keyframes summaryIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.summary-inner {
+  max-width: 600px; margin: 0 auto;
+  padding: 48px 32px 80px;
+}
+.summary-close {
+  position: fixed; top: 16px; right: 20px;
+  font-size: 9px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.15em;
+  cursor: pointer; padding: 8px 16px;
+  transition: color 0.15s;
+  z-index: 301;
+}
+.summary-close:hover { color: var(--text); }
+.summary-header {
+  margin-bottom: 40px;
+}
+.summary-title {
+  font-size: 22px; font-weight: 300; letter-spacing: 0.06em;
+  color: var(--text); margin-bottom: 4px;
+}
+.summary-subtitle {
+  font-size: 9px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.2em;
+}
+.summary-meta {
+  display: flex; gap: 24px; margin-top: 20px;
+  font-size: 10px; color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.summary-meta-val {
+  font-weight: 600; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.summary-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  margin: 32px 0;
+}
+.summary-group-label {
+  font-size: 8px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.2em;
+  margin-bottom: 20px;
+}
+.summary-exercise {
+  display: flex; gap: 16px; align-items: flex-start;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.summary-exercise:last-child { border-bottom: none; }
+.summary-ex-index {
+  font-size: 11px; font-weight: 300;
+  color: var(--micro); min-width: 28px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px; letter-spacing: 0.04em;
+}
+.summary-ex-body { flex: 1; }
+.summary-ex-name {
+  font-size: 14px; font-weight: 500;
+  color: var(--text); letter-spacing: 0.02em;
+  margin-bottom: 8px; line-height: 1.2;
+}
+.summary-ex-params {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.summary-ex-param {
+  display: flex; align-items: baseline; gap: 4px;
+}
+.summary-param-val {
+  font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.summary-param-label {
+  font-size: 8px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.summary-ex-prog {
+  margin-top: 10px;
+  font-size: 8px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.15em;
+  cursor: pointer; transition: color 0.15s;
+}
+.summary-ex-prog:hover { color: var(--muted); }
+.summary-footer {
+  text-align: center; margin-top: 48px;
+  font-size: 8px; color: rgba(255,255,255,0.15);
+  text-transform: uppercase; letter-spacing: 0.2em;
+}
+.summary-stats {
+  display: flex; gap: 32px; justify-content: center;
+  margin-top: 24px;
+}
+.summary-stat {
+  text-align: center;
+}
+.summary-stat-val {
+  font-size: 28px; font-weight: 200;
+  background: linear-gradient(135deg, #06b6d4, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.summary-stat-label {
+  font-size: 7px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.2em;
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  .summary-inner { padding: 32px 20px 60px; }
+  .summary-title { font-size: 18px; }
+  .summary-ex-params { gap: 12px; }
+  .summary-stats { gap: 20px; }
+  .summary-stat-val { font-size: 22px; }
+}
+
 /* ===== CONTEXT MENU — Endel/Craft Right-Click ===== */
 .clip-context-menu {
   position: fixed; z-index: 250;
@@ -1976,6 +2104,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <button class="nav-btn" onclick="saveNamedWorkout()">SAVE</button>
       <button class="nav-btn" onclick="showSavedWorkouts()">LOAD</button>
       <button class="nav-btn" onclick="exportWorkout()">EXPORT</button>
+      <button class="nav-btn" onclick="showSummary()">SUMMARY</button>
       <div class="nav-sep"></div>
       <button class="nav-btn" id="btn-snap" onclick="toggleSnap()">SNAP</button>
       <button class="nav-btn" id="btn-video" onclick="toggleVideo()">VID</button>
@@ -2348,6 +2477,12 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
 </div>
 
 <div class="selection-badge" id="selection-badge"></div>
+
+<!-- WORKOUT SUMMARY OVERLAY -->
+<div class="summary-overlay" id="summary-overlay">
+  <div class="summary-close" onclick="closeSummary()">ESC / CLOSE</div>
+  <div class="summary-inner" id="summary-content"></div>
+</div>
 
 <div class="saved-modal" id="saved-modal">
   <div class="saved-modal-content">
@@ -4603,45 +4738,192 @@ function printWorkout() {
   var totalClips = clips.length;
   var totalSets = 0, totalReps = 0;
   clips.forEach(function(c) { totalSets += parseInt(c.dataset.sets) || 3; totalReps += (parseInt(c.dataset.sets) || 3) * (parseInt(c.dataset.reps) || 8); });
+  var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var letterIdx = 0;
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Workout - Saturno Movement Studio</title>';
-  html += '<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">';
-  html += '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Sora,sans-serif;padding:32px;max-width:700px;margin:0 auto;background:#050711;color:#e2e8f0}';
-  html += 'h1{font-size:20px;font-weight:700;letter-spacing:0.05em;margin-bottom:2px}';
-  html += '.subtitle{font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:16px}';
-  html += '.stats{display:flex;gap:16px;margin-bottom:20px;padding:12px;background:#0a0e1a;border:1px solid #1e293b;border-radius:4px}';
-  html += '.stat{text-align:center;flex:1}.stat-val{font-size:20px;font-weight:700;background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.stat-label{font-size:7px;color:#64748b;text-transform:uppercase;letter-spacing:0.2em;margin-top:2px}';
-  html += 'h2{font-size:11px;font-weight:600;margin-top:20px;margin-bottom:8px;padding:6px 10px;background:#0a0e1a;border-left:3px solid;text-transform:uppercase;letter-spacing:0.1em;border-radius:2px}';
-  html += '.meta{font-size:10px;color:#64748b;margin-bottom:16px;display:flex;gap:12px}';
-  html += 'table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px}';
-  html += 'th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #1e293b}th{background:#0d1117;font-weight:600;font-size:8px;text-transform:uppercase;letter-spacing:0.1em;color:#64748b}';
-  html += 'td{color:#8b94a5}td:nth-child(2){color:#e2e8f0;font-weight:500}';
-  html += '.footer{margin-top:32px;font-size:8px;color:#475569;text-align:center;border-top:1px solid #1e293b;padding-top:12px;text-transform:uppercase;letter-spacing:0.15em}';
-  html += '@media print{body{padding:16px;background:#fff;color:#111}h2{background:#f0f0f0;border-left-width:3px}th{background:#f8f8f8;color:#333}td{color:#555}td:nth-child(2){color:#111}.stat-val{background:none;-webkit-text-fill-color:#111;color:#111}.stats{background:#f8f8f8;border-color:#ddd}.footer{color:#999;border-top-color:#ddd}}</style></head><body>';
-  html += '<h1>' + (workoutName && workoutName !== 'Untitled' ? workoutName.toUpperCase() : 'SATURNO MOVEMENT STUDIO') + '</h1>';
+  html += '<link href="https://fonts.googleapis.com/css2?family=Sora:wght@200;300;400;500;600&display=swap" rel="stylesheet">';
+  html += '<style>*{margin:0;padding:0;box-sizing:border-box}';
+  html += 'body{font-family:Sora,sans-serif;padding:48px 32px 80px;max-width:600px;margin:0 auto;background:#050711;color:#e2e8f0}';
+  html += 'h1{font-size:22px;font-weight:300;letter-spacing:0.06em;margin-bottom:4px}';
+  html += '.subtitle{font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:0.2em;margin-bottom:20px}';
+  html += '.meta{font-size:10px;color:#64748b;display:flex;gap:24px;margin-bottom:32px;letter-spacing:0.04em}';
+  html += '.meta b{font-weight:500;color:#94a3b8}';
+  html += '.stats{display:flex;gap:32px;justify-content:center;margin-bottom:32px}';
+  html += '.stat{text-align:center}';
+  html += '.stat-val{font-size:28px;font-weight:200;background:linear-gradient(135deg,#06b6d4,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1}';
+  html += '.stat-label{font-size:7px;color:#475569;text-transform:uppercase;letter-spacing:0.2em;margin-top:4px}';
+  html += '.divider{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);margin:32px 0}';
+  html += '.group-label{font-size:8px;color:#475569;text-transform:uppercase;letter-spacing:0.2em;margin-bottom:20px}';
+  html += '.exercise{display:flex;gap:16px;align-items:flex-start;padding:16px 0;border-bottom:1px solid rgba(255,255,255,0.03)}';
+  html += '.exercise:last-child{border-bottom:none}';
+  html += '.ex-idx{font-size:11px;font-weight:300;color:#475569;min-width:28px;letter-spacing:0.04em;padding-top:1px}';
+  html += '.ex-body{flex:1}';
+  html += '.ex-name{font-size:14px;font-weight:500;color:#e2e8f0;letter-spacing:0.02em;margin-bottom:8px;line-height:1.2}';
+  html += '.ex-params{display:flex;flex-wrap:wrap;gap:16px;font-size:11px;color:#64748b}';
+  html += '.param{display:flex;align-items:baseline;gap:4px}';
+  html += '.param-val{font-weight:500}';
+  html += '.param-label{font-size:8px;color:#475569;text-transform:uppercase;letter-spacing:0.08em}';
+  html += '.footer{text-align:center;margin-top:48px;font-size:8px;color:rgba(255,255,255,0.12);text-transform:uppercase;letter-spacing:0.2em}';
+  html += '@media print{body{padding:24px;background:#fff;color:#111}';
+  html += '.stat-val{background:none;-webkit-text-fill-color:#111;color:#111}';
+  html += '.ex-name{color:#111}.ex-params{color:#555}.param-label{color:#888}';
+  html += '.group-label{color:#888}.ex-idx{color:#888}.meta{color:#888}.meta b{color:#555}';
+  html += '.divider{background:#e0e0e0}.exercise{border-bottom-color:#eee}';
+  html += '.subtitle{color:#888}.footer{color:#ccc}}';
+  html += '</style></head><body>';
+  html += '<h1>' + (workoutName && workoutName !== 'Untitled' ? workoutName : 'Saturno Movement Studio') + '</h1>';
   html += '<div class="subtitle">' + (workoutName && workoutName !== 'Untitled' ? 'Saturno Movement Studio' : 'The Ableton of Movement') + '</div>';
-  html += '<div class="meta"><span>' + bpm + ' BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString() + '</span></div>';
+  html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span></div>';
   html += '<div class="stats"><div class="stat"><div class="stat-val">' + totalClips + '</div><div class="stat-label">Exercises</div></div>';
-  html += '<div class="stat"><div class="stat-val">' + totalSets + '</div><div class="stat-label">Sets</div></div>';
-  html += '<div class="stat"><div class="stat-val">' + totalReps + '</div><div class="stat-label">Reps</div></div></div>';
+  html += '<div class="stat"><div class="stat-val">' + totalSets + '</div><div class="stat-label">Total Sets</div></div>';
+  html += '<div class="stat"><div class="stat-val">' + totalReps + '</div><div class="stat-label">Total Reps</div></div></div>';
   var trackNames = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
   var trackColors = {push:'#3b82f6',pull:'#8b5cf6',core:'#f97316',legs:'#22c55e',skills:'#06b6d4'};
-  Object.keys(groups).forEach(function(trackId) {
+  var trackOrder = ['push','pull','legs','core','skills'];
+  trackOrder.forEach(function(trackId) {
+    if (!groups[trackId] || groups[trackId].length === 0) return;
     var exercises = groups[trackId];
     exercises.sort(function(a,b) { return a.startTime - b.startTime; });
-    html += '<h2 style="border-left-color:' + (trackColors[trackId] || '#3b82f6') + ';color:' + (trackColors[trackId] || '#e2e8f0') + '">' + (trackNames[trackId] || trackId) + '</h2>';
-    html += '<table><tr><th>#</th><th>Exercise</th><th>Sets</th><th>Reps</th><th>Tempo</th><th>Rest</th><th>RPE</th><th>Notes</th></tr>';
+    var letter = letters[letterIdx] || 'Z';
+    letterIdx++;
+    html += '<div class="divider"></div>';
+    html += '<div class="group-label" style="color:' + (trackColors[trackId] || '#64748b') + '">' + (trackNames[trackId] || trackId) + '</div>';
     exercises.forEach(function(ex, i) {
-      html += '<tr><td>'+(i+1)+'</td><td>'+ex.name+'</td><td>'+ex.sets+'</td><td>'+ex.reps+'</td><td>'+ex.tempo+'s</td><td>'+ex.rest+'s</td><td>'+ex.rpe+'</td><td></td></tr>';
+      var idx = letter + (i + 1);
+      html += '<div class="exercise">';
+      html += '<div class="ex-idx" style="color:' + (trackColors[trackId] || '#64748b') + '">' + idx + '</div>';
+      html += '<div class="ex-body">';
+      html += '<div class="ex-name">' + ex.name + '</div>';
+      html += '<div class="ex-params">';
+      html += '<div class="param"><span class="param-val" style="color:#eab308">' + ex.reps + '</span> <span class="param-label">reps</span></div>';
+      html += '<div class="param"><span class="param-val" style="color:#3b82f6">' + ex.sets + '</span> <span class="param-label">sets</span></div>';
+      html += '<div class="param"><span class="param-val" style="color:#22c55e">' + ex.rest + 's</span> <span class="param-label">rest</span></div>';
+      html += '<div class="param"><span class="param-val" style="color:#8b5cf6">' + ex.tempo + 's</span> <span class="param-label">tempo</span></div>';
+      html += '</div></div></div>';
     });
-    html += '</table>';
   });
-  html += '<div class="footer">Generated by Saturno Movement Studio / saturnomovement.com</div>';
+  html += '<div class="footer">Generated by Saturno Movement Studio</div>';
   html += '</body></html>';
   var win = window.open('', '_blank');
   win.document.write(html);
   win.document.close();
   win.print();
 }
+
+/* ===== WORKOUT SUMMARY ===== */
+function showSummary() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add exercises to view summary'); return; }
+
+  // Group clips by track, sorted by position
+  var groups = {};
+  clips.forEach(function(c) {
+    var trackId = c.parentElement.dataset.track;
+    if (!groups[trackId]) groups[trackId] = [];
+    var ex = getExercise(c.dataset.exerciseId);
+    groups[trackId].push({
+      name: ex ? ex.name : c.querySelector('.clip-name') ? c.querySelector('.clip-name').textContent : 'Exercise',
+      pattern: ex ? ex.pattern : '',
+      family: ex ? ex.family : '',
+      discipline: ex ? ex.discipline : '',
+      stage: ex ? ex.stage : 1,
+      sets: c.dataset.sets || '3',
+      reps: c.dataset.reps || '8',
+      tempo: c.dataset.tempo || '3',
+      rest: c.dataset.rest || '60',
+      rpe: c.dataset.rpe || '7',
+      left: parseInt(c.style.left) || 0
+    });
+  });
+
+  // Totals
+  var totalEx = clips.length;
+  var totalSets = 0;
+  var totalReps = 0;
+  clips.forEach(function(c) {
+    var s = parseInt(c.dataset.sets) || 3;
+    var r = parseInt(c.dataset.reps) || 8;
+    totalSets += s;
+    totalReps += s * r;
+  });
+
+  var mode = document.getElementById('bpm-mode').textContent;
+  var name = workoutName && workoutName !== 'Untitled' ? workoutName : 'Workout';
+  var trackNames = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
+  var trackColors = {push:'#3b82f6',pull:'#8b5cf6',core:'#f97316',legs:'#22c55e',skills:'#06b6d4'};
+  var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var letterIdx = 0;
+
+  var html = '';
+  html += '<div class="summary-header">';
+  html += '<div class="summary-title">' + name + '</div>';
+  html += '<div class="summary-subtitle">Saturno Movement Studio</div>';
+  html += '<div class="summary-meta">';
+  html += '<span><span class="summary-meta-val">' + bpm + '</span> BPM</span>';
+  html += '<span>' + mode + '</span>';
+  html += '<span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span>';
+  html += '</div>';
+  html += '</div>';
+
+  html += '<div class="summary-stats">';
+  html += '<div class="summary-stat"><div class="summary-stat-val">' + totalEx + '</div><div class="summary-stat-label">Exercises</div></div>';
+  html += '<div class="summary-stat"><div class="summary-stat-val">' + totalSets + '</div><div class="summary-stat-label">Total Sets</div></div>';
+  html += '<div class="summary-stat"><div class="summary-stat-val">' + totalReps + '</div><div class="summary-stat-label">Total Reps</div></div>';
+  html += '</div>';
+
+  var trackOrder = ['push','pull','legs','core','skills'];
+  trackOrder.forEach(function(trackId) {
+    if (!groups[trackId] || groups[trackId].length === 0) return;
+    var exercises = groups[trackId];
+    exercises.sort(function(a,b) { return a.left - b.left; });
+    var letter = letters[letterIdx] || 'Z';
+    letterIdx++;
+
+    html += '<div class="summary-divider"></div>';
+    html += '<div class="summary-group-label" style="color:' + (trackColors[trackId] || '#64748b') + '">' + (trackNames[trackId] || trackId) + '</div>';
+
+    exercises.forEach(function(ex, i) {
+      var idx = letter + (i + 1);
+      var tempoStr = ex.tempo + 's';
+      var restMin = parseInt(ex.rest);
+      var restStr = restMin >= 60 ? Math.floor(restMin / 60) + '-' + Math.ceil(restMin / 60 + 0.5) + ' min' : restMin + 's';
+
+      html += '<div class="summary-exercise">';
+      html += '<div class="summary-ex-index" style="color:' + (trackColors[trackId] || '#64748b') + '">' + idx + '</div>';
+      html += '<div class="summary-ex-body">';
+      html += '<div class="summary-ex-name">' + ex.name;
+      if (ex.discipline && ex.discipline !== 'Calisthenics') html += ' <span style="font-size:10px;color:var(--micro);font-weight:300">(' + ex.discipline + ')</span>';
+      html += '</div>';
+      html += '<div class="summary-ex-params">';
+      html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#eab308">' + ex.reps + '</span> <span class="summary-param-label">reps</span></div>';
+      html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#3b82f6">' + ex.sets + '</span> <span class="summary-param-label">sets</span></div>';
+      html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#22c55e">' + restStr + '</span> <span class="summary-param-label">rest</span></div>';
+      html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#8b5cf6">' + tempoStr + '</span> <span class="summary-param-label">tempo</span></div>';
+      html += '</div>';
+      html += '<div class="summary-ex-prog">Progressions &amp; Alternatives</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+  });
+
+  html += '<div class="summary-footer">Generated by Saturno Movement Studio</div>';
+
+  document.getElementById('summary-content').innerHTML = html;
+  document.getElementById('summary-overlay').classList.add('open');
+  sfx('open');
+}
+
+function closeSummary() {
+  document.getElementById('summary-overlay').classList.remove('open');
+}
+
+// ESC to close summary
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('summary-overlay').classList.contains('open')) {
+    closeSummary();
+    e.stopPropagation();
+  }
+});
 
 /* ===== TOAST ===== */
 function toast(msg) {
@@ -5298,6 +5580,7 @@ var CMD_ACTIONS = [
   {label:'Export JSON', key:'', icon:'\u21A6', action: function() { exportWorkout(); }},
   {label:'Import Workout', key:'', icon:'\u21A4', action: function() { importWorkout(); }},
   {label:'Print Sheet', key:'', icon:'\u2399', action: function() { printWorkout(); }},
+  {label:'Workout Summary', key:'', icon:'\u2261', action: function() { showSummary(); }},
   {label:'Generate Random', key:'G', icon:'\u2684', action: function() { generateRandom(); }},
   {label:'Rename Workout', key:'', icon:'\u270E', action: function() { renameWorkout(); }},
   {label:'Toggle Presets', key:'P', icon:'\u2630', action: function() { togglePresets(); }},
