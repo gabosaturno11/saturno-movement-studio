@@ -1291,8 +1291,8 @@ input[type="number"]:hover::-webkit-outer-spin-button {
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .snap-badge.active {
-  color: var(--accent-cyan); background: rgba(6,182,212,0.1);
-  border-color: rgba(6,182,212,0.2);
+  color: var(--accent-cyan); background: transparent;
+  border-color: transparent;
 }
 
 /* Focus visible for keyboard accessibility */
@@ -1753,17 +1753,17 @@ button:focus-visible, .transport-btn:focus-visible {
 }
 .preset-card {
   flex: 1; min-width: 140px; max-width: 200px;
-  padding: 10px;
-  background: rgba(3,5,9,0.5); border: 1px solid var(--glass-border);
+  padding: 10px 12px;
+  background: transparent; border: none;
+  border-left: 1px solid rgba(255,255,255,0.04);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.15s;
-  border-radius: var(--radius-md);
+  transition: border-color 0.15s, background 0.15s;
+  border-radius: 0;
 }
+.preset-card:first-child { border-left: none; }
 .preset-card:hover {
-  border-color: rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.03);
-  box-shadow: var(--shadow-soft);
-  transform: translateY(-1px);
+  border-left-color: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
 }
 .preset-card .pc-name {
   font-size: 11px; font-weight: 600; margin-bottom: 2px;
@@ -1777,10 +1777,9 @@ button:focus-visible, .transport-btn:focus-visible {
   line-height: 1.4;
 }
 .preset-card .pc-mode {
-  font-size: 7px; padding: 2px 8px;
+  font-size: 7px; padding: 0;
   display: inline-block; margin-top: 6px;
   text-transform: uppercase; letter-spacing: 0.08em;
-  border-radius: var(--radius-sm);
 }
 
 /* ===== WORKOUT SUMMARY PANEL — Craft/Endel minimalism ===== */
