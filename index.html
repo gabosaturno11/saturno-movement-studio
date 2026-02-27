@@ -2399,6 +2399,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <button class="transport-btn" onclick="zoomToFit()" data-tip="Zoom to fit" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FIT</button>
           <div class="transport-sep"></div>
           <button class="transport-btn" id="auto-scroll-btn" onclick="toggleAutoScrollFromTransport()" data-tip="Auto-scroll" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FOLLOW</button>
+          <div class="transport-sep"></div>
+          <button class="transport-btn" id="speed-btn" onclick="cyclePlaybackSpeed()" data-tip="Playback speed" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em;font-variant-numeric:tabular-nums">1.0x</button>
         </div>
       </div>
 
@@ -3203,7 +3205,7 @@ var PRESETS = {
 
 /* ===== STATE ===== */
 var isPlaying = false, currentTime = 0, bpm = 120, playInterval = null;
-var isRecording = false, tempoLinked = false;
+var isRecording = false, tempoLinked = false, playbackSpeed = 1;
 var selectedClip = null, musicPlaying = false, musicIndex = 0;
 var audioEl = null;
 var meterInterval = null;
@@ -4445,7 +4447,7 @@ function rewind() { currentTime = Math.max(0, currentTime - 15); updateTimeDispl
 function forward() { currentTime += 15; updateTimeDisplay(); updatePlayheadPosition(); }
 
 function updatePlayhead() {
-  currentTime += 0.05;
+  currentTime += 0.05 * playbackSpeed;
   // Loop boundary check
   if (loopEnabled && currentTime >= loopEnd) {
     currentTime = loopStart;
@@ -4643,6 +4645,9 @@ function updateBPMMode() {
   el.style.background = 'rgba(' + mc[0] + ',0.08)';
   el.style.borderColor = 'rgba(' + mc[0] + ',0.15)';
   el.style.color = mc[1];
+  // Subtle ambient tint on timeline based on mode
+  var timeline = document.getElementById('timeline-tracks');
+  if (timeline) timeline.style.boxShadow = 'inset 0 0 80px rgba(' + mc[0] + ',0.015)';
 }
 
 function toggleTempoLink() {
@@ -7616,6 +7621,17 @@ function toggleMixerSection(btn) {
 }
 
 /* Auto-scroll toggle — unified: syncs FOLLOW button + settings panel */
+var SPEED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+function cyclePlaybackSpeed() {
+  var idx = SPEED_STEPS.indexOf(playbackSpeed);
+  idx = (idx + 1) % SPEED_STEPS.length;
+  playbackSpeed = SPEED_STEPS[idx];
+  var btn = document.getElementById('speed-btn');
+  if (btn) btn.textContent = playbackSpeed + 'x';
+  if (btn) btn.classList.toggle('active', playbackSpeed !== 1);
+  toast('Speed: ' + playbackSpeed + 'x');
+}
+
 function toggleAutoScrollFromTransport() {
   autoScrollEnabled = !autoScrollEnabled;
   syncAutoScrollUI();
