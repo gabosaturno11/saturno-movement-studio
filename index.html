@@ -386,7 +386,10 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
   <footer class="footer">
     <div class="status-item"><div class="status-dot"></div><span id="status-text">Ready</span></div>
     <div><span>Clips: <span id="clip-count">0</span></span> <span style="margin-left:12px">Duration: <span id="total-duration">0:00</span></span></div>
-    <div class="footer-quote">"Design Your Workout. Design Your Life."</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="footer-quote">"Design Your Workout. Design Your Life."</div>
+      <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:8px;color:var(--accent-cyan);text-decoration:none;padding:3px 8px;border:1px solid var(--border)">Back to Vault</a>
+    </div>
   </footer>
 </div>
 
@@ -803,24 +806,24 @@ function getExercise(id) {
 }
 
 /* ===== CLIPS ===== */
-function addClip(track, exercise, x) {
-  var clip = document.createElement('div');
+function createClipElement(exercise, left, width, dna) {
   var fm = FAMILY_MAP[exercise.family] || {color:'#666'};
+  var clip = document.createElement('div');
   clip.className = 'clip';
   clip.style.background = fm.color;
-  clip.style.left = Math.max(0, x) + 'px';
-  clip.style.width = '80px';
+  clip.style.left = (typeof left === 'string' ? left : Math.max(0, left) + 'px');
+  clip.style.width = (typeof width === 'string' ? width : (width || 80) + 'px');
   clip.textContent = exercise.name;
   clip.dataset.exerciseId = exercise.id;
-  clip.dataset.sets = '3';
-  clip.dataset.reps = '8';
-  clip.dataset.tempo = '3';
-  clip.dataset.rest = '60';
-  clip.dataset.rpe = '7';
+  clip.dataset.sets = (dna && dna.sets) || '3';
+  clip.dataset.reps = (dna && dna.reps) || '8';
+  clip.dataset.tempo = (dna && dna.tempo) || '3';
+  clip.dataset.rest = (dna && dna.rest) || '60';
+  clip.dataset.rpe = (dna && dna.rpe) || '7';
 
   var info = document.createElement('span');
   info.className = 'clip-info';
-  info.textContent = '3x8';
+  info.textContent = clip.dataset.sets + 'x' + clip.dataset.reps;
   clip.appendChild(info);
 
   var resize = document.createElement('div');
@@ -829,7 +832,7 @@ function addClip(track, exercise, x) {
 
   // Drag clip
   clip.addEventListener('mousedown', function(e) {
-    if (e.target === resize) return;
+    if (e.target === resize || e.target.classList.contains('clip-resize')) return;
     e.preventDefault();
     selectClipEl(clip);
     var startX = e.clientX, startLeft = parseInt(clip.style.left);
@@ -846,7 +849,6 @@ function addClip(track, exercise, x) {
     function onMove(e) {
       var newW = Math.max(40, startW + e.clientX - startX);
       clip.style.width = newW + 'px';
-      // Show duration based on clip width (80px = 15 seconds)
       var durSec = Math.round(newW / 80 * 15);
       var durM = Math.floor(durSec / 60);
       var durS = durSec % 60;
@@ -863,11 +865,15 @@ function addClip(track, exercise, x) {
   clip.addEventListener('dblclick', function() {
     clip.remove();
     if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
-    updateStats();
-    saveSession();
+    updateStats(); saveSession();
     toast('Clip removed');
   });
 
+  return clip;
+}
+
+function addClip(track, exercise, x) {
+  var clip = createClipElement(exercise, x, 80);
   track.appendChild(clip);
   selectClipEl(clip);
   updateStats();
@@ -1280,50 +1286,7 @@ function loadPreset(id) {
       if (EXERCISES[i].name === c.name) { ex = EXERCISES[i]; break; }
     }
     if (!ex) return;
-    var clip = document.createElement('div');
-    var fm = FAMILY_MAP[ex.family] || {color:'#666'};
-    clip.className = 'clip';
-    clip.style.background = fm.color;
-    clip.style.left = c.x + 'px';
-    clip.style.width = (c.w || 80) + 'px';
-    clip.textContent = ex.name;
-    clip.dataset.exerciseId = ex.id;
-    clip.dataset.sets = '3';
-    clip.dataset.reps = '8';
-    clip.dataset.tempo = '3';
-    clip.dataset.rest = '60';
-    clip.dataset.rpe = '7';
-    var info = document.createElement('span');
-    info.className = 'clip-info';
-    info.textContent = '3x8';
-    clip.appendChild(info);
-    var resize = document.createElement('div');
-    resize.className = 'clip-resize';
-    clip.appendChild(resize);
-    clip.addEventListener('mousedown', function(e) {
-      if (e.target.classList.contains('clip-resize')) return;
-      e.preventDefault();
-      selectClipEl(clip);
-      var startX = e.clientX, startLeft = parseInt(clip.style.left);
-      function onMove(e) { clip.style.left = Math.max(0, startLeft + e.clientX - startX) + 'px'; }
-      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-    resize.addEventListener('mousedown', function(e) {
-      e.stopPropagation();
-      var startX = e.clientX, startW = parseInt(clip.style.width);
-      function onMove(e) { clip.style.width = Math.max(40, startW + e.clientX - startX) + 'px'; }
-      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-    clip.addEventListener('dblclick', function() {
-      clip.remove();
-      if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
-      updateStats();
-      saveSession();
-    });
+    var clip = createClipElement(ex, c.x, c.w || 80);
     track.appendChild(clip);
   });
   // Set faders
@@ -1389,48 +1352,8 @@ function loadSession() {
         var track = document.querySelector('.track-content[data-track="'+c.track+'"]');
         var ex = getExercise(c.exerciseId);
         if (!track || !ex) return;
-        var fm = FAMILY_MAP[ex.family] || {color:'#666'};
-        var clip = document.createElement('div');
-        clip.className = 'clip';
-        clip.style.background = fm.color;
-        clip.style.left = c.left;
-        clip.style.width = c.width;
-        clip.textContent = ex.name;
-        clip.dataset.exerciseId = c.exerciseId;
-        clip.dataset.sets = c.sets || '3';
-        clip.dataset.reps = c.reps || '8';
-        clip.dataset.tempo = c.tempo || '3';
-        clip.dataset.rest = c.rest || '60';
-        clip.dataset.rpe = c.rpe || '7';
-        var info = document.createElement('span');
-        info.className = 'clip-info';
-        info.textContent = (c.sets||3)+'x'+(c.reps||8);
-        clip.appendChild(info);
-        var resize = document.createElement('div');
-        resize.className = 'clip-resize';
-        clip.appendChild(resize);
-        clip.addEventListener('mousedown', function(e) {
-          if (e.target.classList.contains('clip-resize')) return;
-          e.preventDefault();
-          selectClipEl(clip);
-          var startX = e.clientX, startLeft = parseInt(clip.style.left);
-          function onMove(e) { clip.style.left = Math.max(0, startLeft + e.clientX - startX) + 'px'; }
-          function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
-        });
-        resize.addEventListener('mousedown', function(e) {
-          e.stopPropagation();
-          var startX = e.clientX, startW = parseInt(clip.style.width);
-          function onMove(e) { clip.style.width = Math.max(40, startW + e.clientX - startX) + 'px'; }
-          function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
-        });
-        clip.addEventListener('dblclick', function() {
-          clip.remove();
-          if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
-          updateStats(); saveSession();
+        var clip = createClipElement(ex, c.left, c.width, {
+          sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
         });
         track.appendChild(clip);
       });
