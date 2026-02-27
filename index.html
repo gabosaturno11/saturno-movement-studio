@@ -7303,6 +7303,13 @@ var CMD_ACTIONS = [
   {label:'Set All Rest 60s', key:'', icon:'\u23F1', action: function() { setAllRest(60); }},
   {label:'Set All Rest 90s', key:'', icon:'\u23F1', action: function() { setAllRest(90); }},
   {label:'Set All Rest 120s', key:'', icon:'\u23F1', action: function() { setAllRest(120); }},
+  {label:'Set All Tempo 2s', key:'', icon:'\u23F1', action: function() { setAllTempo(2); }},
+  {label:'Set All Tempo 3s', key:'', icon:'\u23F1', action: function() { setAllTempo(3); }},
+  {label:'Set All Tempo 4s', key:'', icon:'\u23F1', action: function() { setAllTempo(4); }},
+  {label:'Set All Tempo 5s', key:'', icon:'\u23F1', action: function() { setAllTempo(5); }},
+  {label:'Complexity Score', key:'', icon:'\u2139', action: function() { showComplexityScore(); }},
+  {label:'Lock All Clips', key:'', icon:'\u2693', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip').forEach(function(cl){if(!cl.classList.contains('clip-locked')){cl.classList.add('clip-locked');cl.dataset.locked='1';c++;}}); saveSession(); toast(c+' clips locked'); }},
+  {label:'Unlock All Clips', key:'', icon:'\u2693', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip.clip-locked').forEach(function(cl){cl.classList.remove('clip-locked');cl.dataset.locked='';c++;}); saveSession(); toast(c+' clips unlocked'); }},
 ];
 
 function openCmdPalette() {
@@ -7909,6 +7916,48 @@ function setAllRest(seconds) {
   }
   saveSession(); updateStats();
   toast(count + ' clips rest set to ' + seconds + 's');
+}
+
+function showComplexityScore() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var patterns = {};
+  var families = {};
+  var stages = {};
+  var disciplines = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) {
+      patterns[ex.pattern] = true;
+      families[ex.family] = true;
+      stages[ex.stage] = true;
+      if (ex.discipline) disciplines[ex.discipline] = true;
+    }
+  });
+  var pCount = Object.keys(patterns).length;
+  var fCount = Object.keys(families).length;
+  var sCount = Object.keys(stages).length;
+  var dCount = Object.keys(disciplines).length;
+  var score = Math.min(100, Math.round((pCount * 8 + fCount * 15 + sCount * 10 + dCount * 12)));
+  toast('Complexity: ' + score + '/100 | ' + pCount + ' patterns, ' + fCount + ' families, ' + sCount + ' stages, ' + dCount + ' disciplines');
+}
+
+function setAllTempo(seconds) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    c.dataset.tempo = seconds;
+    count++;
+  });
+  if (selectedClip) {
+    document.getElementById('insp-tempo').value = seconds;
+    updateInspectorTime();
+  }
+  saveSession(); updateStats();
+  toast(count + ' clips tempo set to ' + seconds + 's');
 }
 
 function searchLibraryForInspected() {
