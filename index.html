@@ -8013,6 +8013,9 @@ var CMD_ACTIONS = [
   {label:'Log Session', key:'', icon:'\u2611', action: function() { logSessionHistory(); }},
   {label:'Session History', key:'', icon:'\u2611', action: function() { showSessionHistory(); }},
   {label:'Export PDF-Ready Worksheet', key:'', icon:'\u2399', action: function() { exportPDFReady(); }},
+  {label:'Workout Fingerprint', key:'', icon:'\u2318', action: function() { showWorkoutFingerprint(); }},
+  {label:'Auto Superset Pair', key:'', icon:'\u21cb', action: function() { autoSupersetPair(); }},
+  {label:'Volume Landmarks (MEV/MAV/MRV)', key:'', icon:'\u2261', action: function() { showVolumeLandmarks(); }},
 ];
 
 function openCmdPalette() {
@@ -18293,6 +18296,194 @@ function exportPDFReady() {
   a.click();
   URL.revokeObjectURL(url);
   showToast('PDF-ready HTML downloaded');
+}
+
+// Batch 391: Workout Fingerprint
+function showWorkoutFingerprint() {
+  var clips = document.querySelectorAll('.clip');
+  var data = [];
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    data.push({
+      f: c.dataset.family || '',
+      s: parseInt(c.dataset.sets) || 3,
+      r: parseInt(c.dataset.reps) || 10,
+      rpe: parseFloat(c.dataset.rpe) || 7
+    });
+  });
+  if (data.length === 0) { showToast('Add clips to generate fingerprint'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  // Generate visual fingerprint as SVG
+  var size = 200;
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa'};
+  var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '">';
+  svg += '<circle cx="100" cy="100" r="95" fill="none" stroke="rgba(34,211,238,0.1)" stroke-width="1"/>';
+  var cx = size / 2, cy = size / 2;
+  data.forEach(function(d, i) {
+    var angle = (i / data.length) * Math.PI * 2 - Math.PI / 2;
+    var radius = 20 + (d.rpe / 10) * 70;
+    var x = cx + Math.cos(angle) * radius;
+    var y = cy + Math.sin(angle) * radius;
+    var r = 3 + d.s;
+    var color = famColors[d.f] || '#22d3ee';
+    svg += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '" fill="' + color + '" opacity="0.7"/>';
+    // Connect to next
+    if (i < data.length - 1) {
+      var nextAngle = ((i+1) / data.length) * Math.PI * 2 - Math.PI / 2;
+      var nextR = 20 + (data[i+1].rpe / 10) * 70;
+      var nx = cx + Math.cos(nextAngle) * nextR;
+      var ny = cy + Math.sin(nextAngle) * nextR;
+      svg += '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) + '" stroke="rgba(34,211,238,0.15)" stroke-width="1"/>';
+    }
+  });
+  svg += '</svg>';
+  // Generate hash
+  var hash = '';
+  data.forEach(function(d) { hash += d.f.charAt(0) + d.s + d.r; });
+  var hashCode = 0;
+  for (var i = 0; i < hash.length; i++) {
+    hashCode = ((hashCode << 5) - hashCode) + hash.charCodeAt(i);
+    hashCode |= 0;
+  }
+  var hexHash = Math.abs(hashCode).toString(16).toUpperCase().padStart(8, '0');
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:32px;text-align:center;width:300px">';
+  html += '<div style="color:#e2e8f0;font-size:14px;font-weight:700;margin-bottom:16px">Workout Fingerprint</div>';
+  html += '<div style="display:flex;justify-content:center;margin-bottom:16px">' + svg + '</div>';
+  html += '<div style="color:#22d3ee;font-size:18px;font-family:monospace;letter-spacing:2px;margin-bottom:8px">#' + hexHash + '</div>';
+  html += '<div style="color:#64748b;font-size:11px">' + data.length + ' clips | ' + Object.keys(famColors).filter(function(f) { return data.some(function(d) { return d.f === f; }); }).length + ' families</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 392: Exercise Superset Auto-Pair
+function autoSupersetPair() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  clips = clips.filter(function(c) { return !c.closest('.track[data-family="music"]') && !c.classList.contains('clip-locked'); });
+  if (clips.length < 2) { showToast('Need 2+ clips to pair'); return; }
+  // Group by track position
+  clips.sort(function(a, b) { return (parseInt(a.style.left)||0) - (parseInt(b.style.left)||0); });
+  // Pairing rules: push+pull, legs+core, any antagonist
+  var pairRules = [
+    { a: 'Push', b: 'Pull' },
+    { a: 'Pull', b: 'Push' },
+    { a: 'Legs', b: 'Core' },
+    { a: 'Core', b: 'Legs' },
+    { a: 'Skills', b: 'Core' }
+  ];
+  var paired = [];
+  var used = {};
+  clips.forEach(function(c, i) {
+    if (used[i]) return;
+    var famA = c.dataset.family || '';
+    for (var j = i + 1; j < clips.length; j++) {
+      if (used[j]) continue;
+      var famB = clips[j].dataset.family || '';
+      var match = pairRules.some(function(r) { return r.a === famA && r.b === famB; });
+      if (match) {
+        paired.push({ a: c, b: clips[j] });
+        used[i] = true;
+        used[j] = true;
+        break;
+      }
+    }
+  });
+  if (paired.length === 0) { showToast('No antagonist pairs found (need Push+Pull or Legs+Core)'); return; }
+  captureUndo();
+  var supersetId = Date.now();
+  var colors = ['#a78bfa', '#22d3ee', '#fbbf24', '#4ade80', '#f87171'];
+  paired.forEach(function(pair, idx) {
+    var color = colors[idx % colors.length];
+    var label = String.fromCharCode(65 + idx) + '1';
+    [pair.a, pair.b].forEach(function(clip, ci) {
+      clip.dataset.superset = supersetId + '-' + idx;
+      // Position B clip to overlap with A clip
+      if (ci === 1) {
+        var aLeft = parseInt(pair.a.style.left) || 0;
+        var aWidth = parseInt(pair.a.style.width) || 120;
+        clip.style.left = aLeft + 'px';
+      }
+      // Add visual badge
+      var badge = clip.querySelector('.superset-badge');
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.className = 'superset-badge';
+        badge.style.cssText = 'position:absolute;top:-6px;left:50%;transform:translateX(-50%);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;color:#fff;z-index:2;background:' + color;
+        clip.appendChild(badge);
+        clip.style.position = 'absolute';
+      }
+      badge.textContent = String.fromCharCode(65 + idx) + (ci + 1);
+      badge.style.background = color;
+    });
+  });
+  showToast(paired.length + ' superset pairs created');
+}
+
+// Batch 393: Volume Landmark Indicators
+function showVolumeLandmarks() {
+  // MEV (Minimum Effective Volume), MAV (Maximum Adaptive Volume), MRV (Maximum Recoverable Volume)
+  var landmarks = {
+    Push: { MEV: 6, MAV: 14, MRV: 20 },
+    Pull: { MEV: 6, MAV: 16, MRV: 22 },
+    Core: { MEV: 4, MAV: 12, MRV: 18 },
+    Legs: { MEV: 6, MAV: 14, MRV: 20 },
+    Skills: { MEV: 4, MAV: 10, MRV: 14 }
+  };
+  var clips = document.querySelectorAll('.clip');
+  var familySets = {};
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    var fam = c.dataset.family || '';
+    var sets = parseInt(c.dataset.sets) || 3;
+    familySets[fam] = (familySets[fam] || 0) + sets;
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa'};
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Volume Landmarks</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Weekly sets per family vs. training volume guidelines</div>';
+  Object.keys(landmarks).forEach(function(fam) {
+    var lm = landmarks[fam];
+    var current = familySets[fam] || 0;
+    var maxBar = lm.MRV + 4;
+    var status = '';
+    var statusColor = '';
+    if (current === 0) { status = 'No volume'; statusColor = '#64748b'; }
+    else if (current < lm.MEV) { status = 'Below MEV'; statusColor = '#f87171'; }
+    else if (current <= lm.MAV) { status = 'Optimal'; statusColor = '#4ade80'; }
+    else if (current <= lm.MRV) { status = 'Near MRV'; statusColor = '#fbbf24'; }
+    else { status = 'Over MRV!'; statusColor = '#f87171'; }
+    html += '<div style="margin-bottom:14px">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+    html += '<span style="color:' + (famColors[fam]||'#22d3ee') + ';font-size:13px;font-weight:600">' + fam + '</span>';
+    html += '<span style="color:' + statusColor + ';font-size:11px;font-weight:600">' + current + ' sets — ' + status + '</span>';
+    html += '</div>';
+    // Bar with landmarks
+    html += '<div style="position:relative;height:20px;background:rgba(34,211,238,0.05);border-radius:4px;overflow:visible">';
+    // MEV marker
+    html += '<div style="position:absolute;left:' + (lm.MEV/maxBar*100) + '%;top:0;height:100%;width:1px;background:#f87171" title="MEV: ' + lm.MEV + '"></div>';
+    // MAV marker
+    html += '<div style="position:absolute;left:' + (lm.MAV/maxBar*100) + '%;top:0;height:100%;width:1px;background:#4ade80" title="MAV: ' + lm.MAV + '"></div>';
+    // MRV marker
+    html += '<div style="position:absolute;left:' + (lm.MRV/maxBar*100) + '%;top:0;height:100%;width:1px;background:#fbbf24" title="MRV: ' + lm.MRV + '"></div>';
+    // Current bar
+    var currentPct = Math.min(current / maxBar * 100, 100);
+    html += '<div style="height:100%;width:' + currentPct + '%;background:' + (famColors[fam]||'#22d3ee') + '40;border-radius:4px"></div>';
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-top:2px">';
+    html += '<span style="color:#f87171;font-size:9px">MEV ' + lm.MEV + '</span>';
+    html += '<span style="color:#4ade80;font-size:9px">MAV ' + lm.MAV + '</span>';
+    html += '<span style="color:#fbbf24;font-size:9px">MRV ' + lm.MRV + '</span>';
+    html += '</div></div>';
+  });
+  html += '<div style="color:#64748b;font-size:10px;margin-top:8px">MEV = Minimum Effective Volume | MAV = Maximum Adaptive Volume | MRV = Maximum Recoverable Volume (per week)</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
 }
 
 function selectClipsByStage(stage) {
