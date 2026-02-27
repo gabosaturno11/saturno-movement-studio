@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~1,400 lines). No build step. No framework.
+Single-file HTML app (index.html, ~6,400 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -50,7 +50,7 @@ saturno-movement-studio/
 - Music track in timeline with dropdown selector
 - BPM-to-playback-rate linking (120 BPM = 1.0x)
 
-## Design Constraints
+## Design Lock V3.0 — "Endel x Craft x Logic Pro"
 - Dark theme: cosmic blue palette (#050711 base)
 - Sora font (no JetBrains Mono, no Inter)
 - No transition:all (use specific properties)
@@ -58,6 +58,41 @@ saturno-movement-studio/
 - var/function (not const/let/arrow) for compatibility
 - localStorage wrapped in try-catch
 - prefers-reduced-motion supported
+- **UNBOXED**: No pill borders on display elements (tags, badges, nav buttons)
+- **Text hierarchy** over box styling: color + weight + size = visual structure
+- **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
+
+### Features (Batches 1-60)
+- Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
+- 58 exercises with drag-and-drop from library to timeline
+- Solo/Mute tracks, clip resize, clip drag, multi-select
+- Copy/paste/duplicate clips (Cmd+C/V/D)
+- Split clips at playhead (B key)
+- Undo/redo with 30-step history
+- 8 presets (Monk Mode to Full Body)
+- Random workout generator
+- BPM modes with music playback rate linking
+- Tap tempo
+- Knobs (Strength-Mobility, Power-Control, Static-Dynamic)
+- Faders (Intensity, Volume, Density, Rest)
+- VU meters per family
+- Right-click context menu with 15+ actions
+- **Workout Summary panel** (SUMMARY button): fullscreen overlay, A1/B1/C1 indexing, unboxed params, interactive progression chains
+- **Exercise notes**: Craft-style annotations per clip (textarea in inspector)
+- **Clip color picker**: 7 colors in context menu (Ableton-style)
+- Print worksheet: Craft-minimalist design (no tables)
+- Session save/load/auto-save
+- Save as named workout, load saved workouts
+- JSON export/import
+- Command palette (Cmd+K)
+- Keyboard shortcuts panel (?)
+- Video reference panel (VID)
+- Music player with 4 ASTRA tracks
+- Focus mode (F key)
+- Zoom (1-3)
+- Auto-scroll during playback
+- Footer stats (clips, duration, bars, session timer, family balance)
+- Header breadcrumb with workout name
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
