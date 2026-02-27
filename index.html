@@ -7398,6 +7398,10 @@ var CMD_ACTIONS = [
   {label:'Select Previous Clip', key:'K', icon:'\u25C0', action: function() { selectPrevClip(); }},
   {label:'Select Duplicate Exercises', key:'', icon:'\u25C9', action: function() { selectDuplicateExercises(); }},
   {label:'Repeat Last Command', key:'', icon:'\u21BB', action: function() { repeatLastCommand(); }},
+  {label:'Select First 30s', key:'', icon:'\u2610', action: function() { selectClipsInTimeRange(0, 30); }},
+  {label:'Select First 60s', key:'', icon:'\u2610', action: function() { selectClipsInTimeRange(0, 60); }},
+  {label:'Save as Template', key:'', icon:'\u2913', action: function() { saveWorkoutTemplate(); }},
+  {label:'Load Template', key:'', icon:'\u2912', action: function() { loadWorkoutTemplate(); }},
 ];
 
 function openCmdPalette() {
@@ -8916,6 +8920,95 @@ function selectDuplicateExercises() {
   });
   if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
   toast(count + ' clip' + (count !== 1 ? 's' : '') + ' with ' + ex.name + ' selected');
+}
+
+function selectClipsInTimeRange(startSec, endSec) {
+  var pps = 80 / 15;
+  var ho = 100;
+  var startPx = ho + Math.round(startSec * pps);
+  var endPx = ho + Math.round(endSec * pps);
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var cL = parseInt(c.style.left);
+    var cR = cL + parseInt(c.style.width);
+    if (cR > startPx && cL < endPx) {
+      c.classList.add('selected');
+      count++;
+    }
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' clips in ' + startSec + '-' + endSec + 's selected');
+}
+
+function saveWorkoutTemplate() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to save as template'); return; }
+  var name = document.getElementById('workout-name').textContent || 'Untitled';
+  showInlinePrompt('Template Name', name + ' Template', function(templateName) {
+    if (!templateName) return;
+    var template = {
+      name: templateName,
+      bpm: bpm,
+      tracks: []
+    };
+    var trackIds = ['push', 'pull', 'core', 'legs', 'skills'];
+    trackIds.forEach(function(tid) {
+      var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+      if (!tc) return;
+      var trackClips = [];
+      tc.querySelectorAll('.clip').forEach(function(c) {
+        trackClips.push({
+          exerciseId: c.dataset.exerciseId,
+          left: parseInt(c.style.left),
+          width: parseInt(c.style.width),
+          sets: c.dataset.sets, reps: c.dataset.reps,
+          tempo: c.dataset.tempo, rest: c.dataset.rest,
+          rpe: c.dataset.rpe
+        });
+      });
+      if (trackClips.length > 0) template.tracks.push({id: tid, clips: trackClips});
+    });
+    var templates = [];
+    try { templates = JSON.parse(localStorage.getItem('sms-templates') || '[]'); } catch(e) {}
+    templates.unshift(template);
+    if (templates.length > 10) templates.pop();
+    try { localStorage.setItem('sms-templates', JSON.stringify(templates)); } catch(e) {}
+    toast('Template saved: ' + templateName);
+  });
+}
+
+function loadWorkoutTemplate() {
+  var templates = [];
+  try { templates = JSON.parse(localStorage.getItem('sms-templates') || '[]'); } catch(e) {}
+  if (templates.length === 0) { toast('No templates saved'); return; }
+  var items = templates.map(function(t, i) { return (i + 1) + '. ' + t.name + ' (' + t.bpm + ' BPM)'; });
+  showInlinePrompt('Load Template (number)', items.join('\n'), function(val) {
+    var idx = parseInt(val) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= templates.length) { toast('Invalid template number'); return; }
+    var template = templates[idx];
+    pushUndo();
+    document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+    selectedClip = null;
+    document.getElementById('inspector').style.display = 'none';
+    bpm = template.bpm;
+    document.getElementById('bpm-input').value = bpm;
+    updateBPMMode();
+    template.tracks.forEach(function(t) {
+      var tc = document.querySelector('.track-content[data-track="' + t.id + '"]');
+      if (!tc) return;
+      t.clips.forEach(function(cd) {
+        var ex = getExercise(cd.exerciseId);
+        if (!ex) return;
+        var clip = createClipElement(ex, cd.left, cd.width, {
+          sets: cd.sets, reps: cd.reps, tempo: cd.tempo, rest: cd.rest, rpe: cd.rpe
+        });
+        tc.appendChild(clip);
+      });
+    });
+    updateStats(); saveSession(); sfx('drop');
+    toast('Loaded: ' + template.name);
+  });
 }
 
 function selectClipsByStage(stage) {
