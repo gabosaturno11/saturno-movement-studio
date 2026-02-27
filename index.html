@@ -1052,6 +1052,16 @@ input[type="number"]:hover::-webkit-outer-spin-button {
   border-color: rgba(6,182,212,0.2);
 }
 
+/* Focus visible for keyboard accessibility */
+:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: 1px;
+}
+button:focus-visible, .transport-btn:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: -1px;
+}
+
 /* Rubber band selection box */
 .select-box {
   position: absolute; z-index: 30;
@@ -1129,6 +1139,13 @@ input[type="number"]:hover::-webkit-outer-spin-button {
 @media(prefers-reduced-motion:reduce) {
   .music-now-playing .eq span { animation: none; height: 6px; }
   .preset-card:hover { transform: none; }
+  .clip { animation: none; }
+  .track-btn.armed { animation: none; }
+  @keyframes emptyPulse { 0%, 100% { opacity: 0.1; } }
+  .toast { transition: none; }
+  .playhead { transition: none; }
+  .cmd-palette { backdrop-filter: none; }
+  .saved-modal { backdrop-filter: none; }
 }
 
 /* ===== TABLET (768px) ===== */
@@ -3736,8 +3753,8 @@ function printWorkout() {
   html += 'td{color:#8b94a5}td:nth-child(2){color:#e2e8f0;font-weight:500}';
   html += '.footer{margin-top:32px;font-size:8px;color:#475569;text-align:center;border-top:1px solid #1e293b;padding-top:12px;text-transform:uppercase;letter-spacing:0.15em}';
   html += '@media print{body{padding:16px;background:#fff;color:#111}h2{background:#f0f0f0;border-left-width:3px}th{background:#f8f8f8;color:#333}td{color:#555}td:nth-child(2){color:#111}.stat-val{background:none;-webkit-text-fill-color:#111;color:#111}.stats{background:#f8f8f8;border-color:#ddd}.footer{color:#999;border-top-color:#ddd}}</style></head><body>';
-  html += '<h1>SATURNO MOVEMENT STUDIO</h1>';
-  html += '<div class="subtitle">The Ableton of Movement</div>';
+  html += '<h1>' + (workoutName && workoutName !== 'Untitled' ? workoutName.toUpperCase() : 'SATURNO MOVEMENT STUDIO') + '</h1>';
+  html += '<div class="subtitle">' + (workoutName && workoutName !== 'Untitled' ? 'Saturno Movement Studio' : 'The Ableton of Movement') + '</div>';
   html += '<div class="meta"><span>' + bpm + ' BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString() + '</span></div>';
   html += '<div class="stats"><div class="stat"><div class="stat-val">' + totalClips + '</div><div class="stat-label">Exercises</div></div>';
   html += '<div class="stat"><div class="stat-val">' + totalSets + '</div><div class="stat-label">Sets</div></div>';
