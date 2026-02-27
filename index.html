@@ -2657,6 +2657,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span data-tip="Workout intensity score (0-100)" style="color:var(--muted)">Int: <span id="footer-intensity" style="font-variant-numeric:tabular-nums">0</span></span>
       <span id="footer-supersets" data-tip="Cross-track supersets" style="color:rgba(168,85,247,0.8);font-size:8px;font-weight:600"></span>
       <span id="footer-difficulty" data-tip="Avg exercise difficulty" style="font-size:7px;font-weight:600;letter-spacing:0.04em"></span>
+      <span id="footer-selection" data-tip="Selected clips" style="color:var(--accent-cyan);font-size:8px;font-weight:500"></span>
+      <span id="footer-locked" data-tip="Locked clips" style="color:rgba(239,68,68,0.7);font-size:7px;font-weight:500"></span>
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
@@ -4264,6 +4266,12 @@ function updateStats() {
     } else {
       diffEl.textContent = '';
     }
+  }
+  // Locked clips count
+  var lockedEl = document.getElementById('footer-locked');
+  if (lockedEl) {
+    var lockedCount = document.querySelectorAll('.clip.clip-locked').length;
+    lockedEl.textContent = lockedCount > 0 ? lockedCount + ' locked' : '';
   }
   // Update per-track clip counts
   TRACKS.forEach(function(t) {
@@ -7909,10 +7917,21 @@ document.addEventListener('keydown', function(e) {
       // Arrow: nudge position (Shift = bar, plain = beat)
       pushUndo();
       var nudge = e.shiftKey ? (beatSec * 4 * pps) : (beatSec * pps);
-      var curLeft = parseInt(selectedClip.style.left);
-      if (e.code === 'ArrowLeft') curLeft = Math.max(0, curLeft - nudge);
-      if (e.code === 'ArrowRight') curLeft = curLeft + nudge;
-      selectedClip.style.left = Math.round(curLeft) + 'px';
+      var allSelected = document.querySelectorAll('.clip.selected');
+      if (allSelected.length > 1) {
+        allSelected.forEach(function(c) {
+          if (c.classList.contains('clip-locked')) return;
+          var cl = parseInt(c.style.left) || 0;
+          if (e.code === 'ArrowLeft') cl = Math.max(0, cl - nudge);
+          else cl = cl + nudge;
+          c.style.left = Math.round(cl) + 'px';
+        });
+      } else {
+        var curLeft = parseInt(selectedClip.style.left);
+        if (e.code === 'ArrowLeft') curLeft = Math.max(0, curLeft - nudge);
+        if (e.code === 'ArrowRight') curLeft = curLeft + nudge;
+        selectedClip.style.left = Math.round(curLeft) + 'px';
+      }
     }
     saveSession(); updateStats();
   }
@@ -8278,16 +8297,19 @@ setInterval(rotateHint, 8000);
 function updateSelectionBadge() {
   var count = document.querySelectorAll('.clip.selected').length;
   var badge = document.getElementById('selection-badge');
-  if (!badge) return;
-  if (count > 1) {
-    var cntEl = document.getElementById('sel-count');
-    var lblEl = document.getElementById('sel-label');
-    if (cntEl) cntEl.textContent = count;
-    if (lblEl) lblEl.textContent = 'clips';
-    badge.classList.add('show');
-  } else {
-    badge.classList.remove('show');
+  if (badge) {
+    if (count > 1) {
+      var cntEl = document.getElementById('sel-count');
+      var lblEl = document.getElementById('sel-label');
+      if (cntEl) cntEl.textContent = count;
+      if (lblEl) lblEl.textContent = 'clips';
+      badge.classList.add('show');
+    } else {
+      badge.classList.remove('show');
+    }
   }
+  var footerSel = document.getElementById('footer-selection');
+  if (footerSel) footerSel.textContent = count > 0 ? count + ' sel' : '';
 }
 
 /* Mixer section collapse toggle */
