@@ -244,6 +244,30 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
       <div class="pc-desc">Technical practice, isometric holds.</div>
       <div class="pc-mode" style="background:rgba(34,197,94,0.2);color:#22c55e">Slow Strength</div>
     </div>
+    <div class="preset-card" onclick="loadPreset('upper')">
+      <div class="pc-name">Upper Day</div>
+      <div class="pc-bpm">100 BPM</div>
+      <div class="pc-desc">Push/Pull balanced upper body split.</div>
+      <div class="pc-mode" style="background:rgba(59,130,246,0.2);color:#3b82f6">Standard</div>
+    </div>
+    <div class="preset-card" onclick="loadPreset('lower')">
+      <div class="pc-name">Lower Day</div>
+      <div class="pc-bpm">90 BPM</div>
+      <div class="pc-desc">Squat patterns, hip hinges, mobility.</div>
+      <div class="pc-mode" style="background:rgba(34,197,94,0.2);color:#22c55e">Standard</div>
+    </div>
+    <div class="preset-card" onclick="loadPreset('ppl')">
+      <div class="pc-name">Push / Pull / Legs</div>
+      <div class="pc-bpm">110 BPM</div>
+      <div class="pc-desc">Classic 3-way split, all patterns hit.</div>
+      <div class="pc-mode" style="background:rgba(249,115,22,0.2);color:#f97316">Standard</div>
+    </div>
+    <div class="preset-card" onclick="loadPreset('fullbody')">
+      <div class="pc-name">Full Body</div>
+      <div class="pc-bpm">105 BPM</div>
+      <div class="pc-desc">One compound per pattern, total coverage.</div>
+      <div class="pc-mode" style="background:rgba(236,72,153,0.2);color:#ec4899">Standard</div>
+    </div>
   </div>
 
   <!-- MAIN -->
@@ -462,6 +486,7 @@ var BPM_MODES = [
 
 /* Track definitions */
 var TRACKS = [
+  {id:'music',name:'Music',family:'_music',info:'Audio',isMusic:true},
   {id:'push',name:'Push',family:'Push',info:'Percussion'},
   {id:'pull',name:'Pull',family:'Pull',info:'Bass'},
   {id:'core',name:'Core',family:'Core',info:'Harmony'},
@@ -541,6 +566,71 @@ var PRESETS = {
     ],
     faders:{intensity:60,volume:40,density:35,rest:80},
     knobs:{'str-mob':0.6,'pwr-ctrl':0.3,'sta-dyn':0.15}
+  },
+  upper: {
+    name:'Upper Day',bpm:100,
+    clips:[
+      {track:'push',name:'Push Up',x:0,w:100},
+      {track:'push',name:'Dip',x:120,w:100},
+      {track:'pull',name:'Pull Up',x:0,w:100},
+      {track:'pull',name:'Inverted Row',x:120,w:100},
+      {track:'push',name:'Ring Push Up',x:240,w:100},
+      {track:'pull',name:'Chin Up',x:240,w:100},
+      {track:'core',name:'Hollow Body Hold',x:0,w:80},
+      {track:'core',name:'L-Sit',x:120,w:80},
+      {track:'skills',name:'Wall Handstand Hold',x:360,w:120}
+    ],
+    faders:{intensity:65,volume:60,density:55,rest:50},
+    knobs:{'str-mob':0.7,'pwr-ctrl':0.5,'sta-dyn':0.4}
+  },
+  lower: {
+    name:'Lower Day',bpm:90,
+    clips:[
+      {track:'legs',name:'Bodyweight Squat',x:0,w:100},
+      {track:'legs',name:'Bulgarian Split Squat',x:120,w:100},
+      {track:'legs',name:'Pistol Squat',x:240,w:100},
+      {track:'legs',name:'Nordic Curl',x:360,w:100},
+      {track:'legs',name:'Cossack Squat',x:480,w:80},
+      {track:'core',name:'Dragon Flag',x:0,w:100},
+      {track:'core',name:'Ab Wheel Rollout',x:120,w:80},
+      {track:'legs',name:'Glute Bridge',x:600,w:80},
+      {track:'skills',name:'Resting Squat',x:0,w:120}
+    ],
+    faders:{intensity:70,volume:55,density:60,rest:45},
+    knobs:{'str-mob':0.5,'pwr-ctrl':0.6,'sta-dyn':0.5}
+  },
+  ppl: {
+    name:'Push / Pull / Legs',bpm:110,
+    clips:[
+      {track:'push',name:'Dip',x:0,w:100},
+      {track:'push',name:'Pseudo Planche PU',x:120,w:100},
+      {track:'push',name:'Pike Push Up',x:240,w:80},
+      {track:'pull',name:'Pull Up',x:0,w:100},
+      {track:'pull',name:'Ring Row',x:120,w:80},
+      {track:'pull',name:'Tuck Front Lever',x:220,w:100},
+      {track:'legs',name:'Pistol Squat',x:0,w:100},
+      {track:'legs',name:'Nordic Curl',x:120,w:100},
+      {track:'core',name:'Hollow Body Hold',x:0,w:80},
+      {track:'core',name:'Dragon Flag',x:100,w:80}
+    ],
+    faders:{intensity:75,volume:65,density:70,rest:35},
+    knobs:{'str-mob':0.6,'pwr-ctrl':0.6,'sta-dyn':0.6}
+  },
+  fullbody: {
+    name:'Full Body',bpm:105,
+    clips:[
+      {track:'push',name:'Dip',x:0,w:100},
+      {track:'pull',name:'Pull Up',x:0,w:100},
+      {track:'legs',name:'Pistol Squat',x:0,w:100},
+      {track:'core',name:'L-Sit',x:0,w:80},
+      {track:'skills',name:'Free Handstand',x:0,w:120},
+      {track:'push',name:'Ring Push Up',x:140,w:80},
+      {track:'pull',name:'Archer Pull Up',x:140,w:80},
+      {track:'legs',name:'Bulgarian Split Squat',x:140,w:80},
+      {track:'core',name:'Ab Wheel Rollout',x:140,w:80}
+    ],
+    faders:{intensity:60,volume:55,density:50,rest:50},
+    knobs:{'str-mob':0.5,'pwr-ctrl':0.5,'sta-dyn':0.5}
   }
 };
 
@@ -633,14 +723,39 @@ function buildTracks() {
   var ph = container.querySelector('.playhead');
   var html = '';
   TRACKS.forEach(function(t) {
-    var fm = FAMILY_MAP[t.family] || {color:'#666'};
-    html += '<div class="track" data-track="'+t.id+'">';
-    html += '<div class="track-header"><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
-    html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button></div></div>';
-    html += '<div class="track-content" data-track="'+t.id+'"></div></div>';
+    if (t.isMusic) {
+      html += '<div class="track" data-track="'+t.id+'" style="background:rgba(6,182,212,0.03)">';
+      html += '<div class="track-header"><div class="track-name" style="color:var(--accent-cyan)">'+t.name+'</div>';
+      html += '<select class="track-select" id="music-track-select" onchange="selectMusicTrack(this.value)" style="font-size:8px;padding:2px 4px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:90px;font-family:Sora,sans-serif">';
+      html += '<option value="">--</option>';
+      MUSIC_TRACKS.forEach(function(mt,i) { html += '<option value="'+i+'">'+mt.name+'</option>'; });
+      html += '</select></div>';
+      html += '<div class="track-content" data-track="'+t.id+'" style="pointer-events:none"><span id="music-timeline-label" style="font-size:8px;color:var(--text-muted);padding:4px 8px;display:inline-block">Select a track</span></div></div>';
+    } else {
+      var fm = FAMILY_MAP[t.family] || {color:'#666'};
+      html += '<div class="track" data-track="'+t.id+'">';
+      html += '<div class="track-header"><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
+      html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button></div></div>';
+      html += '<div class="track-content" data-track="'+t.id+'"></div></div>';
+    }
   });
   container.innerHTML = html;
   container.insertBefore(ph, container.firstChild);
+}
+
+function selectMusicTrack(idx) {
+  if (idx === '') {
+    document.getElementById('music-timeline-label').textContent = 'Select a track';
+    return;
+  }
+  musicIndex = parseInt(idx);
+  var track = MUSIC_TRACKS[musicIndex];
+  document.getElementById('music-timeline-label').textContent = track.name;
+  document.getElementById('music-track-name').textContent = track.name;
+  if (!audioEl) { audioEl = new Audio(); audioEl.volume = 0.5; audioEl.addEventListener('ended', function() { musicNext(); }); }
+  audioEl.src = track.url;
+  audioEl.load();
+  toast('Music: ' + track.name);
 }
 
 function buildRuler() {
@@ -724,11 +839,21 @@ function addClip(track, exercise, x) {
     document.addEventListener('mouseup', onUp);
   });
 
-  // Resize clip
+  // Resize clip (stretching shows duration)
   resize.addEventListener('mousedown', function(e) {
     e.stopPropagation();
     var startX = e.clientX, startW = parseInt(clip.style.width);
-    function onMove(e) { clip.style.width = Math.max(40, startW + e.clientX - startX) + 'px'; }
+    function onMove(e) {
+      var newW = Math.max(40, startW + e.clientX - startX);
+      clip.style.width = newW + 'px';
+      // Show duration based on clip width (80px = 15 seconds)
+      var durSec = Math.round(newW / 80 * 15);
+      var durM = Math.floor(durSec / 60);
+      var durS = durSec % 60;
+      var durStr = durM > 0 ? durM + ':' + durS.toString().padStart(2,'0') : durSec + 's';
+      clip.title = exercise.name + ' - ' + durStr;
+      updateStats();
+    }
     function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -1334,6 +1459,7 @@ function exportWorkout() {
     tracks: {}
   };
   TRACKS.forEach(function(t) {
+    if (t.isMusic) return;
     workout.tracks[t.id] = [];
   });
   document.querySelectorAll('.clip').forEach(function(clip) {
