@@ -978,6 +978,12 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="pc-desc">One compound per pattern, total coverage.</div>
       <div class="pc-mode" style="background:rgba(236,72,153,0.2);color:#ec4899">Standard</div>
     </div>
+    <div class="preset-card" onclick="generateRandom()" style="border:1px dashed var(--border)">
+      <div class="pc-name" style="color:var(--accent-cyan)">Random</div>
+      <div class="pc-bpm" style="color:var(--accent-cyan)">? BPM</div>
+      <div class="pc-desc">Auto-generate a random balanced workout.</div>
+      <div class="pc-mode" style="background:rgba(6,182,212,0.2);color:#06b6d4">Surprise</div>
+    </div>
   </div>
 
   <!-- MAIN -->
@@ -1662,7 +1668,7 @@ function buildTracks() {
       html += '<option value="">--</option>';
       MUSIC_TRACKS.forEach(function(mt,i) { html += '<option value="'+i+'">'+mt.name+'</option>'; });
       html += '</select></div>';
-      html += '<div class="track-content" data-track="'+t.id+'" style="pointer-events:none"><span id="music-timeline-label" style="font-size:8px;color:var(--micro);padding:4px 8px;display:inline-block">Select a track</span></div></div>';
+      html += '<div class="track-content" data-track="'+t.id+'" style="pointer-events:none;position:relative"><canvas id="music-waveform-canvas" style="position:absolute;top:8px;left:100px;right:0;height:44px;opacity:0.3"></canvas><span id="music-timeline-label" style="font-size:8px;color:var(--micro);padding:4px 8px;display:inline-block;position:relative;z-index:1">Select a track</span></div></div>';
     } else {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
@@ -1689,6 +1695,7 @@ function selectMusicTrack(idx) {
   if (!audioEl) { audioEl = new Audio(); audioEl.volume = 0.5; audioEl.addEventListener('ended', function() { musicNext(); }); }
   audioEl.src = track.url;
   audioEl.load();
+  drawMusicWaveform(track.name);
   toast('Music: ' + track.name);
 }
 
@@ -2107,7 +2114,16 @@ function updateTimeDisplay() {
 
 function updatePlayheadPosition() {
   var pps = 80 / 15;
-  document.getElementById('playhead').style.left = (100 + currentTime * pps) + 'px';
+  var pos = 100 + currentTime * pps;
+  document.getElementById('playhead').style.left = pos + 'px';
+  // Auto-scroll timeline during playback
+  if (isPlaying) {
+    var container = document.getElementById('timeline-container');
+    var visibleRight = container.scrollLeft + container.clientWidth;
+    if (pos > visibleRight - 60) {
+      container.scrollLeft = pos - 200;
+    }
+  }
 }
 
 function toggleRec() {
@@ -2405,6 +2421,29 @@ function musicVolume(val) {
   if (audioEl) audioEl.volume = val / 100;
 }
 
+/* Draw static waveform in music track when a song is selected */
+function drawMusicWaveform(trackName) {
+  var canvas = document.getElementById('music-waveform-canvas');
+  if (!canvas || !canvas.getContext) return;
+  var parent = canvas.parentElement;
+  canvas.width = parent.clientWidth - 100;
+  canvas.height = 44;
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#06b6d4';
+  var mid = canvas.height / 2;
+  var seed = 0;
+  for (var i = 0; i < trackName.length; i++) seed += trackName.charCodeAt(i);
+  for (var x = 0; x < canvas.width; x += 2) {
+    var v = Math.sin(x * 0.02 + seed * 0.1) * 0.5 +
+            Math.sin(x * 0.07 + seed * 0.05) * 0.3 +
+            Math.sin(x * 0.15 + seed * 0.02) * 0.15 +
+            Math.random() * 0.05;
+    var amp = (mid - 4) * Math.abs(v);
+    ctx.fillRect(x, mid - amp, 1, amp * 2);
+  }
+}
+
 /* ===== PRESETS ===== */
 function togglePresets() {
   var drawer = document.getElementById('presets-drawer');
@@ -2452,6 +2491,43 @@ function loadPreset(id) {
   togglePresets();
   sfx('preset');
   toast('Preset loaded: ' + p.name);
+}
+
+/* ===== RANDOM WORKOUT ===== */
+function generateRandom() {
+  pushUndo();
+  document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+  selectedClip = null;
+  document.getElementById('inspector').style.display = 'none';
+  // Random BPM between 70-130
+  bpm = 70 + Math.floor(Math.random() * 60);
+  document.getElementById('bpm-input').value = bpm;
+  updateBPMMode();
+  // Pick random exercises per family track
+  var families = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
+  var trackIds = Object.keys(families);
+  trackIds.forEach(function(tid) {
+    var fam = families[tid];
+    var familyExs = EXERCISES.filter(function(ex) { return ex.family === fam || (fam === 'Skills' && ex.family === 'Skills') || (fam === 'Legs' && ex.family === 'Flow'); });
+    if (familyExs.length === 0) return;
+    // 1-3 clips per track
+    var numClips = 1 + Math.floor(Math.random() * 3);
+    var track = document.querySelector('.track-content[data-track="'+tid+'"]');
+    if (!track) return;
+    var xPos = 0;
+    for (var i = 0; i < numClips; i++) {
+      var ex = familyExs[Math.floor(Math.random() * familyExs.length)];
+      var w = 60 + Math.floor(Math.random() * 80);
+      var clip = createClipElement(ex, xPos, w);
+      track.appendChild(clip);
+      xPos += w + Math.floor(Math.random() * 40);
+    }
+  });
+  updateStats();
+  saveSession();
+  togglePresets();
+  sfx('preset');
+  toast('Random workout generated at ' + bpm + ' BPM');
 }
 
 /* ===== CLEAR ===== */
