@@ -1156,6 +1156,41 @@ button:focus-visible, .transport-btn:focus-visible {
   box-shadow: 0 0 10px var(--accent-cyan);
 }
 
+/* Clip shimmer — animated gradient sweep on playing clips */
+@keyframes clipShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.clip.clip-playing::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  animation: clipShimmer 2s ease-in-out infinite;
+  pointer-events: none; z-index: 1;
+}
+
+/* Track resize handle — drag between tracks */
+.track-resize-handle {
+  height: 3px; cursor: ns-resize;
+  background: transparent;
+  position: relative; z-index: 5;
+  transition: background 0.15s;
+}
+.track-resize-handle:hover {
+  background: rgba(59,130,246,0.15);
+}
+.track-resize-handle::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px; height: 1px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.track-resize-handle:hover::after { opacity: 1; }
+
 /* ===== COMMAND PALETTE ===== */
 .cmd-palette {
   display: none; position: fixed; inset: 0; z-index: 250;
@@ -1226,12 +1261,14 @@ button:focus-visible, .transport-btn:focus-visible {
   .music-now-playing .eq span { animation: none; height: 6px; }
   .preset-card:hover { transform: none; }
   .clip { animation: none; }
+  .clip.clip-playing::before { animation: none; }
   .track-btn.armed { animation: none; }
   @keyframes emptyPulse { 0%, 100% { opacity: 0.1; } }
   .toast { transition: none; }
   .playhead { transition: none; }
   .cmd-palette { backdrop-filter: none; }
   .saved-modal { backdrop-filter: none; }
+  .shortcuts-overlay { backdrop-filter: none; }
 }
 
 /* ===== TABLET (768px) ===== */
@@ -1890,6 +1927,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" title="Click to rename">Untitled</span>
       <span style="color:var(--border)">|</span>
       <div class="footer-quote">Saturno Movement Studio</div>
+      <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
+      <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
       <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v1.0</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
@@ -4159,7 +4198,23 @@ function applyZoom() {
   ruler.style.transform = 'scaleX(' + scale + ')';
   ruler.style.transformOrigin = 'left top';
   document.getElementById('zoom-level').textContent = zoomLevel + '%';
+  // Sync footer zoom slider
+  var sliderIdx = ZOOM_STEPS.indexOf(zoomLevel);
+  if (sliderIdx >= 0) {
+    var slider = document.getElementById('zoom-slider');
+    if (slider) slider.value = sliderIdx;
+  }
+  var pct = document.getElementById('zoom-pct');
+  if (pct) pct.textContent = zoomLevel + '%';
   sfx('click');
+}
+
+function setZoomFromSlider(val) {
+  var idx = parseInt(val);
+  if (idx >= 0 && idx < ZOOM_STEPS.length) {
+    zoomLevel = ZOOM_STEPS[idx];
+    applyZoom();
+  }
 }
 
 /* ===== CONTEXT MENU ===== */
@@ -4344,6 +4399,43 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+  });
+});
+
+/* ===== MOUSE WHEEL ZOOM on Timeline ===== */
+document.addEventListener('DOMContentLoaded', function() {
+  var container = document.getElementById('timeline-container');
+  container.addEventListener('wheel', function(e) {
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      if (e.deltaY < 0) { zoomIn(); } else { zoomOut(); }
+    }
+  }, { passive: false });
+});
+
+/* ===== TRACK RESIZE HANDLES ===== */
+document.addEventListener('DOMContentLoaded', function() {
+  var allTracks = document.querySelectorAll('.track');
+  allTracks.forEach(function(track, i) {
+    if (i === allTracks.length - 1) return; // no handle on last track
+    var handle = document.createElement('div');
+    handle.className = 'track-resize-handle';
+    track.parentElement.insertBefore(handle, track.nextSibling);
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      var startY = e.clientY;
+      var startH = track.offsetHeight;
+      function onMove(e) {
+        var newH = Math.max(24, Math.min(200, startH + (e.clientY - startY)));
+        track.style.height = newH + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
   });
 });
 
