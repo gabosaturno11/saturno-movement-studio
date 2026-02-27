@@ -2488,6 +2488,106 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   .track-name { font-size: 7px; }
   .panel-left { width: 260px; }
 }
+
+/* Landscape mobile hint */
+.landscape-hint {
+  display: none; position: fixed; inset: 0; z-index: 500;
+  background: rgba(5,7,17,0.95);
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 12px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.landscape-hint.visible { display: flex; }
+.landscape-hint-icon {
+  font-size: 48px; color: var(--accent-cyan);
+  animation: rotateSuggest 2s ease-in-out infinite;
+}
+@keyframes rotateSuggest {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+.landscape-hint-text {
+  font-size: 14px; color: var(--text-secondary);
+  text-align: center; max-width: 240px; line-height: 1.5;
+}
+.landscape-hint-dismiss {
+  font-size: 10px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  cursor: pointer; padding: 8px 16px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: none; font-family: 'Sora', sans-serif;
+  margin-top: 8px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Swipe-delete indicator */
+.clip-swipe-indicator {
+  position: absolute; right: -60px; top: 0; bottom: 0;
+  width: 60px; display: flex; align-items: center; justify-content: center;
+  background: rgba(239,68,68,0.9); color: #fff;
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; border-radius: 0 4px 4px 0;
+  opacity: 0; transition: opacity 0.15s;
+  pointer-events: none;
+}
+.clip-swipe-indicator.visible { opacity: 1; }
+
+/* Mobile presets as full-screen modal */
+@media (max-width: 640px) {
+  .presets-drawer {
+    position: fixed; inset: 0; z-index: 95;
+    padding: 60px 16px 64px;
+    background: rgba(5,7,17,0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .presets-drawer .preset-card {
+    min-width: unset; width: 100%;
+    padding: 14px; margin-bottom: 8px;
+  }
+  .presets-drawer .pc-name { font-size: 13px; }
+  .presets-drawer .pc-desc { font-size: 10px; }
+
+  /* Clip context menu — position near bottom on mobile */
+  .clip-context-menu {
+    position: fixed !important;
+    bottom: 56px !important; left: 4px !important; right: 4px !important;
+    top: auto !important; width: auto !important;
+    max-height: 50vh; overflow-y: auto;
+    border-radius: 12px 12px 0 0;
+  }
+
+  /* Summary mobile optimization */
+  .summary-inner { padding: 20px 12px 64px; }
+  .summary-title { font-size: 16px; }
+  .summary-stats { gap: 16px; flex-wrap: wrap; }
+  .summary-stat { min-width: 80px; }
+  .summary-stat-val { font-size: 20px; }
+
+  /* Saved modal — near-fullscreen */
+  .saved-modal-content { width: 98%; max-height: 80vh; }
+
+  /* Inline prompt modal — wider */
+  .prompt-modal { width: 95vw !important; }
+  .prompt-modal input { font-size: 14px !important; min-height: 44px !important; }
+}
+
+/* Landscape mobile — full width timeline */
+@media (max-width: 640px) and (orientation: landscape) {
+  .app { grid-template-rows: 36px 1fr; }
+  .header { height: 36px; }
+  .transport { min-height: 36px; padding: 4px 8px; }
+  .transport-btn { width: 32px; height: 32px; min-height: 34px; }
+  .mobile-panel-bar { height: 36px; }
+  .mobile-panel-btn .mpb-icon { font-size: 14px; }
+  .mobile-panel-btn span:last-child { display: none; }
+  .panel-center { padding-bottom: 36px; }
+  .panel-right { bottom: 36px; max-height: 50vh; }
+  .panel-left { bottom: 36px; }
+}
 </style>
 </head>
 <body>
@@ -2952,6 +3052,13 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
   </footer>
+</div>
+
+<!-- Landscape hint (shows once on portrait mobile) -->
+<div class="landscape-hint" id="landscape-hint">
+  <div class="landscape-hint-icon">&#8635;</div>
+  <div class="landscape-hint-text">For the best DAW experience, rotate your device to landscape mode.</div>
+  <button class="landscape-hint-dismiss" onclick="dismissLandscapeHint()">Got it</button>
 </div>
 
 <!-- Mobile overlay (closes drawers) -->
@@ -11093,6 +11200,216 @@ function initMobileSwipeGestures() {
     document.addEventListener('DOMContentLoaded', initMobile);
   } else {
     initMobile();
+  }
+})();
+
+/* --- Batch 292: Landscape detection + haptic feedback --- */
+var _landscapeHintDismissed = false;
+
+function checkLandscapeHint() {
+  if (!isMobileView()) return;
+  try { _landscapeHintDismissed = localStorage.getItem('sms_landscape_dismissed') === '1'; } catch(e) {}
+  if (_landscapeHintDismissed) return;
+  var isPortrait = window.innerHeight > window.innerWidth;
+  var hint = document.getElementById('landscape-hint');
+  if (hint && isPortrait) {
+    hint.classList.add('visible');
+  }
+}
+
+function dismissLandscapeHint() {
+  var hint = document.getElementById('landscape-hint');
+  if (hint) hint.classList.remove('visible');
+  _landscapeHintDismissed = true;
+  try { localStorage.setItem('sms_landscape_dismissed', '1'); } catch(e) {}
+}
+
+/* Haptic feedback for touch interactions (if supported) */
+function haptic(type) {
+  if (!navigator.vibrate) return;
+  if (type === 'light') navigator.vibrate(10);
+  else if (type === 'medium') navigator.vibrate(25);
+  else if (type === 'heavy') navigator.vibrate(50);
+  else navigator.vibrate(10);
+}
+
+/* Wire haptic into key touch interactions */
+(function() {
+  document.addEventListener('click', function(e) {
+    if (!isMobileView()) return;
+    if (e.target.closest('.transport-btn') || e.target.closest('.mobile-panel-btn') || e.target.closest('.nav-btn')) {
+      haptic('light');
+    }
+    if (e.target.closest('.clip')) {
+      haptic('medium');
+    }
+  }, { passive: true });
+})();
+
+/* Show landscape hint on first mobile visit */
+(function() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(checkLandscapeHint, 1000); });
+  } else {
+    setTimeout(checkLandscapeHint, 1000);
+  }
+  /* Also listen for orientation changes */
+  window.addEventListener('orientationchange', function() {
+    var hint = document.getElementById('landscape-hint');
+    if (hint && hint.classList.contains('visible')) {
+      /* Auto-dismiss if user rotated to landscape */
+      var isLandscape = window.innerWidth > window.innerHeight;
+      if (isLandscape) dismissLandscapeHint();
+    }
+  });
+})();
+
+/* --- Batch 293: Swipe-to-delete clips on mobile --- */
+function initSwipeToDelete() {
+  var timelineTracks = document.getElementById('timeline-tracks');
+  if (!timelineTracks) return;
+  var _swipeDel = null;
+
+  timelineTracks.addEventListener('touchstart', function(e) {
+    if (!isMobileView()) return;
+    var clip = e.target.closest('.clip');
+    if (!clip || clip.classList.contains('clip-locked')) return;
+    /* Only activate on horizontal swipe, not on already-moving clips */
+    _swipeDel = {
+      clip: clip,
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      origTransform: clip.style.transform || '',
+      triggered: false
+    };
+  }, { passive: true });
+
+  timelineTracks.addEventListener('touchmove', function(e) {
+    if (!_swipeDel) return;
+    var dx = e.touches[0].clientX - _swipeDel.startX;
+    var dy = Math.abs(e.touches[0].clientY - _swipeDel.startY);
+    /* Only swipe-to-delete for left swipes */
+    if (dx < -20 && dy < 30) {
+      var offset = Math.max(dx, -80);
+      _swipeDel.clip.style.transform = 'translateX(' + offset + 'px)';
+      if (dx < -60) {
+        _swipeDel.triggered = true;
+        _swipeDel.clip.style.opacity = '0.5';
+      } else {
+        _swipeDel.triggered = false;
+        _swipeDel.clip.style.opacity = '1';
+      }
+    }
+  }, { passive: true });
+
+  timelineTracks.addEventListener('touchend', function(e) {
+    if (!_swipeDel) return;
+    var data = _swipeDel;
+    _swipeDel = null;
+    if (data.triggered) {
+      /* Delete the clip */
+      haptic('heavy');
+      if (typeof captureUndo === 'function') captureUndo();
+      data.clip.style.transform = 'translateX(-100%)';
+      data.clip.style.opacity = '0';
+      data.clip.style.transition = 'transform 0.2s, opacity 0.2s';
+      setTimeout(function() {
+        if (data.clip.parentNode) data.clip.parentNode.removeChild(data.clip);
+        if (typeof updateStats === 'function') updateStats();
+      }, 200);
+      toast('Clip deleted');
+    } else {
+      data.clip.style.transform = data.origTransform;
+      data.clip.style.opacity = '1';
+    }
+  }, { passive: true });
+}
+
+/* Init swipe-to-delete */
+(function() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSwipeToDelete);
+  } else {
+    initSwipeToDelete();
+  }
+})();
+
+/* --- Batch 294: Double-tap timeline to add exercise + mobile quick actions --- */
+function initDoubleTapAdd() {
+  var container = document.getElementById('timeline-container');
+  if (!container) return;
+  var _lastTap = 0;
+  var _lastTapX = 0;
+  var _lastTapY = 0;
+
+  container.addEventListener('touchend', function(e) {
+    if (!isMobileView()) return;
+    /* Ignore if tapped on a clip */
+    if (e.target.closest('.clip')) return;
+    var now = Date.now();
+    var touch = e.changedTouches[0];
+    var dx = Math.abs(touch.clientX - _lastTapX);
+    var dy = Math.abs(touch.clientY - _lastTapY);
+    if (now - _lastTap < 300 && dx < 30 && dy < 30) {
+      /* Double tap detected — open command palette for quick add */
+      haptic('medium');
+      if (typeof toggleCommandPalette === 'function') {
+        toggleCommandPalette();
+      }
+      _lastTap = 0;
+    } else {
+      _lastTap = now;
+      _lastTapX = touch.clientX;
+      _lastTapY = touch.clientY;
+    }
+  }, { passive: true });
+}
+
+/* Long press on clip for context menu on mobile */
+function initLongPressContext() {
+  var timelineTracks = document.getElementById('timeline-tracks');
+  if (!timelineTracks) return;
+  var _longPress = null;
+
+  timelineTracks.addEventListener('touchstart', function(e) {
+    if (!isMobileView()) return;
+    var clip = e.target.closest('.clip');
+    if (!clip) return;
+    _longPress = setTimeout(function() {
+      haptic('heavy');
+      /* Select the clip first */
+      document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+      clip.classList.add('selected');
+      if (typeof inspectClip === 'function') inspectClip(clip);
+      /* Open context menu at touch position */
+      if (typeof showContextMenu === 'function') {
+        var touch = e.touches[0];
+        var fakeEvent = { preventDefault: function(){}, clientX: touch.clientX, clientY: touch.clientY };
+        showContextMenu(fakeEvent, clip);
+      }
+      _longPress = null;
+    }, 500);
+  }, { passive: true });
+
+  timelineTracks.addEventListener('touchmove', function() {
+    if (_longPress) { clearTimeout(_longPress); _longPress = null; }
+  }, { passive: true });
+
+  timelineTracks.addEventListener('touchend', function() {
+    if (_longPress) { clearTimeout(_longPress); _longPress = null; }
+  }, { passive: true });
+}
+
+/* Init all Batch 294 features */
+(function() {
+  function initBatch294() {
+    initDoubleTapAdd();
+    initLongPressContext();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBatch294);
+  } else {
+    initBatch294();
   }
 })();
 
