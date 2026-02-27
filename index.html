@@ -7340,6 +7340,9 @@ var CMD_ACTIONS = [
   {label:'Swap Two Clips', key:'', icon:'\u21C4', action: function() { swapTwoClips(); }},
   {label:'Align Clips to Playhead', key:'', icon:'\u25B8', action: function() { alignClipsToPlayhead(); }},
   {label:'Trim Clip to Loop Region', key:'', icon:'\u2702', action: function() { trimClipToLoop(); }},
+  {label:'Apply Inspector to Selected', key:'', icon:'\u2913', action: function() { applyInspectorToSelected(); }},
+  {label:'Collect to Active Track', key:'', icon:'\u21B3', action: function() { collectToTrack(); }},
+  {label:'Stagger Clips (2-beat offset)', key:'', icon:'\u21F6', action: function() { staggerClips(); }},
 ];
 
 function openCmdPalette() {
@@ -8179,6 +8182,70 @@ function trimClipToLoop() {
   selectedClip.style.width = (newRight - newLeft) + 'px';
   updateStats(); saveSession(); sfx('click');
   toast('Clip trimmed to loop region');
+}
+
+function applyInspectorToSelected() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length < 2) { toast('Select 2+ clips to batch-set params'); return; }
+  var sets = document.getElementById('insp-sets').value;
+  var reps = document.getElementById('insp-reps').value;
+  var tempo = document.getElementById('insp-tempo').value;
+  var rest = document.getElementById('insp-rest').value;
+  var rpe = document.getElementById('insp-rpe').value;
+  pushUndo();
+  var count = 0;
+  sel.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    c.dataset.sets = sets;
+    c.dataset.reps = reps;
+    c.dataset.tempo = tempo;
+    c.dataset.rest = rest;
+    c.dataset.rpe = rpe;
+    var rpeBadge = c.querySelector('.clip-rpe-badge');
+    if (rpeBadge) rpeBadge.textContent = rpe;
+    updateClipDNA(c);
+    count++;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips updated with inspector values');
+}
+
+function staggerClips() {
+  var sel = Array.from(document.querySelectorAll('.clip.selected'));
+  if (sel.length < 2) { toast('Select 2+ clips to stagger'); return; }
+  pushUndo();
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var staggerAmount = beatPx * 2;
+  sel.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var baseLeft = parseInt(sel[0].style.left);
+  var count = 0;
+  sel.forEach(function(c, i) {
+    if (c.classList.contains('clip-locked')) return;
+    c.style.left = (baseLeft + i * staggerAmount) + 'px';
+    count++;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips staggered by 2 beats');
+}
+
+function collectToTrack() {
+  var sel = document.querySelectorAll('.clip.selected');
+  if (sel.length === 0) { toast('Select clips first'); return; }
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('No active track'); return; }
+  pushUndo();
+  var count = 0;
+  sel.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    if (c.parentElement !== activeTrack) {
+      c.parentElement.removeChild(c);
+      activeTrack.appendChild(c);
+      count++;
+    }
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips moved to active track');
 }
 
 function selectClipsByStage(stage) {
