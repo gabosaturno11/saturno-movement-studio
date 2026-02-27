@@ -1195,10 +1195,21 @@ button:focus-visible, .transport-btn:focus-visible {
   border-radius: 1px;
 }
 
-/* Solo track highlight */
+/* Solo track highlight — non-soloed tracks dim when any is soloed */
 .track-btn.soloed ~ .track-btn { opacity: 0.5; }
 .track.track-soloed .track-header::before {
   box-shadow: 0 0 10px var(--accent-cyan);
+}
+.track.track-soloed .track-header {
+  background: rgba(6,182,212,0.06);
+}
+/* Dim non-soloed tracks when solo is active */
+.track:not(.track-soloed) { transition: opacity 0.2s, filter 0.2s; }
+.timeline-tracks.has-solo .track:not(.track-soloed) {
+  opacity: 0.35; filter: saturate(0.4);
+}
+.timeline-tracks.has-solo .track.track-soloed {
+  opacity: 1; filter: none;
 }
 
 /* Clip shimmer — animated gradient sweep on playing clips */
@@ -3575,6 +3586,9 @@ function toggleSolo(btn) {
     }
     t.classList.toggle('track-soloed', !!hasSolo);
   });
+  // Toggle has-solo class on timeline-tracks for CSS dimming
+  var tl = document.getElementById('timeline-tracks');
+  if (tl) tl.classList.toggle('has-solo', !!anysoloed);
 }
 function toggleArm(btn) {
   btn.classList.toggle('armed');
