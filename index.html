@@ -7883,6 +7883,11 @@ var CMD_ACTIONS = [
   {label:'Compare with Saved Workout', key:'', icon:'\u2194', action: function() { showWorkoutComparison(); }},
   {label:'Progression Tree', key:'', icon:'\u2934', action: function() { showProgressionTree(); }},
   {label:'Volume Breakdown', key:'', icon:'\u2211', action: function() { showVolumeEstimate(); }},
+  {label:'Auto-Detect Phases (Warmup/Main/Cooldown)', key:'', icon:'\u25B6', action: function() { autoDetectPhases(); }},
+  {label:'Clear Phase Markers', key:'', icon:'\u2716', action: function() { clearPhaseMarkers(); }},
+  {label:'Export Session Notes (HTML)', key:'', icon:'\u2709', action: function() { exportSessionNotes(); }},
+  {label:'Start Playlist Mode', key:'', icon:'\u25B6', action: function() { startPlaylistMode(); }},
+  {label:'Stop Playlist Mode', key:'', icon:'\u25A0', action: function() { stopPlaylistMode(); }},
 ];
 
 function openCmdPalette() {
@@ -13236,6 +13241,240 @@ function showVolumeEstimate() {
   card.innerHTML = html;
   overlay.appendChild(card);
   document.body.appendChild(overlay);
+}
+
+/* ===== BATCH 316: WARM-UP/COOLDOWN AUTO-DETECTION ===== */
+function autoDetectPhases() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length < 3) { toast('Need at least 3 exercises'); return; }
+
+  /* Sort by position */
+  clips.sort(function(a, b) { return (parseFloat(a.style.left) || 0) - (parseFloat(b.style.left) || 0); });
+
+  var warmupCount = Math.max(1, Math.floor(clips.length * 0.15));
+  var cooldownCount = Math.max(1, Math.floor(clips.length * 0.15));
+
+  clips.forEach(function(c, i) {
+    /* Remove existing phase tags */
+    var existing = c.querySelector('.phase-tag');
+    if (existing) existing.remove();
+
+    var phase = '';
+    var color = '';
+    if (i < warmupCount) {
+      phase = 'W';
+      color = 'rgba(34,197,94,0.6)';
+    } else if (i >= clips.length - cooldownCount) {
+      phase = 'C';
+      color = 'rgba(99,102,241,0.6)';
+    } else {
+      phase = 'M';
+      color = 'rgba(59,130,246,0.3)';
+    }
+
+    var tag = document.createElement('div');
+    tag.className = 'phase-tag';
+    tag.style.cssText = 'position:absolute;top:1px;left:50%;transform:translateX(-50%);font-size:6px;font-weight:700;color:' + color + ';z-index:3;text-transform:uppercase;letter-spacing:0.1em;pointer-events:none';
+    tag.textContent = phase;
+    c.appendChild(tag);
+  });
+
+  toast('Phases detected: ' + warmupCount + ' warmup, ' + (clips.length - warmupCount - cooldownCount) + ' main, ' + cooldownCount + ' cooldown');
+}
+
+function clearPhaseMarkers() {
+  document.querySelectorAll('.phase-tag').forEach(function(t) { t.remove(); });
+  toast('Phase markers cleared');
+}
+
+/* ===== BATCH 317: COMPREHENSIVE SESSION EXPORT ===== */
+function exportSessionNotes() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add exercises first'); return; }
+
+  loadCoachingNotes();
+  loadExerciseRefs();
+
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Untitled';
+  var bpm = document.getElementById('bpm-input') ? document.getElementById('bpm-input').value : '120';
+  var mode = document.getElementById('bpm-mode') ? document.getElementById('bpm-mode').textContent : 'Standard';
+  var globalNotes = '';
+  try { var s = JSON.parse(localStorage.getItem('sms_session') || '{}'); globalNotes = s.workoutNotes || ''; } catch(e) {}
+
+  var html = '<!DOCTYPE html><html><head><title>' + workoutName + ' - Session Notes</title>';
+  html += '<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">';
+  html += '<style>';
+  html += '*{box-sizing:border-box;margin:0;padding:0}';
+  html += 'body{background:#050711;color:#e2e8f0;font-family:Sora,sans-serif;padding:40px 20px;max-width:600px;margin:0 auto;line-height:1.6}';
+  html += 'h1{font-size:20px;font-weight:700;margin-bottom:4px}';
+  html += '.meta{font-size:10px;color:#8b94a5;margin-bottom:20px}';
+  html += '.section{margin-bottom:24px;padding:16px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)}';
+  html += '.section-title{font-size:9px;text-transform:uppercase;letter-spacing:0.15em;color:#06b6d4;margin-bottom:8px}';
+  html += '.exercise{padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)}';
+  html += '.exercise:last-child{border-bottom:none}';
+  html += '.ex-name{font-size:13px;font-weight:600;color:#fff}';
+  html += '.ex-params{font-size:10px;color:#8b94a5;margin-top:2px}';
+  html += '.ex-notes{font-size:11px;color:#b0b8c8;margin-top:6px;padding:8px;background:rgba(6,182,212,0.04);border-left:2px solid rgba(6,182,212,0.2);border-radius:0 4px 4px 0}';
+  html += '.ex-ref{font-size:9px;color:#3b82f6;margin-top:4px}';
+  html += '.global-notes{font-size:11px;color:#b0b8c8;white-space:pre-wrap}';
+  html += '@media print{body{background:#fff;color:#111}.section{background:#f8f9fa;border-color:#e2e8f0}.ex-name{color:#111}.ex-params{color:#555}.meta{color:#888}}';
+  html += '</style></head><body>';
+
+  html += '<h1>' + workoutName + '</h1>';
+  html += '<div class="meta">' + bpm + ' BPM | ' + mode + ' | ' + clips.length + ' exercises | ' + new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}) + '</div>';
+
+  if (globalNotes) {
+    html += '<div class="section"><div class="section-title">Workout Notes</div><div class="global-notes">' + globalNotes.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</div></div>';
+  }
+
+  /* Group by family */
+  var families = {};
+  clips.forEach(function(c) {
+    var fam = c.getAttribute('data-family') || 'Other';
+    if (!families[fam]) families[fam] = [];
+    families[fam].push({
+      name: c.getAttribute('data-exercise') || 'Unknown',
+      pattern: c.getAttribute('data-pattern') || '',
+      stage: c.getAttribute('data-stage') || '1',
+      sets: c.getAttribute('data-sets') || '3',
+      reps: c.getAttribute('data-reps') || '8',
+      rpe: c.getAttribute('data-rpe') || '7',
+      tempo: c.getAttribute('data-tempo') || '3',
+      rest: c.getAttribute('data-rest') || '60'
+    });
+  });
+
+  for (var fam in families) {
+    html += '<div class="section"><div class="section-title">' + fam + ' (' + families[fam].length + ')</div>';
+    families[fam].forEach(function(ex) {
+      html += '<div class="exercise">';
+      html += '<div class="ex-name">' + ex.name + '</div>';
+      html += '<div class="ex-params">' + ex.sets + 'x' + ex.reps + ' | RPE ' + ex.rpe + ' | ' + ex.tempo + 's tempo | ' + ex.rest + 's rest | S' + ex.stage + ' | ' + ex.pattern + '</div>';
+      if (_exerciseCoachingNotes[ex.name]) {
+        html += '<div class="ex-notes">' + _exerciseCoachingNotes[ex.name].replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</div>';
+      }
+      if (_exerciseRefs[ex.name]) {
+        html += '<div class="ex-ref"><a href="' + _exerciseRefs[ex.name] + '" target="_blank" style="color:#3b82f6;text-decoration:none">Reference Video</a></div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<div style="text-align:center;margin-top:24px;font-size:8px;color:rgba(255,255,255,0.1);text-transform:uppercase;letter-spacing:0.2em">Generated by Saturno Movement Studio</div>';
+  html += '</body></html>';
+
+  var w = window.open('', '_blank');
+  if (!w) { toast('Enable popups'); return; }
+  w.document.write(html);
+  w.document.close();
+  toast('Session notes exported');
+}
+
+/* ===== BATCH 318: PLAYLIST MODE ===== */
+var _playlistMode = false;
+var _playlistIndex = 0;
+var _playlistExercises = [];
+var _playlistOverlay = null;
+
+function startPlaylistMode() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('Add exercises first'); return; }
+
+  /* Sort by track order then position */
+  var trackOrder = ['push','pull','core','legs','skills'];
+  clips.sort(function(a, b) {
+    var ta = a.closest('.track') ? trackOrder.indexOf(a.closest('.track').getAttribute('data-track')) : 99;
+    var tb = b.closest('.track') ? trackOrder.indexOf(b.closest('.track').getAttribute('data-track')) : 99;
+    if (ta !== tb) return ta - tb;
+    return (parseFloat(a.style.left) || 0) - (parseFloat(b.style.left) || 0);
+  });
+
+  _playlistExercises = clips.map(function(c) {
+    return {
+      name: c.getAttribute('data-exercise') || 'Unknown',
+      family: c.getAttribute('data-family') || '',
+      sets: parseInt(c.getAttribute('data-sets')) || 3,
+      reps: parseInt(c.getAttribute('data-reps')) || 8,
+      rpe: parseInt(c.getAttribute('data-rpe')) || 7,
+      tempo: parseFloat(c.getAttribute('data-tempo')) || 3,
+      rest: parseInt(c.getAttribute('data-rest')) || 60,
+      clip: c
+    };
+  });
+
+  _playlistMode = true;
+  _playlistIndex = 0;
+  showPlaylistExercise();
+}
+
+function showPlaylistExercise() {
+  if (_playlistIndex >= _playlistExercises.length) {
+    stopPlaylistMode();
+    toast('Playlist complete!');
+    haptic('heavy');
+    return;
+  }
+
+  var ex = _playlistExercises[_playlistIndex];
+  var famColors = {Push:'#3b82f6',Pull:'#22c55e',Core:'#f97316',Legs:'#ef4444',Skills:'#8b5cf6',Flow:'#ec4899'};
+  var col = famColors[ex.family] || '#06b6d4';
+
+  if (_playlistOverlay) _playlistOverlay.remove();
+  _playlistOverlay = document.createElement('div');
+  _playlistOverlay.style.cssText = 'position:fixed;inset:0;z-index:500;background:rgba(5,7,17,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)';
+
+  var html = '<div style="text-align:center;max-width:400px;padding:20px">';
+  html += '<div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:' + col + ';margin-bottom:4px">' + ex.family + ' | Exercise ' + (_playlistIndex + 1) + '/' + _playlistExercises.length + '</div>';
+  html += '<div style="font-size:32px;font-weight:800;color:#fff;margin-bottom:8px">' + ex.name + '</div>';
+  html += '<div style="font-size:14px;color:var(--text-secondary);margin-bottom:24px">' + ex.sets + ' sets x ' + ex.reps + ' reps | RPE ' + ex.rpe + ' | ' + ex.tempo + 's per rep</div>';
+
+  /* Progress bar */
+  var pct = Math.round(((_playlistIndex + 1) / _playlistExercises.length) * 100);
+  html += '<div style="width:200px;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin:0 auto 24px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + col + ';border-radius:2px;transition:width 0.3s"></div></div>';
+
+  /* Buttons */
+  html += '<div style="display:flex;gap:12px;justify-content:center">';
+  html += '<button onclick="playlistPrev()" style="padding:12px 24px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:none;color:var(--text-secondary);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;font-family:Sora,sans-serif;min-width:80px;-webkit-tap-highlight-color:transparent">Prev</button>';
+  html += '<button onclick="playlistRest()" style="padding:12px 24px;border:1px solid rgba(6,182,212,0.3);border-radius:6px;background:rgba(6,182,212,0.1);color:var(--accent-cyan);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;font-family:Sora,sans-serif;min-width:80px;-webkit-tap-highlight-color:transparent">Rest ' + ex.rest + 's</button>';
+  html += '<button onclick="playlistNext()" style="padding:12px 24px;border:1px solid rgba(34,197,94,0.3);border-radius:6px;background:rgba(34,197,94,0.1);color:var(--accent-green);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;cursor:pointer;font-family:Sora,sans-serif;min-width:80px;-webkit-tap-highlight-color:transparent">Next</button>';
+  html += '</div>';
+  html += '<button onclick="stopPlaylistMode()" style="margin-top:16px;padding:8px 16px;border:none;background:none;color:var(--micro);font-size:8px;text-transform:uppercase;letter-spacing:0.1em;cursor:pointer;font-family:Sora,sans-serif;-webkit-tap-highlight-color:transparent">Exit Playlist</button>';
+  html += '</div>';
+
+  _playlistOverlay.innerHTML = html;
+  document.body.appendChild(_playlistOverlay);
+  haptic('medium');
+
+  /* Highlight the corresponding clip */
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  if (ex.clip) ex.clip.classList.add('selected');
+}
+
+function playlistNext() {
+  _playlistIndex++;
+  showPlaylistExercise();
+}
+
+function playlistPrev() {
+  if (_playlistIndex > 0) _playlistIndex--;
+  showPlaylistExercise();
+}
+
+function playlistRest() {
+  var ex = _playlistExercises[_playlistIndex];
+  var restTime = ex ? ex.rest : 60;
+  startRestTimer(restTime);
+  /* Auto-advance after rest */
+  setTimeout(function() {
+    if (_playlistMode) playlistNext();
+  }, (restTime + 1) * 1000);
+}
+
+function stopPlaylistMode() {
+  _playlistMode = false;
+  if (_playlistOverlay) { _playlistOverlay.remove(); _playlistOverlay = null; }
+  stopRestTimer();
 }
 
 function selectClipsByStage(stage) {
