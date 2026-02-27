@@ -1380,6 +1380,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <button class="transport-btn" onclick="zoomOut()" title="Zoom out" style="width:22px;height:22px;font-size:10px;border-radius:2px">-</button>
           <span id="zoom-level" style="font-size:8px;color:var(--muted);min-width:28px;text-align:center">100%</span>
           <button class="transport-btn" onclick="zoomIn()" title="Zoom in" style="width:22px;height:22px;font-size:10px;border-radius:2px">+</button>
+          <button class="transport-btn" onclick="zoomToFit()" title="Zoom to fit all clips" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FIT</button>
         </div>
       </div>
 
@@ -1589,6 +1590,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <span id="save-indicator" style="color:var(--accent-green);opacity:0;transition:opacity 0.3s;font-size:7px;text-transform:uppercase;letter-spacing:0.1em">Saved</span>
+      <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" title="Click to rename">Untitled</span>
+      <span style="color:var(--border)">|</span>
       <div class="footer-quote">Saturno Movement Studio</div>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
@@ -1632,6 +1635,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Cmd+D</kbd><span>Duplicate</span></div>
       <div class="shortcut-item"><kbd>B</kbd><span>Split Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+D</kbd><span>Dup Track</span></div>
+      <div class="shortcut-item"><kbd>&#8592; &#8594;</kbd><span>Nudge Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd++</kbd><span>Zoom In</span></div>
       <div class="shortcut-item"><kbd>Cmd+-</kbd><span>Zoom Out</span></div>
       <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
@@ -3243,6 +3247,7 @@ function loadPreset(id) {
   saveSession();
   togglePresets();
   sfx('preset');
+  setWorkoutName(p.name);
   toast('Preset loaded: ' + p.name);
 }
 
@@ -3280,6 +3285,7 @@ function generateRandom() {
   saveSession();
   togglePresets();
   sfx('preset');
+  setWorkoutName('Random ' + bpm + ' BPM');
   toast('Random workout generated at ' + bpm + ' BPM');
 }
 
@@ -3438,6 +3444,7 @@ function importWorkout() {
         updateStats();
         saveSession();
         sfx('preset');
+        setWorkoutName(workout.name || 'Imported Workout');
         toast('Imported: ' + (workout.name || 'workout'));
       } catch(err) {
         toast('Error importing file');
@@ -3541,6 +3548,7 @@ function saveNamedWorkout() {
   saved.unshift(workout);
   if (saved.length > 20) saved = saved.slice(0, 20);
   try { localStorage.setItem('sms_saved_workouts', JSON.stringify(saved)); } catch(e) {}
+  setWorkoutName(name.trim());
   toast('Saved: ' + name.trim());
 }
 
@@ -3720,6 +3728,28 @@ function zoomOut() {
   }
 }
 
+function zoomToFit() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to fit'); return; }
+  var maxRight = 0;
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  maxRight += 120; // padding for track headers + margin
+  var containerW = document.getElementById('timeline-container').clientWidth;
+  var targetZoom = Math.round(containerW / maxRight * 100);
+  // Clamp to zoom steps
+  var bestStep = ZOOM_STEPS[0];
+  for (var i = 0; i < ZOOM_STEPS.length; i++) {
+    if (ZOOM_STEPS[i] <= targetZoom) bestStep = ZOOM_STEPS[i];
+  }
+  zoomLevel = bestStep;
+  applyZoom();
+  document.getElementById('timeline-container').scrollLeft = 0;
+  toast('Zoom to fit: ' + zoomLevel + '%');
+}
+
 function applyZoom() {
   var scale = zoomLevel / 100;
   var tracks = document.getElementById('timeline-tracks');
@@ -3885,6 +3915,21 @@ function renderMarker(marker) {
 function renderAllMarkers() {
   document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
   markers.forEach(function(m) { renderMarker(m); });
+}
+
+/* ===== WORKOUT NAME ===== */
+var workoutName = 'Untitled';
+function setWorkoutName(name) {
+  workoutName = name;
+  document.getElementById('workout-name').textContent = name;
+}
+function renameWorkout() {
+  var name = prompt('Workout name:', workoutName);
+  if (name && name.trim()) {
+    setWorkoutName(name.trim());
+    saveSession();
+    toast('Renamed: ' + workoutName);
+  }
 }
 
 /* ===== CLIP SPLIT ===== */
@@ -4132,6 +4177,18 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyB' && !e.metaKey && !e.ctrlKey) {
     splitClipAtPlayhead();
+  }
+  // Arrow keys to nudge selected clip
+  if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && selectedClip && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault();
+    var pps = 80 / 15;
+    var beatSec = 60 / bpm;
+    var nudge = e.shiftKey ? (beatSec * 4 * pps) : (beatSec * pps); // bar or beat
+    var curLeft = parseInt(selectedClip.style.left);
+    if (e.code === 'ArrowLeft') curLeft = Math.max(0, curLeft - nudge);
+    if (e.code === 'ArrowRight') curLeft = curLeft + nudge;
+    selectedClip.style.left = Math.round(curLeft) + 'px';
+    saveSession(); updateStats();
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
