@@ -144,7 +144,7 @@ body {
 }
 
 /* ===== MAIN 3-PANEL ===== */
-.main { display: grid; grid-template-columns: 220px 1fr 280px; overflow: hidden; }
+.main { display: grid; grid-template-columns: 220px 3px 1fr 280px; overflow: hidden; }
 
 /* ===== LEFT PANEL: MOVEMENT LIBRARY ===== */
 .panel-left {
@@ -1438,6 +1438,29 @@ button:focus-visible, .transport-btn:focus-visible {
   letter-spacing: 0.13em;
 }
 
+/* Panel resize divider — draggable border between left panel and timeline */
+.panel-resize {
+  width: 3px; cursor: col-resize;
+  background: transparent;
+  position: relative; z-index: 10;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.panel-resize:hover, .panel-resize.dragging {
+  background: rgba(59,130,246,0.2);
+}
+.panel-resize::after {
+  content: '';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px; height: 20px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.panel-resize:hover::after { opacity: 1; }
+
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
   0% { transform: translateX(-100%); }
@@ -1477,7 +1500,7 @@ button:focus-visible, .transport-btn:focus-visible {
 .panel-left, .panel-right { transition: width 0.2s, opacity 0.2s, padding 0.2s; }
 .main.focus-mode .panel-left { width: 0; overflow: hidden; opacity: 0; padding: 0; border: none; }
 .main.focus-mode .panel-right { width: 0; overflow: hidden; opacity: 0; padding: 0; border: none; }
-.main.focus-mode { grid-template-columns: 0fr 1fr 0fr; }
+.main.focus-mode { grid-template-columns: 0fr 0fr 1fr 0fr; }
 .focus-indicator {
   display: none; position: fixed; top: 44px; right: 8px;
   font-size: 7px; color: var(--accent-cyan); background: rgba(6,182,212,0.1);
@@ -1575,7 +1598,7 @@ button:focus-visible, .transport-btn:focus-visible {
 /* ===== TABLET (768px) ===== */
 @media(max-width:768px) {
   .app { grid-template-rows: 36px 1fr 22px; }
-  .main { grid-template-columns: 160px 1fr 220px; }
+  .main { grid-template-columns: 160px 3px 1fr 220px; }
   .header { padding: 0 10px; }
   .logo-text { font-size: 10px; }
   .nav-btn { padding: 4px 8px; font-size: 8px; }
@@ -1593,6 +1616,7 @@ button:focus-visible, .transport-btn:focus-visible {
 @media(max-width:480px) {
   .app { grid-template-rows: 36px 1fr 20px; }
   .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  .panel-resize { display: none; }
   .panel-left { max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); }
   .panel-right { border-left: none; border-top: 1px solid var(--border); max-height: 240px; }
   .header { padding: 0 8px; }
@@ -1992,6 +2016,9 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div id="library-container"></div>
     </aside>
 
+    <!-- Panel resize divider -->
+    <div class="panel-resize" id="panel-resize-left"></div>
+
     <!-- CENTER: Transport + Video + Timeline -->
     <section class="panel-center">
       <!-- Transport -->
@@ -2035,6 +2062,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <span id="zoom-level" style="font-size:8px;color:var(--muted);min-width:28px;text-align:center">100%</span>
           <button class="transport-btn" onclick="zoomIn()" title="Zoom in" style="width:22px;height:22px;font-size:10px;border-radius:2px">+</button>
           <button class="transport-btn" onclick="zoomToFit()" title="Zoom to fit all clips" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FIT</button>
+          <div class="transport-sep"></div>
+          <button class="transport-btn" id="auto-scroll-btn" onclick="toggleAutoScroll()" title="Auto-scroll follows playhead" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FOLLOW</button>
         </div>
       </div>
 
@@ -5224,6 +5253,7 @@ var CMD_ACTIONS = [
   {label:'Keyboard Shortcuts', key:'?', icon:'\u2328', action: function() { toggleShortcuts(); }},
   {label:'Reset Session', key:'', icon:'\u21BA', action: function() { resetSession(); }},
   {label:'Scroll to Playhead', key:'', icon:'\u25B8', action: function() { scrollToPlayhead(); }},
+  {label:'Toggle Auto-Scroll', key:'', icon:'\u21C5', action: function() { toggleAutoScroll(); }},
 ];
 
 function openCmdPalette() {
@@ -5834,6 +5864,44 @@ function toggleMixerSection(btn) {
   body.classList.toggle('hidden');
   sfx('click');
 }
+
+/* Auto-scroll toggle — disable playhead-following during playback */
+var autoScrollEnabled = true;
+function toggleAutoScroll() {
+  autoScrollEnabled = !autoScrollEnabled;
+  var btn = document.getElementById('auto-scroll-btn');
+  btn.classList.toggle('active', autoScrollEnabled);
+  toast('Auto-scroll: ' + (autoScrollEnabled ? 'On' : 'Off'));
+  sfx('click');
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('auto-scroll-btn').classList.add('active');
+});
+
+/* Panel resize — drag left panel border to resize */
+document.addEventListener('DOMContentLoaded', function() {
+  var handle = document.getElementById('panel-resize-left');
+  var panel = document.querySelector('.panel-left');
+  if (!handle || !panel) return;
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    handle.classList.add('dragging');
+    var startX = e.clientX;
+    var startW = panel.offsetWidth;
+    function onMove(ev) {
+      var newW = Math.max(140, Math.min(400, startW + (ev.clientX - startX)));
+      panel.style.width = newW + 'px';
+      document.querySelector('.main').style.gridTemplateColumns = newW + 'px 3px 1fr 280px';
+    }
+    function onUp() {
+      handle.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+});
 </script>
 </body>
 </html>
