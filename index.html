@@ -539,6 +539,11 @@ body {
   border-color: var(--text-bright);
   box-shadow: 0 0 0 1px var(--text-bright), 0 0 12px rgba(255,255,255,0.1);
 }
+.clip .clip-name {
+  overflow: hidden; text-overflow: ellipsis;
+  max-width: calc(100% - 30px); white-space: nowrap;
+  display: inline-block; vertical-align: top;
+}
 .clip .clip-info {
   font-size: 7px; opacity: 0.5; margin-left: 4px;
   text-transform: uppercase; letter-spacing: 0.05em;
@@ -988,6 +993,27 @@ body {
 .status-item { display: flex; align-items: center; gap: 4px; }
 .status-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent-green); }
 .footer-quote { font-style: italic; opacity: 0.3; letter-spacing: 0.05em; font-size: 8px; }
+
+/* Global Range Inputs — Pro DAW sliders */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  height: 3px; background: var(--border); outline: none;
+  cursor: pointer; border-radius: 1px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px; height: 10px;
+  background: var(--text-secondary);
+  border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--border);
+  transition: background 0.15s, transform 0.1s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--text); transform: scale(1.2);
+}
+input[type="range"]:focus::-webkit-slider-thumb {
+  background: var(--blue); border-color: var(--blue);
+}
 
 /* ===== COMMAND PALETTE ===== */
 .cmd-palette {
@@ -1474,6 +1500,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <input type="number" class="bpm-input" id="bpm-input" value="120" min="40" max="200" onchange="updateBPM()">
           <span class="bpm-mode" id="bpm-mode">Standard</span>
           <span class="tempo-link" id="tempo-link" onclick="toggleTempoLink()" title="Link BPM to exercise tempo">LINK</span>
+          <span id="time-sig" style="font-size:8px;font-weight:700;color:var(--micro);padding:0 4px;letter-spacing:0.04em;cursor:pointer;font-variant-numeric:tabular-nums" onclick="cycleTimeSig()" title="Time signature">4/4</span>
           <div class="transport-sep"></div>
           <span class="bpm-label">Zoom</span>
           <button class="transport-btn" onclick="zoomOut()" title="Zoom out" style="width:22px;height:22px;font-size:10px;border-radius:2px">-</button>
@@ -1692,6 +1719,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" title="Click to rename">Untitled</span>
       <span style="color:var(--border)">|</span>
       <div class="footer-quote">Saturno Movement Studio</div>
+      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v1.0</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
   </footer>
@@ -2433,6 +2461,7 @@ function createClipElement(exercise, left, width, dna) {
   clip.dataset.rpe = (dna && dna.rpe) || '7';
 
   var label = document.createElement('span');
+  label.className = 'clip-name';
   label.textContent = exercise.name;
   label.style.position = 'relative';
   label.style.zIndex = '1';
@@ -3020,6 +3049,15 @@ function toggleTempoLink() {
     sfx('click');
     toast('Tempo unlinked');
   }
+}
+
+var timeSigOptions = ['4/4', '3/4', '6/8', '5/4', '7/8'];
+var timeSigIdx = 0;
+function cycleTimeSig() {
+  timeSigIdx = (timeSigIdx + 1) % timeSigOptions.length;
+  document.getElementById('time-sig').textContent = timeSigOptions[timeSigIdx];
+  sfx('click');
+  toast('Time signature: ' + timeSigOptions[timeSigIdx]);
 }
 
 function toggleMetronome() {
