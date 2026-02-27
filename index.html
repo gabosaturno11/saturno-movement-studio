@@ -2673,6 +2673,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span id="footer-selection" data-tip="Selected clips" style="color:var(--accent-cyan);font-size:8px;font-weight:500"></span>
       <span id="footer-locked" data-tip="Locked clips" style="color:rgba(239,68,68,0.7);font-size:7px;font-weight:500"></span>
       <span id="footer-clipboard" data-tip="Clipboard contents" style="color:rgba(234,179,8,0.7);font-size:7px;font-weight:500"></span>
+      <span id="footer-track-state" data-tip="Track mute/solo status" style="font-size:7px;font-weight:500"></span>
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
@@ -4329,6 +4330,17 @@ function updateStats() {
   if (lockedEl) {
     var lockedCount = document.querySelectorAll('.clip.clip-locked').length;
     lockedEl.textContent = lockedCount > 0 ? lockedCount + ' locked' : '';
+  }
+  // Track mute/solo indicator
+  var tsEl = document.getElementById('footer-track-state');
+  if (tsEl) {
+    var mutedTracks = document.querySelectorAll('.track.track-muted').length;
+    var soloedTracks = document.querySelectorAll('.track.track-soloed').length;
+    var parts = [];
+    if (soloedTracks > 0) parts.push(soloedTracks + ' solo');
+    if (mutedTracks > 0) parts.push(mutedTracks + ' muted');
+    tsEl.textContent = parts.join(' ');
+    tsEl.style.color = soloedTracks > 0 ? 'rgba(234,179,8,0.8)' : mutedTracks > 0 ? 'rgba(239,68,68,0.6)' : '';
   }
   // Update per-track clip counts
   TRACKS.forEach(function(t) {
@@ -7322,6 +7334,9 @@ var CMD_ACTIONS = [
   {label:'Edit Workout Notes', key:'', icon:'\u270E', action: function() { showInlinePrompt('Workout Notes', workoutNotes, function(v){ workoutNotes=v; saveSession(); toast('Notes saved'); }); }},
   {label:'Lock All Clips', key:'', icon:'\u2693', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip').forEach(function(cl){if(!cl.classList.contains('clip-locked')){cl.classList.add('clip-locked');cl.dataset.locked='1';c++;}}); saveSession(); toast(c+' clips locked'); }},
   {label:'Unlock All Clips', key:'', icon:'\u2693', action: function() { pushUndo(); var c=0; document.querySelectorAll('.clip.clip-locked').forEach(function(cl){cl.classList.remove('clip-locked');cl.dataset.locked='';c++;}); saveSession(); toast(c+' clips unlocked'); }},
+  {label:'Duplicate to Next Bar', key:'', icon:'\u25B8', action: function() { duplicateToNextBar(); }},
+  {label:'Fill Track with Exercise', key:'', icon:'\u2593', action: function() { fillTrackWithExercise(); }},
+  {label:'Mirror Workout', key:'', icon:'\u21C4', action: function() { mirrorWorkout(); }},
 ];
 
 function openCmdPalette() {
@@ -7973,6 +7988,76 @@ function setAllTempo(seconds) {
   toast(count + ' clips tempo set to ' + seconds + 's');
 }
 
+function duplicateToNextBar() {
+  if (!selectedClip) { toast('Select a clip'); return; }
+  if (selectedClip.classList.contains('clip-locked')) { toast('Clip is locked'); return; }
+  pushUndo();
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var barPx = Math.round(bpb * (60 / bpm) * (80 / 15));
+  var newLeft = parseInt(selectedClip.style.left) + barPx;
+  var clip = createClipElement(ex, newLeft, parseInt(selectedClip.style.width), {
+    sets: selectedClip.dataset.sets, reps: selectedClip.dataset.reps,
+    tempo: selectedClip.dataset.tempo, rest: selectedClip.dataset.rest,
+    rpe: selectedClip.dataset.rpe,
+    fadeIn: selectedClip.dataset.fadeIn || '0', fadeOut: selectedClip.dataset.fadeOut || '0'
+  });
+  if (selectedClip.dataset.notes) clip.dataset.notes = selectedClip.dataset.notes;
+  if (selectedClip.dataset.customColor) {
+    clip.dataset.customColor = selectedClip.dataset.customColor;
+    clip.style.background = 'linear-gradient(180deg, ' + selectedClip.dataset.customColor + '44 0%, ' + selectedClip.dataset.customColor + '22 100%)';
+    clip.style.borderTopColor = selectedClip.dataset.customColor;
+  }
+  selectedClip.parentElement.appendChild(clip);
+  updateStats(); saveSession(); sfx('drop');
+  toast('Duplicated to next bar');
+}
+
+function fillTrackWithExercise() {
+  if (!selectedClip) { toast('Select a clip first'); return; }
+  var track = selectedClip.parentElement;
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  pushUndo();
+  var clipW = parseInt(selectedClip.style.width) || 80;
+  var gap = 4;
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var barPx = Math.round(bpb * (60 / bpm) * (80 / 15));
+  var startLeft = parseInt(selectedClip.style.left) + clipW + gap;
+  var maxPx = 100 + Math.round(300 * (60 / bpm) * (80 / 15));
+  var existing = Array.from(track.querySelectorAll('.clip'));
+  var maxExisting = 0;
+  existing.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxExisting) maxExisting = r;
+  });
+  if (maxExisting > maxPx) maxPx = maxExisting + barPx * 2;
+  var filled = 0;
+  var pos = startLeft;
+  while (pos + clipW <= maxPx && filled < 32) {
+    var overlaps = false;
+    existing.forEach(function(c) {
+      var cL = parseInt(c.style.left);
+      var cR = cL + parseInt(c.style.width);
+      if (pos + clipW > cL && pos < cR) overlaps = true;
+    });
+    if (!overlaps) {
+      var clip = createClipElement(ex, pos, clipW, {
+        sets: selectedClip.dataset.sets, reps: selectedClip.dataset.reps,
+        tempo: selectedClip.dataset.tempo, rest: selectedClip.dataset.rest,
+        rpe: selectedClip.dataset.rpe
+      });
+      track.appendChild(clip);
+      existing.push(clip);
+      filled++;
+    }
+    pos += clipW + gap;
+  }
+  updateStats(); saveSession(); sfx('drop');
+  toast(filled + ' clips added to track');
+}
+
 function searchLibraryForInspected() {
   if (!selectedClip) return;
   var ex = getExercise(selectedClip.dataset.exerciseId);
@@ -8012,6 +8097,28 @@ function setAllStage(targetStage) {
   });
   saveSession(); updateStats();
   toast(swapped + ' clips set to Stage ' + targetStage);
+}
+
+function mirrorWorkout() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to mirror'); return; }
+  pushUndo();
+  var maxRight = 0;
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var ho = 100;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var origLeft = parseInt(c.style.left);
+    var w = parseInt(c.style.width);
+    var newLeft = ho + (maxRight - ho) - (origLeft - ho) - w;
+    c.style.left = Math.max(ho, newLeft) + 'px';
+  });
+  updateStats(); saveSession();
+  sfx('click');
+  toast('Workout mirrored');
 }
 
 function selectClipsByStage(stage) {

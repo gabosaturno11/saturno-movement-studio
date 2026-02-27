@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~8,650 lines). No build step. No framework.
+Single-file HTML app (index.html, ~8,780 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-195)
+### Features (Batches 1-204)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -223,6 +223,17 @@ saturno-movement-studio/
 - **Copy Clip Info** (clipboard text with exercise details)
 - **Shift All RPE** (+1/-1 bulk RPE adjustment commands)
 - **Select by stage** (S1/S2/S3 command palette entries)
+- **Set All to Stage** (S1/S2/S3 bulk progression commands, lock-aware)
+- **Inspector exercise name click** (click name in inspector to search library)
+- **Set All Rest** (30/60/90/120s bulk rest commands)
+- **Set All Tempo** (2/3/4/5s bulk tempo commands)
+- **Complexity Score** (pattern + family + stage + discipline diversity metric)
+- **Lock All / Unlock All** (bulk lock/unlock commands)
+- **Global workout notes** (persists all 6 state paths, inline prompt edit)
+- **Print workout notes** (notes section in print worksheet output)
+- **Summary workout notes** (notes in summary panel + copy text output)
+- **Command palette** (Cmd+K, 100+ commands)
+- **Keyboard shortcuts panel** (?, 60+ shortcuts)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
