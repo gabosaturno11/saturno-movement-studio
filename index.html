@@ -7436,6 +7436,10 @@ var CMD_ACTIONS = [
   {label:'Progressive RPE (Descending)', key:'', icon:'\u2198', action: function() { progressiveRPE('descending'); }},
   {label:'Arrange as Circuit', key:'', icon:'\u21C6', action: function() { arrangeAsCircuit(); }},
   {label:'Time Under Tension', key:'', icon:'\u23F1', action: function() { showTUT(); }},
+  {label:'Rate Workout', key:'', icon:'\u2605', action: function() { rateWorkout(); }},
+  {label:'Rating History', key:'', icon:'\u2606', action: function() { showRatingHistory(); }},
+  {label:'Show Substitutions', key:'', icon:'\u21C4', action: function() { showSubstitutions(); }},
+  {label:'Undo History', key:'', icon:'\u238C', action: function() { showUndoHistory(); }},
 ];
 
 function openCmdPalette() {
@@ -9865,6 +9869,83 @@ function showClipDetail(clipEl) {
   if (clipEl.dataset.notes) info += '\nNote: ' + clipEl.dataset.notes.substring(0, 50);
   if (clipEl.dataset.locked === '1') info += '\n[LOCKED]';
   clipEl.title = info;
+}
+
+/* ===== BATCH 271: WORKOUT RATING ===== */
+var _workoutRating = 0;
+function rateWorkout() {
+  showInlinePrompt('Rate this workout (1-5 stars):', function(val) {
+    var rating = parseInt(val);
+    if (isNaN(rating) || rating < 1 || rating > 5) { toast('Enter 1-5'); return; }
+    _workoutRating = rating;
+    var stars = '';
+    for (var i = 0; i < 5; i++) stars += i < rating ? '\u2605' : '\u2606';
+    try {
+      var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+      ratings.push({
+        name: workoutName || 'Untitled',
+        rating: rating,
+        date: new Date().toISOString(),
+        clips: document.querySelectorAll('.clip').length,
+        bpm: bpm
+      });
+      if (ratings.length > 50) ratings = ratings.slice(-50);
+      localStorage.setItem('sms_ratings', JSON.stringify(ratings));
+    } catch(e) {}
+    toast(stars + ' (' + rating + '/5) rated');
+  });
+}
+function showRatingHistory() {
+  try {
+    var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+    if (ratings.length === 0) { toast('No ratings yet'); return; }
+    var msg = 'Workout Ratings:\n';
+    ratings.slice(-10).reverse().forEach(function(r, i) {
+      var stars = '';
+      for (var s = 0; s < 5; s++) stars += s < r.rating ? '\u2605' : '\u2606';
+      msg += (i + 1) + '. ' + stars + ' ' + r.name + ' (' + new Date(r.date).toLocaleDateString() + ')\n';
+    });
+    toast(msg);
+  } catch(e) { toast('Error loading ratings'); }
+}
+
+/* ===== BATCH 272: EXERCISE SUBSTITUTION TABLE ===== */
+function showSubstitutions() {
+  if (!selectedClip) { toast('Select a clip first'); return; }
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var samePattern = EXERCISES.filter(function(e) { return e.pattern === ex.pattern && e.id !== ex.id; });
+  var sameFamily = EXERCISES.filter(function(e) { return e.family === ex.family && e.id !== ex.id && e.pattern !== ex.pattern; });
+  var msg = 'Substitutions for ' + ex.name + ' (S' + ex.stage + ', ' + ex.pattern + ')\n\n';
+  if (samePattern.length > 0) {
+    msg += 'Same Pattern (' + ex.pattern + '):\n';
+    samePattern.forEach(function(e) { msg += '  S' + e.stage + ' ' + e.name + ' [' + e.discipline + ']\n'; });
+  }
+  if (sameFamily.length > 0) {
+    msg += '\nSame Family (' + ex.family + '):\n';
+    sameFamily.slice(0, 8).forEach(function(e) { msg += '  S' + e.stage + ' ' + e.name + ' [' + e.pattern + ']\n'; });
+  }
+  if (samePattern.length === 0 && sameFamily.length === 0) msg += 'No substitutions available';
+  toast(msg);
+}
+
+/* ===== BATCH 273: UNDO HISTORY VIEWER ===== */
+function showUndoHistory() {
+  var msg = 'Undo Stack: ' + undoStack.length + '/' + maxUndo + ' states\n';
+  msg += 'Redo Stack: ' + redoStack.length + ' states\n\n';
+  if (undoStack.length > 0) {
+    msg += 'Recent undo states:\n';
+    var recent = undoStack.slice(-5);
+    recent.forEach(function(stateStr, i) {
+      try {
+        var state = JSON.parse(stateStr);
+        msg += (undoStack.length - recent.length + i + 1) + '. ' + state.clips.length + ' clips, BPM ' + state.bpm + '\n';
+      } catch(e) { msg += (i + 1) + '. [parse error]\n'; }
+    });
+  } else {
+    msg += 'No undo states available';
+  }
+  toast(msg);
 }
 
 function selectClipsByStage(stage) {
