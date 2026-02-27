@@ -2863,7 +2863,8 @@ function sfx(type) {
         osc = sfxCtx.createOscillator();
         gain = sfxCtx.createGain();
         osc.type = 'sine';
-        var isDownbeat = (beatCounter % 4 === 0);
+        var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+        var isDownbeat = (beatCounter % bpb === 0);
         osc.frequency.setValueAtTime(isDownbeat ? 1500 : 1000, now);
         var vol = (typeof metroVolume !== 'undefined' ? metroVolume : 0.5) * (isDownbeat ? 0.15 : 0.08);
         gain.gain.setValueAtTime(vol, now);
@@ -3292,7 +3293,8 @@ function selectMusicTrack(idx) {
 function buildRuler() {
   var ruler = document.getElementById('timeline-ruler');
   var beatDuration = 60 / bpm;
-  var barDuration = beatDuration * 4;
+  var bpb = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var barDuration = beatDuration * bpb;
   var html = '<div class="ruler-mark" style="flex:0 0 100px"><span style="color:var(--muted)">1</span></div>';
   for (var i = 15; i <= 300; i += 15) {
     var m = Math.floor(i / 60);
@@ -3864,7 +3866,8 @@ function updateStats() {
   var s = secs % 60;
   document.getElementById('total-duration').textContent = m + ':' + s.toString().padStart(2, '0');
   // Update total bars in footer
-  var totalBars = Math.ceil(secs / (60 / bpm * 4));
+  var bpbF = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+  var totalBars = Math.ceil(secs / (60 / bpm * bpbF));
   var barsEl = document.getElementById('footer-bars');
   if (barsEl) barsEl.textContent = totalBars + ' bar' + (totalBars !== 1 ? 's' : '');
   // Update per-track clip counts
@@ -4060,11 +4063,19 @@ function updatePlayhead() {
   if (currentBeat > beatCounter) {
     beatCounter = currentBeat;
     if (metronomeEnabled) sfx('metronome');
-    // Animate beat dots (1-4)
-    var dotIdx = (beatCounter % 4) + 1;
+    // Animate beat dots (1-4, wraps with time sig)
+    var bpbDots = (typeof getBeatsPerBar === 'function') ? getBeatsPerBar() : 4;
+    var dotIdx = (beatCounter % bpbDots) + 1;
     for (var d = 1; d <= 4; d++) {
       var dot = document.getElementById('beat-' + d);
-      if (dot) dot.style.background = (d === dotIdx) ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.1)';
+      if (dot) {
+        if (d <= bpbDots) {
+          dot.style.background = (d === dotIdx) ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.1)';
+          dot.style.display = '';
+        } else {
+          dot.style.display = 'none';
+        }
+      }
     }
   }
 }
@@ -4278,10 +4289,15 @@ function tapTempo() {
 
 var timeSigOptions = ['4/4', '3/4', '6/8', '5/4', '7/8'];
 var timeSigIdx = 0;
+function getBeatsPerBar() {
+  var ts = timeSigOptions[timeSigIdx];
+  return parseInt(ts.split('/')[0]) || 4;
+}
 function cycleTimeSig() {
   timeSigIdx = (timeSigIdx + 1) % timeSigOptions.length;
   document.getElementById('time-sig').textContent = timeSigOptions[timeSigIdx];
   sfx('click');
+  buildRuler();
   toast('Time signature: ' + timeSigOptions[timeSigIdx]);
 }
 
