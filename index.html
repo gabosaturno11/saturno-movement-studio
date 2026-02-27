@@ -8039,6 +8039,12 @@ var CMD_ACTIONS = [
   {label:'Recovery Tracker', key:'', icon:'\u2764', action: function() { showRecoveryTracker(); }},
   {label:'Set Type Label', key:'', icon:'\ud83c\udff7', action: function() { showSetTypeLabeler(); }},
   {label:'Training Age', key:'', icon:'\ud83c\udf93', action: function() { showTrainingAge(); }},
+  {label:'Workout Archetypes', key:'', icon:'\ud83c\udfc6', action: function() { showArchetypeAnalyzer(); }},
+  {label:'Exercise Impact Scores', key:'', icon:'\ud83d\udca5', action: function() { showExerciseImpact(); }},
+  {label:'Session RPE Log', key:'', icon:'\ud83d\udcdd', action: function() { showSessionRPELogger(); }},
+  {label:'Tempo Map', key:'', icon:'\u23f1', action: function() { showTempoMap(); }},
+  {label:'Smart Warm-up', key:'', icon:'\ud83e\uddd8', action: function() { generateSmartWarmup(); }},
+  {label:'Completion Tracker', key:'', icon:'\u2705', action: function() { showCompletionTracker(); }},
 ];
 
 function openCmdPalette() {
@@ -19768,6 +19774,310 @@ function showTrainingAge() {
   html += '</div></div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
+}
+
+// Batch 416: Workout Archetype Analyzer
+function showArchetypeAnalyzer() {
+  var families = {Push: 0, Pull: 0, Core: 0, Legs: 0, Skills: 0};
+  var totalSets = 0;
+  var avgRPE = 0;
+  var rpeCount = 0;
+  var stages = {S1: 0, S2: 0, S3: 0};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var sets = parseInt(c.dataset.sets || 3);
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var stage = c.dataset.stage || 'S1';
+    Object.keys(families).forEach(function(f) { if (fam.toLowerCase().indexOf(f.toLowerCase()) > -1) families[f] += sets; });
+    totalSets += sets;
+    avgRPE += rpe;
+    rpeCount++;
+    if (stages[stage] !== undefined) stages[stage]++;
+  });
+  avgRPE = rpeCount > 0 ? avgRPE / rpeCount : 0;
+  var archetypes = [];
+  var dominant = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; })[0];
+  var ratio = totalSets > 0 ? families[dominant] / totalSets : 0;
+  if (families.Skills > totalSets * 0.3) archetypes.push({name: 'Skill Master', desc: 'Focused on movement quality and skill acquisition', color: '#a78bfa'});
+  if (families.Push + families.Pull > totalSets * 0.6) archetypes.push({name: 'Upper Body Sculptor', desc: 'Push-pull dominant for upper body development', color: '#06b6d4'});
+  if (families.Legs > totalSets * 0.35) archetypes.push({name: 'Leg Day Legend', desc: 'Lower body emphasis for power and strength', color: '#f87171'});
+  if (avgRPE >= 8) archetypes.push({name: 'Intensity Seeker', desc: 'High RPE across the board, pushing limits', color: '#fbbf24'});
+  if (avgRPE <= 5.5) archetypes.push({name: 'Recovery Artist', desc: 'Low intensity for active recovery and mobility', color: '#4ade80'});
+  if (stages.S3 > stages.S1 + stages.S2) archetypes.push({name: 'Advanced Practitioner', desc: 'Mostly Stage 3 progressions, high skill level', color: '#f472b6'});
+  if (Object.keys(families).filter(function(f) { return families[f] > 0; }).length >= 4) archetypes.push({name: 'Well-Rounded Warrior', desc: 'Balanced across multiple movement families', color: '#34d399'});
+  if (ratio > 0.5) archetypes.push({name: 'Specialist', desc: 'Heavy focus on ' + dominant + ' movements', color: getFamilyColor(dominant)});
+  if (totalSets >= 30) archetypes.push({name: 'Volume Beast', desc: 'High total volume for maximum growth stimulus', color: '#fb923c'});
+  if (archetypes.length === 0) archetypes.push({name: 'Explorer', desc: 'Building your training identity', color: '#94a3b8'});
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Workout Archetypes</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:16px;">';
+  html += '<div style="font-size:28px;font-weight:700;color:' + archetypes[0].color + ';">' + archetypes[0].name + '</div>';
+  html += '<div style="font-size:13px;color:#94a3b8;margin-top:4px;">Primary Archetype</div></div>';
+  archetypes.forEach(function(a, i) {
+    html += '<div style="padding:10px 12px;margin-bottom:8px;background:rgba(6,182,212,0.05);border-left:3px solid ' + a.color + ';border-radius:0 8px 8px 0;">';
+    html += '<div style="font-weight:600;color:' + a.color + ';font-size:14px;">' + (i === 0 ? 'PRIMARY: ' : '') + a.name + '</div>';
+    html += '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + a.desc + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 417: Exercise Impact Score
+function showExerciseImpact() {
+  var impactMap = {
+    'Push': {muscles: 3, compound: true},
+    'Pull': {muscles: 3, compound: true},
+    'Core': {muscles: 2, compound: false},
+    'Legs': {muscles: 4, compound: true},
+    'Skills': {muscles: 2, compound: false}
+  };
+  var clips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var name = c.dataset.exercise || '';
+    var fam = c.dataset.family || '';
+    var stage = c.dataset.stage || 'S1';
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var sets = parseInt(c.dataset.sets || 3);
+    var stageMulti = stage === 'S3' ? 1.3 : stage === 'S2' ? 1.15 : 1.0;
+    var famKey = Object.keys(impactMap).find(function(f) { return fam.toLowerCase().indexOf(f.toLowerCase()) > -1; }) || 'Core';
+    var info = impactMap[famKey];
+    var muscleScore = info.muscles * 10;
+    var compoundBonus = info.compound ? 15 : 0;
+    var rpeScore = rpe * 5;
+    var volumeScore = Math.min(20, sets * 4);
+    var impact = Math.round((muscleScore + compoundBonus + rpeScore + volumeScore) * stageMulti);
+    clips.push({name: name, family: fam, impact: impact, stage: stage, rpe: rpe, sets: sets});
+  });
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  clips.sort(function(a, b) { return b.impact - a.impact; });
+  var maxImpact = clips[0].impact || 1;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Exercise Impact Scores</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Impact = muscles hit + compound bonus + RPE + volume, scaled by stage</div>';
+  clips.forEach(function(c) {
+    var pct = Math.round((c.impact / maxImpact) * 100);
+    var color = pct > 80 ? '#f87171' : pct > 50 ? '#fbbf24' : '#4ade80';
+    html += '<div style="margin-bottom:8px;">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;">';
+    html += '<span>' + c.name + ' <span style="color:#64748b;font-size:11px;">' + c.stage + '</span></span>';
+    html += '<span style="color:' + color + ';font-weight:600;">' + c.impact + '</span></div>';
+    html += '<div style="height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 418: Session RPE Logger
+function showSessionRPELogger() {
+  var logs = [];
+  try { logs = JSON.parse(localStorage.getItem('sms_session_rpe_logs') || '[]'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Session RPE Log</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Rate this session overall</div>';
+  html += '<div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;" id="session-rpe-btns">';
+  for (var r = 1; r <= 10; r++) {
+    var bg = r <= 4 ? '#4ade80' : r <= 6 ? '#fbbf24' : r <= 8 ? '#fb923c' : '#f87171';
+    html += '<button onclick="selectSessionRPE(' + r + ')" data-srpe="' + r + '" style="width:36px;height:36px;border:1px solid rgba(255,255,255,0.1);background:rgba(6,182,212,0.05);color:#e2e8f0;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-weight:600;font-size:14px;">' + r + '</button>';
+  }
+  html += '</div>';
+  html += '<textarea id="session-rpe-notes" placeholder="Session notes (optional)..." rows="3" style="width:100%;background:rgba(6,182,212,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:#e2e8f0;padding:8px;font-family:Sora,sans-serif;font-size:13px;resize:vertical;box-sizing:border-box;"></textarea>';
+  html += '<button onclick="saveSessionRPE()" id="save-session-rpe-btn" style="display:block;width:100%;margin-top:12px;background:#06b6d4;color:#050711;border:none;padding:10px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-weight:600;">Save Session RPE</button>';
+  if (logs.length > 0) {
+    html += '<div style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">';
+    html += '<div style="font-weight:600;margin-bottom:8px;">Recent Sessions</div>';
+    logs.slice(-10).reverse().forEach(function(l) {
+      var color = l.rpe <= 4 ? '#4ade80' : l.rpe <= 6 ? '#fbbf24' : l.rpe <= 8 ? '#fb923c' : '#f87171';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+      html += '<span style="font-size:12px;color:#94a3b8;">' + new Date(l.date).toLocaleDateString() + '</span>';
+      html += '<span style="font-size:13px;color:' + color + ';font-weight:600;">RPE ' + l.rpe + '</span>';
+      html += '</div>';
+      if (l.notes) html += '<div style="font-size:11px;color:#64748b;padding:0 8px 4px;">' + l.notes + '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+var _selectedSessionRPE = 0;
+function selectSessionRPE(val) {
+  _selectedSessionRPE = val;
+  document.querySelectorAll('[data-srpe]').forEach(function(btn) {
+    var v = parseInt(btn.dataset.srpe);
+    btn.style.background = v <= val ? (v <= 4 ? '#4ade80' : v <= 6 ? '#fbbf24' : v <= 8 ? '#fb923c' : '#f87171') : 'rgba(6,182,212,0.05)';
+    btn.style.color = v <= val ? '#050711' : '#e2e8f0';
+  });
+}
+
+function saveSessionRPE() {
+  if (_selectedSessionRPE === 0) { showToast('Select an RPE first'); return; }
+  var notes = document.getElementById('session-rpe-notes') ? document.getElementById('session-rpe-notes').value : '';
+  var logs = [];
+  try { logs = JSON.parse(localStorage.getItem('sms_session_rpe_logs') || '[]'); } catch(e) {}
+  logs.push({date: new Date().toISOString(), rpe: _selectedSessionRPE, notes: notes});
+  if (logs.length > 100) logs = logs.slice(-100);
+  try { localStorage.setItem('sms_session_rpe_logs', JSON.stringify(logs)); } catch(e) {}
+  showToast('Session RPE ' + _selectedSessionRPE + ' logged');
+  _selectedSessionRPE = 0;
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+}
+
+// Batch 419: Workout Tempo Map
+function showTempoMap() {
+  var clips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    clips.push({exercise: c.dataset.exercise || '', tempo: parseInt(c.dataset.tempo || 3), family: c.dataset.family || '', pos: parseInt(c.style.left) || 0});
+  });
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  clips.sort(function(a, b) { return a.pos - b.pos; });
+  var tempoGroups = {};
+  clips.forEach(function(c) {
+    var key = c.tempo + 's';
+    if (!tempoGroups[key]) tempoGroups[key] = [];
+    tempoGroups[key].push(c);
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Tempo Map</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Rep tempo distribution across workout</div>';
+  var tempos = Object.keys(tempoGroups).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+  var maxCount = Math.max.apply(null, tempos.map(function(t) { return tempoGroups[t].length; }));
+  tempos.forEach(function(t) {
+    var group = tempoGroups[t];
+    var pct = Math.round((group.length / clips.length) * 100);
+    var barPct = Math.round((group.length / maxCount) * 100);
+    var speed = parseInt(t) <= 2 ? 'Explosive' : parseInt(t) <= 3 ? 'Standard' : parseInt(t) <= 5 ? 'Controlled' : 'Super Slow';
+    var color = parseInt(t) <= 2 ? '#f87171' : parseInt(t) <= 3 ? '#fbbf24' : parseInt(t) <= 5 ? '#06b6d4' : '#a78bfa';
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">';
+    html += '<span><span style="font-weight:600;color:' + color + ';">' + t + '/rep</span> ' + speed + '</span>';
+    html += '<span style="color:#94a3b8;">' + group.length + ' exercises (' + pct + '%)</span></div>';
+    html += '<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + barPct + '%;background:' + color + ';border-radius:4px;"></div></div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">';
+    group.forEach(function(c) {
+      html += '<span style="font-size:10px;color:' + getFamilyColor(c.family) + ';">' + c.exercise.substring(0, 15) + '</span>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 420: Auto-warmup Generator V2
+function generateSmartWarmup() {
+  var families = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    if (!families[fam]) families[fam] = 0;
+    families[fam] += parseInt(c.dataset.sets || 3);
+  });
+  var dominant = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; });
+  var warmupMap = {
+    'Push': ['Arm Circles', 'Push-up Hold', 'Band Pull-Apart', 'Scapular Push-ups'],
+    'Pull': ['Band Pull-Apart', 'Dead Hang', 'Cat-Cow', 'Scapular Retractions'],
+    'Core': ['Bird-Dog', 'Dead Bug', 'Plank Hold', 'Side Plank'],
+    'Legs': ['Bodyweight Squat', 'Hip Circles', 'Leg Swings', 'Glute Bridge'],
+    'Skills': ['Wrist Circles', 'Shoulder Dislocates', 'Hollow Body', 'Handstand Wall Hold']
+  };
+  var warmupExercises = [];
+  dominant.forEach(function(fam) {
+    var famKey = Object.keys(warmupMap).find(function(k) { return fam.toLowerCase().indexOf(k.toLowerCase()) > -1; });
+    if (famKey && warmupMap[famKey]) {
+      warmupMap[famKey].forEach(function(ex) {
+        if (warmupExercises.indexOf(ex) === -1 && warmupExercises.length < 6) warmupExercises.push(ex);
+      });
+    }
+  });
+  if (warmupExercises.length === 0) warmupExercises = ['Arm Circles', 'Bodyweight Squat', 'Bird-Dog', 'Cat-Cow'];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Smart Warm-up</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Based on your workout: ' + dominant.slice(0, 3).join(', ') + '</div>';
+  warmupExercises.forEach(function(ex, i) {
+    html += '<div style="display:flex;align-items:center;gap:12px;padding:10px;margin-bottom:6px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<span style="color:#06b6d4;font-weight:700;font-size:16px;width:24px;text-align:center;">' + (i + 1) + '</span>';
+    html += '<div><div style="font-size:14px;font-weight:600;">' + ex + '</div>';
+    html += '<div style="font-size:12px;color:#94a3b8;">2 x 10 reps, 30s rest</div></div>';
+    html += '</div>';
+  });
+  html += '<div style="text-align:center;margin-top:16px;font-size:13px;color:#94a3b8;">Est. ' + (warmupExercises.length * 2) + ' minutes</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 421: Workout Completion Tracker
+function showCompletionTracker() {
+  var clips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    clips.push({
+      el: c,
+      exercise: c.dataset.exercise || '',
+      family: c.dataset.family || '',
+      sets: c.dataset.sets || '3',
+      reps: c.dataset.reps || '8',
+      completed: c.dataset.completed === 'true'
+    });
+  });
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var done = clips.filter(function(c) { return c.completed; }).length;
+  var pct = Math.round((done / clips.length) * 100);
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Completion Tracker</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:16px;">';
+  html += '<div style="font-size:36px;font-weight:700;color:' + (pct === 100 ? '#4ade80' : '#06b6d4') + ';">' + pct + '%</div>';
+  html += '<div style="font-size:13px;color:#94a3b8;">' + done + ' / ' + clips.length + ' exercises completed</div>';
+  html += '<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;margin-top:8px;">';
+  html += '<div style="height:100%;width:' + pct + '%;background:' + (pct === 100 ? '#4ade80' : '#06b6d4') + ';border-radius:4px;transition:width 0.3s;"></div></div></div>';
+  clips.forEach(function(c, i) {
+    var fColor = getFamilyColor(c.family);
+    html += '<div onclick="toggleCompletionItem(' + i + ')" style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;cursor:pointer;' + (c.completed ? 'opacity:0.5;' : '') + '">';
+    html += '<span style="font-size:16px;">' + (c.completed ? '[x]' : '[ ]') + '</span>';
+    html += '<div style="flex:1;"><span style="font-size:13px;' + (c.completed ? 'text-decoration:line-through;' : '') + '">' + c.exercise + '</span>';
+    html += '<span style="font-size:11px;color:#94a3b8;margin-left:8px;">' + c.sets + 'x' + c.reps + '</span></div>';
+    html += '<span style="font-size:11px;color:' + fColor + ';">' + c.family + '</span>';
+    html += '</div>';
+  });
+  if (pct === 100) {
+    html += '<div style="text-align:center;margin-top:16px;padding:12px;background:rgba(74,222,128,0.1);border-radius:8px;color:#4ade80;font-weight:600;">Workout Complete! Great session.</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function toggleCompletionItem(idx) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips[idx]) {
+    var current = clips[idx].dataset.completed === 'true';
+    clips[idx].dataset.completed = current ? 'false' : 'true';
+    saveState();
+    showCompletionTracker();
+  }
 }
 
 function selectClipsByStage(stage) {
