@@ -2829,6 +2829,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>0</kbd><span>Playhead Zero</span></div>
       <div class="shortcut-item"><kbd>/</kbd><span>Search Library</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
+      <div class="shortcut-item"><kbd>J</kbd><span>Next Clip</span></div>
+      <div class="shortcut-item"><kbd>K</kbd><span>Prev Clip</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
   </div>
@@ -7392,6 +7394,10 @@ var CMD_ACTIONS = [
   {label:'Clone Track to Skills', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('skills'); }},
   {label:'Export Session Stats', key:'', icon:'\u2139', action: function() { exportSessionStats(); }},
   {label:'Toggle RPE Color Mode', key:'', icon:'\u25A0', action: function() { toggleRpeColorMode(); }},
+  {label:'Select Next Clip', key:'J', icon:'\u25B6', action: function() { selectNextClip(); }},
+  {label:'Select Previous Clip', key:'K', icon:'\u25C0', action: function() { selectPrevClip(); }},
+  {label:'Select Duplicate Exercises', key:'', icon:'\u25C9', action: function() { selectDuplicateExercises(); }},
+  {label:'Repeat Last Command', key:'', icon:'\u21BB', action: function() { repeatLastCommand(); }},
 ];
 
 function openCmdPalette() {
@@ -7432,6 +7438,7 @@ function renderCommands(q) {
     el.addEventListener('click', function() {
       var idx = parseInt(el.dataset.idx);
       closeCmdPalette();
+      _lastCommand = CMD_ACTIONS[idx].action;
       CMD_ACTIONS[idx].action();
     });
   });
@@ -7448,6 +7455,7 @@ document.getElementById('cmd-input').addEventListener('keydown', function(e) {
     if (active) {
       closeCmdPalette();
       var idx = parseInt(active.dataset.idx);
+      _lastCommand = CMD_ACTIONS[idx].action;
       CMD_ACTIONS[idx].action();
     }
     return;
@@ -8847,6 +8855,69 @@ function toggleRpeColorMode() {
   toast('RPE Color Mode: ' + (rpeColorMode ? 'ON' : 'OFF'));
 }
 
+var _lastCommand = null;
+function repeatLastCommand() {
+  if (!_lastCommand) { toast('No command to repeat'); return; }
+  _lastCommand();
+}
+
+function selectNextClip() {
+  var allClips = getSortedClips();
+  if (allClips.length === 0) return;
+  var curIdx = -1;
+  if (selectedClip) {
+    for (var i = 0; i < allClips.length; i++) {
+      if (allClips[i] === selectedClip) { curIdx = i; break; }
+    }
+  }
+  var nextIdx = (curIdx + 1) % allClips.length;
+  selectClipEl(allClips[nextIdx]);
+  sfx('click');
+}
+
+function selectPrevClip() {
+  var allClips = getSortedClips();
+  if (allClips.length === 0) return;
+  var curIdx = 0;
+  if (selectedClip) {
+    for (var i = 0; i < allClips.length; i++) {
+      if (allClips[i] === selectedClip) { curIdx = i; break; }
+    }
+  }
+  var prevIdx = (curIdx - 1 + allClips.length) % allClips.length;
+  selectClipEl(allClips[prevIdx]);
+  sfx('click');
+}
+
+function getSortedClips() {
+  var trackOrder = ['push', 'pull', 'core', 'legs', 'skills'];
+  var result = [];
+  trackOrder.forEach(function(tid) {
+    var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+    if (!tc) return;
+    var trackClips = Array.from(tc.querySelectorAll('.clip'));
+    trackClips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+    result = result.concat(trackClips);
+  });
+  return result;
+}
+
+function selectDuplicateExercises() {
+  if (!selectedClip) { toast('Select a clip first'); return; }
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    if (c.dataset.exerciseId === ex.id) {
+      c.classList.add('selected');
+      count++;
+    }
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' clip' + (count !== 1 ? 's' : '') + ' with ' + ex.name + ' selected');
+}
+
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
   var count = 0;
@@ -9213,6 +9284,14 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
+  }
+  if (e.code === 'KeyJ' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    selectNextClip();
+    return;
+  }
+  if (e.code === 'KeyK' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    selectPrevClip();
+    return;
   }
   if (e.code === 'Slash' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     e.preventDefault();
