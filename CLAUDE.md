@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~8,050 lines). No build step. No framework.
+Single-file HTML app (index.html, ~8,400 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-135)
+### Features (Batches 1-159)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -166,8 +166,30 @@ saturno-movement-studio/
 - **Humanize clips** (random position jitter for organic feel)
 - **Export CSV** (tabular spreadsheet export)
 - **Invert selection** (Cmd+I toggles selected/unselected)
-- **Command palette** (Cmd+K, 57 commands including lock/humanize/CSV)
-- **Keyboard shortcuts panel** (?, 43 shortcuts including Cmd+L, Cmd+I)
+- **RPE shortcuts** (Shift+Up/Down adjusts RPE on selected clip)
+- **Select track clips** (Cmd+Shift+A selects only active track clips)
+- **Spread clips evenly** (distributes clips with equal gaps on active track)
+- **Session timer persistence** (cumulative timer survives page reload)
+- **Print discipline/stage** (print worksheet shows discipline + stage per exercise)
+- **Nudge sets/reps** ([ ] for sets, Shift+[ ] for reps on selected clip)
+- **Nudge tempo/rest** (, . for tempo, Shift+, . for rest on selected clip)
+- **updateClipInfo helper** (syncs clip label when params change via keyboard)
+- **Alt+Up/Down duplicate to track** (copies clip to adjacent track preserving all props)
+- **Collapse track keyboard** (C key toggles active track collapse)
+- **Marker navigation** (N / Shift+N jumps playhead to next/prev marker)
+- **Home/End jump** (Home to start, End to last clip end)
+- **Stage up/down keyboard** (PgUp/PgDn swaps exercise to next/prev progression stage)
+- **Clear track clips** (clears only active track, command palette)
+- **Auto-name workout** (generates name from dominant family + mode + count)
+- **Summary discipline stats** (shows est. minutes + discipline tags in summary panel)
+- **Copy text improvements** (includes exercise count + est. duration in header)
+- **CSV color/lock columns** (Color + Locked columns in CSV export)
+- **Session creation date** (tracked across save/load/export/import)
+- **Print creation date** (shows "Created" date in print meta bar)
+- **Arrow scrub playhead** (Left/Right scrubs by beat when no clip selected, Shift=bar)
+- **Paste at playhead** (Cmd+Shift+V pastes clips aligned to current playhead position)
+- **Command palette** (Cmd+K, 70+ commands including paste-at-playhead, auto-name)
+- **Keyboard shortcuts panel** (?, 55+ shortcuts including []/,. nudge, PgUp/PgDn)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
