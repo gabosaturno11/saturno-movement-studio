@@ -8027,6 +8027,12 @@ var CMD_ACTIONS = [
   {label:'Exercise History Graph', key:'', icon:'\ud83d\udcc8', action: function() { showExerciseHistoryGraph(); }},
   {label:'Remix Workout', key:'', icon:'\ud83d\udd00', action: function() { remixWorkout(); }},
   {label:'Progressive Overload Tracker', key:'', icon:'\ud83d\udcc8', action: function() { showOverloadTracker(); }},
+  {label:'Snapshot Diff', key:'', icon:'\ud83d\udd0d', action: function() { showSnapshotDiff(); }},
+  {label:'Exercise Rotation Scheduler', key:'', icon:'\ud83d\udd04', action: function() { showRotationScheduler(); }},
+  {label:'Training Load (ACWR)', key:'', icon:'\u2696', action: function() { showTrainingLoad(); }},
+  {label:'Streak Challenges', key:'', icon:'\ud83d\udd25', action: function() { showStreakChallenges(); }},
+  {label:'Exercise Clusters', key:'', icon:'\ud83e\udde9', action: function() { showClusterBuilder(); }},
+  {label:'Volume Wave Planner', key:'', icon:'\ud83c\udf0a', action: function() { showVolumeWavePlanner(); }},
 ];
 
 function openCmdPalette() {
@@ -19047,6 +19053,365 @@ function showOverloadTracker() {
     html += '<span style="color:' + (trend >= 0 ? '#4ade80' : '#f87171') + ';font-size:14px;font-weight:600">' + (trend >= 0 ? '+' : '') + pct + '%</span>';
     html += '</div>';
   }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 404: Workout Snapshot Diff
+function showSnapshotDiff() {
+  var backups = [];
+  try { backups = JSON.parse(localStorage.getItem('sms_auto_backups') || '[]'); } catch(e) {}
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var sources = [];
+  backups.forEach(function(b, i) {
+    sources.push({label: 'Backup ' + (i+1) + ' (' + new Date(b.time).toLocaleTimeString() + ')', clips: b.state && b.state.clips ? b.state.clips : []});
+  });
+  saved.forEach(function(s) {
+    sources.push({label: s.name || 'Saved', clips: s.clips || []});
+  });
+  if (sources.length === 0) { showToast('No snapshots or saved workouts to compare'); return; }
+  var currentClips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    currentClips.push({exercise: c.dataset.exercise || '', family: c.dataset.family || '', sets: c.dataset.sets || '3', reps: c.dataset.reps || '8'});
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:700px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Snapshot Diff</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Compare current workout against saved states</div>';
+  sources.forEach(function(src, idx) {
+    var currentNames = currentClips.map(function(c) { return c.exercise; }).sort();
+    var snapNames = src.clips.map(function(c) { return c.exercise || c.dataset && c.dataset.exercise || ''; }).sort();
+    var added = [];
+    var removed = [];
+    var cCopy = currentNames.slice();
+    var sCopy = snapNames.slice();
+    sCopy.forEach(function(n) { var i = cCopy.indexOf(n); if (i > -1) cCopy.splice(i, 1); else removed.push(n); });
+    cCopy.forEach(function(n) { added.push(n); });
+    var changed = added.length + removed.length;
+    html += '<div style="margin-bottom:12px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="font-weight:600;margin-bottom:8px;">' + src.label + ' <span style="color:#94a3b8;font-size:12px;">(' + changed + ' changes)</span></div>';
+    if (added.length > 0) html += '<div style="color:#4ade80;font-size:13px;margin-bottom:4px;">+ Added: ' + added.join(', ') + '</div>';
+    if (removed.length > 0) html += '<div style="color:#f87171;font-size:13px;margin-bottom:4px;">- Removed: ' + removed.join(', ') + '</div>';
+    if (changed === 0) html += '<div style="color:#94a3b8;font-size:13px;">No differences</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 405: Exercise Rotation Scheduler
+function showRotationScheduler() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var usageMap = {};
+  var allExercises = EXERCISES.map(function(e) { return e.name; });
+  allExercises.forEach(function(name) { usageMap[name] = {count: 0, lastUsed: null}; });
+  saved.forEach(function(s) {
+    var dt = s.date || s.timestamp || null;
+    (s.clips || []).forEach(function(c) {
+      var name = c.exercise || (c.dataset && c.dataset.exercise) || '';
+      if (usageMap[name]) {
+        usageMap[name].count++;
+        if (dt && (!usageMap[name].lastUsed || dt > usageMap[name].lastUsed)) usageMap[name].lastUsed = dt;
+      }
+    });
+  });
+  var entries = allExercises.map(function(name) {
+    return {name: name, count: usageMap[name].count, lastUsed: usageMap[name].lastUsed, family: (EXERCISES.find(function(e) { return e.name === name; }) || {}).family || ''};
+  });
+  entries.sort(function(a, b) { return a.count - b.count; });
+  var fresh = entries.filter(function(e) { return e.count === 0; });
+  var stale = entries.filter(function(e) { return e.count > 0; }).slice(0, 10);
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Exercise Rotation</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Keep variety high by rotating underused exercises</div>';
+  if (fresh.length > 0) {
+    html += '<div style="font-weight:600;color:#4ade80;margin-bottom:8px;">Never Used (' + fresh.length + ')</div>';
+    fresh.forEach(function(e) {
+      var fColor = getFamilyColor(e.family);
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+      html += '<span style="font-size:13px;">' + e.name + '</span>';
+      html += '<span style="font-size:11px;color:' + fColor + ';">' + e.family + '</span>';
+      html += '</div>';
+    });
+  }
+  if (stale.length > 0) {
+    html += '<div style="font-weight:600;color:#fbbf24;margin-top:12px;margin-bottom:8px;">Least Used (try these next)</div>';
+    stale.forEach(function(e) {
+      var fColor = getFamilyColor(e.family);
+      var ago = e.lastUsed ? Math.floor((Date.now() - new Date(e.lastUsed).getTime()) / 86400000) + 'd ago' : '';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+      html += '<span style="font-size:13px;">' + e.name + ' <span style="color:#94a3b8;font-size:11px;">(' + e.count + 'x)</span></span>';
+      html += '<span style="font-size:11px;color:' + fColor + ';">' + e.family + (ago ? ' ' + ago : '') + '</span>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 406: Training Load Calculator (Acute:Chronic Workload Ratio)
+function showTrainingLoad() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var sessions = saved.map(function(s) {
+    var totalLoad = 0;
+    (s.clips || []).forEach(function(c) {
+      var sets = parseInt(c.sets || c.dataset && c.dataset.sets || 3);
+      var reps = parseInt(c.reps || c.dataset && c.dataset.reps || 8);
+      var rpe = parseFloat(c.rpe || c.dataset && c.dataset.rpe || 7);
+      totalLoad += sets * reps * (rpe / 10);
+    });
+    return {date: s.date || s.timestamp || new Date().toISOString(), load: Math.round(totalLoad)};
+  }).sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+  var currentLoad = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var sets = parseInt(c.dataset.sets || 3);
+    var reps = parseInt(c.dataset.reps || 8);
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    currentLoad += sets * reps * (rpe / 10);
+  });
+  currentLoad = Math.round(currentLoad);
+  sessions.push({date: new Date().toISOString(), load: currentLoad});
+  var acute = 0;
+  var chronic = 0;
+  var last7 = sessions.slice(-7);
+  var last28 = sessions.slice(-28);
+  last7.forEach(function(s) { acute += s.load; });
+  last28.forEach(function(s) { chronic += s.load; });
+  acute = last7.length > 0 ? Math.round(acute / last7.length) : 0;
+  chronic = last28.length > 0 ? Math.round(chronic / last28.length) : 0;
+  var ratio = chronic > 0 ? (acute / chronic).toFixed(2) : 'N/A';
+  var zone = 'Optimal';
+  var zoneColor = '#4ade80';
+  if (ratio !== 'N/A') {
+    var r = parseFloat(ratio);
+    if (r < 0.8) { zone = 'Under-training'; zoneColor = '#94a3b8'; }
+    else if (r > 1.5) { zone = 'Danger Zone'; zoneColor = '#f87171'; }
+    else if (r > 1.3) { zone = 'High Risk'; zoneColor = '#fbbf24'; }
+    else { zone = 'Optimal (Sweet Spot)'; zoneColor = '#4ade80'; }
+  }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Training Load</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:20px 0;">';
+  html += '<div style="font-size:48px;font-weight:700;color:' + zoneColor + ';">' + ratio + '</div>';
+  html += '<div style="font-size:14px;color:' + zoneColor + ';margin-top:4px;">' + zone + '</div>';
+  html += '<div style="font-size:12px;color:#94a3b8;margin-top:8px;">Acute:Chronic Workload Ratio</div>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:20px 0;">';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:24px;font-weight:600;color:#06b6d4;">' + currentLoad + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Today</div></div>';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:24px;font-weight:600;color:#22d3ee;">' + acute + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">7-Day Avg</div></div>';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:24px;font-weight:600;color:#67e8f9;">' + chronic + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">28-Day Avg</div></div>';
+  html += '</div>';
+  html += '<div style="margin-top:16px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;font-size:12px;color:#94a3b8;">';
+  html += '<div style="font-weight:600;color:#e2e8f0;margin-bottom:8px;">Zones Guide</div>';
+  html += '<div style="margin-bottom:4px;"><span style="color:#94a3b8;">Below 0.8</span> Under-training</div>';
+  html += '<div style="margin-bottom:4px;"><span style="color:#4ade80;">0.8 - 1.3</span> Optimal (Sweet Spot)</div>';
+  html += '<div style="margin-bottom:4px;"><span style="color:#fbbf24;">1.3 - 1.5</span> High Risk</div>';
+  html += '<div><span style="color:#f87171;">Above 1.5</span> Danger Zone</div>';
+  html += '</div>';
+  html += '<div style="margin-top:12px;font-size:12px;color:#64748b;">Based on ' + sessions.length + ' sessions. Load = sets x reps x (RPE/10)</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 407: Workout Streak Challenges
+function showStreakChallenges() {
+  var challenges = [];
+  try { challenges = JSON.parse(localStorage.getItem('sms_streak_challenges') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var workoutDays = {};
+  ratings.forEach(function(r) {
+    var d = new Date(r.date || r.timestamp).toISOString().split('T')[0];
+    workoutDays[d] = true;
+  });
+  var currentStreak = 0;
+  var d = new Date();
+  for (var i = 0; i < 365; i++) {
+    var key = d.toISOString().split('T')[0];
+    if (workoutDays[key]) { currentStreak++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  var presets = [
+    {name: '7-Day Warrior', target: 7, desc: 'Train 7 days straight'},
+    {name: '14-Day Grinder', target: 14, desc: 'Two weeks of consistency'},
+    {name: '30-Day Titan', target: 30, desc: 'A full month of training'},
+    {name: '100-Day Legend', target: 100, desc: 'Elite consistency level'}
+  ];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Streak Challenges</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:16px 0;padding:16px;background:rgba(6,182,212,0.08);border-radius:10px;">';
+  html += '<div style="font-size:36px;font-weight:700;color:#06b6d4;">' + currentStreak + '</div>';
+  html += '<div style="font-size:13px;color:#94a3b8;">Current Streak (days)</div></div>';
+  presets.forEach(function(p) {
+    var pct = Math.min(100, Math.round((currentStreak / p.target) * 100));
+    var done = currentStreak >= p.target;
+    html += '<div style="margin-bottom:12px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    html += '<span style="font-weight:600;font-size:14px;color:' + (done ? '#4ade80' : '#e2e8f0') + ';">' + (done ? '* ' : '') + p.name + '</span>';
+    html += '<span style="font-size:12px;color:#94a3b8;">' + currentStreak + '/' + p.target + '</span></div>';
+    html += '<div style="font-size:12px;color:#94a3b8;margin-bottom:6px;">' + p.desc + '</div>';
+    html += '<div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + (done ? '#4ade80' : '#06b6d4') + ';border-radius:3px;"></div></div>';
+    html += '</div>';
+  });
+  html += '<div style="margin-top:12px;font-size:12px;color:#64748b;">Streak counts consecutive days with rated workouts</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 408: Exercise Cluster Builder
+var smsExerciseClusters = [];
+try { smsExerciseClusters = JSON.parse(localStorage.getItem('sms_exercise_clusters') || '[]'); } catch(e) {}
+function showClusterBuilder() {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:650px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Exercise Clusters</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Group exercises by training goal</div>';
+  html += '<div style="margin-bottom:16px;">';
+  html += '<button onclick="createNewCluster()" style="background:#06b6d4;color:#050711;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600;">+ New Cluster</button></div>';
+  if (smsExerciseClusters.length === 0) {
+    html += '<div style="text-align:center;color:#64748b;padding:24px;font-size:13px;">No clusters yet. Create one to group exercises by goal.</div>';
+  } else {
+    smsExerciseClusters.forEach(function(cl, idx) {
+      html += '<div style="margin-bottom:12px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+      html += '<span style="font-weight:600;font-size:14px;">' + cl.name + ' <span style="color:#94a3b8;font-size:12px;">(' + cl.exercises.length + ' exercises)</span></span>';
+      html += '<div><button onclick="applyClusterToTimeline(' + idx + ')" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;">Apply</button>';
+      html += '<button onclick="deleteCluster(' + idx + ')" style="background:rgba(248,113,113,0.15);color:#f87171;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">Del</button></div>';
+      html += '</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      cl.exercises.forEach(function(name) {
+        var ex = EXERCISES.find(function(e) { return e.name === name; });
+        var fColor = ex ? getFamilyColor(ex.family) : '#94a3b8';
+        html += '<span style="font-size:11px;color:' + fColor + ';padding:2px 6px;background:rgba(255,255,255,0.04);border-radius:4px;">' + name + '</span>';
+      });
+      html += '</div></div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function createNewCluster() {
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showInlinePrompt('Cluster name:', '', function(name) {
+    if (!name) return;
+    var exNames = [];
+    document.querySelectorAll('.clip').forEach(function(c) {
+      var n = c.dataset.exercise;
+      if (n && exNames.indexOf(n) === -1) exNames.push(n);
+    });
+    if (exNames.length === 0) { showToast('Add exercises to timeline first'); return; }
+    smsExerciseClusters.push({name: name, exercises: exNames, created: new Date().toISOString()});
+    if (smsExerciseClusters.length > 30) smsExerciseClusters = smsExerciseClusters.slice(-30);
+    try { localStorage.setItem('sms_exercise_clusters', JSON.stringify(smsExerciseClusters)); } catch(e) {}
+    showToast('Cluster "' + name + '" saved with ' + exNames.length + ' exercises');
+    showClusterBuilder();
+  });
+}
+
+function applyClusterToTimeline(idx) {
+  var cl = smsExerciseClusters[idx];
+  if (!cl) return;
+  var pos = playheadPos || 0;
+  cl.exercises.forEach(function(name) {
+    var ex = EXERCISES.find(function(e) { return e.name === name; });
+    if (!ex) return;
+    var trackId = ex.family.toLowerCase().replace(/\s/g, '-');
+    var track = document.querySelector('.track[data-family="' + trackId + '"] .track-clips') || document.querySelector('.track-clips');
+    if (!track) return;
+    var clip = createClipElement(ex, pos);
+    track.appendChild(clip);
+    pos += BEAT_WIDTH * 4;
+  });
+  saveState();
+  updateFooterStats();
+  showToast('Applied cluster: ' + cl.name);
+}
+
+function deleteCluster(idx) {
+  smsExerciseClusters.splice(idx, 1);
+  try { localStorage.setItem('sms_exercise_clusters', JSON.stringify(smsExerciseClusters)); } catch(e) {}
+  showToast('Cluster deleted');
+  showClusterBuilder();
+}
+
+// Batch 409: Volume Wave Planner (Undulating Periodization)
+function showVolumeWavePlanner() {
+  var families = ['Push', 'Pull', 'Core', 'Legs', 'Skills'];
+  var currentSets = {};
+  families.forEach(function(f) { currentSets[f] = 0; });
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var sets = parseInt(c.dataset.sets || 3);
+    families.forEach(function(f) { if (fam.toLowerCase().indexOf(f.toLowerCase()) > -1) currentSets[f] += sets; });
+  });
+  var waves = [
+    {name: 'Week 1: High Volume', mult: 1.2, color: '#f87171'},
+    {name: 'Week 2: Medium Volume', mult: 1.0, color: '#fbbf24'},
+    {name: 'Week 3: Low Volume', mult: 0.7, color: '#4ade80'},
+    {name: 'Week 4: Deload', mult: 0.5, color: '#94a3b8'},
+    {name: 'Week 5: High Volume', mult: 1.2, color: '#f87171'},
+    {name: 'Week 6: Medium Volume', mult: 1.0, color: '#fbbf24'}
+  ];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:700px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Volume Wave Planner</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Undulating periodization based on current workout volume</div>';
+  html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">';
+  html += '<tr><th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);color:#94a3b8;">Week</th>';
+  families.forEach(function(f) {
+    html += '<th style="text-align:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);color:' + getFamilyColor(f) + ';">' + f + '</th>';
+  });
+  html += '<th style="text-align:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);color:#94a3b8;">Total</th></tr>';
+  waves.forEach(function(w) {
+    html += '<tr><td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);color:' + w.color + ';font-weight:600;">' + w.name + '</td>';
+    var weekTotal = 0;
+    families.forEach(function(f) {
+      var val = Math.round(currentSets[f] * w.mult);
+      weekTotal += val;
+      html += '<td style="text-align:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);">' + val + '</td>';
+    });
+    html += '<td style="text-align:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">' + weekTotal + '</td></tr>';
+  });
+  html += '</table></div>';
+  html += '<div style="margin-top:16px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;font-size:12px;color:#94a3b8;">';
+  html += '<div style="font-weight:600;color:#e2e8f0;margin-bottom:4px;">How it works</div>';
+  html += 'High weeks push +20% volume, medium stays baseline, low drops -30%, deload at -50%. This wave pattern prevents plateaus while managing fatigue.</div>';
   html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
