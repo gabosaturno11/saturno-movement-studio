@@ -4458,20 +4458,25 @@ function updatePlayheadPosition() {
         container.scrollLeft = pos - 200;
       }
     }
-    // Update clip progress overlays and playing state
+    // Update clip progress overlays and playing state (mute/solo aware)
+    var hasSoloTrack = !!document.querySelector('.track-btn.soloed');
     document.querySelectorAll('.clip').forEach(function(clip) {
+      var track = clip.closest('.track');
+      var isMuted = track && track.classList.contains('track-muted');
+      var isSoloed = track && track.classList.contains('track-soloed');
+      var isActive = hasSoloTrack ? isSoloed : !isMuted;
       var clipLeft = parseInt(clip.style.left) + 100;
       var clipW = parseInt(clip.style.width);
       var clipRight = clipLeft + clipW;
       var progressEl = clip.querySelector('.clip-progress');
       var fillEl = clip.querySelector('.clip-progress-fill');
-      if (pos >= clipLeft && pos <= clipRight) {
+      if (isActive && pos >= clipLeft && pos <= clipRight) {
         var pct = ((pos - clipLeft) / clipW) * 100;
         if (progressEl) progressEl.style.width = pct + '%';
         if (fillEl) fillEl.style.width = pct + '%';
         clip.classList.add('clip-playing');
       } else {
-        var done = pos > clipRight;
+        var done = isActive && pos > clipRight;
         if (progressEl) progressEl.style.width = done ? '100%' : '0';
         if (fillEl) fillEl.style.width = done ? '100%' : '0';
         clip.classList.remove('clip-playing');
@@ -7274,16 +7279,32 @@ document.addEventListener('keydown', function(e) {
     if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
     toast('All clips selected');
   }
-  // Number keys 1-6 to select track
+  // Number keys 1-6 to select track (or record clip in rec mode)
   if (e.key >= '1' && e.key <= '6' && !e.metaKey && !e.ctrlKey && !e.altKey) {
     var trackIds = ['music','push','pull','core','legs','skills'];
     var idx = parseInt(e.key) - 1;
     if (idx < trackIds.length) {
-      document.querySelectorAll('.track.track-active').forEach(function(t) { t.classList.remove('track-active'); });
-      var target = document.querySelector('.track[data-track="'+trackIds[idx]+'"]');
-      if (target) {
-        target.classList.add('track-active');
-        toast('Track: ' + trackIds[idx].charAt(0).toUpperCase() + trackIds[idx].slice(1));
+      // Record mode: drop clip at playhead on numbered track
+      if (isRecording && idx > 0) {
+        var recTrack = document.querySelector('.track-content[data-track="'+trackIds[idx]+'"]');
+        var recTrackDef = TRACKS.find(function(t) { return t.id === trackIds[idx]; });
+        if (recTrack && recTrackDef) {
+          var recExercises = EXERCISES.filter(function(ex) { return ex.family === recTrackDef.family; });
+          if (recExercises.length > 0) {
+            var recEx = recExercises[Math.floor(Math.random() * recExercises.length)];
+            var pps = 80 / 15;
+            var recLeft = currentTime * pps;
+            addClip(recTrack, recEx, recLeft);
+            sfx('click');
+          }
+        }
+      } else {
+        document.querySelectorAll('.track.track-active').forEach(function(t) { t.classList.remove('track-active'); });
+        var target = document.querySelector('.track[data-track="'+trackIds[idx]+'"]');
+        if (target) {
+          target.classList.add('track-active');
+          toast('Track: ' + trackIds[idx].charAt(0).toUpperCase() + trackIds[idx].slice(1));
+        }
       }
     }
   }
