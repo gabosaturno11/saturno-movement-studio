@@ -5355,6 +5355,15 @@ function _doSaveSession() {
       var fill = f.querySelector('.fader-fill');
       session.faders[f.dataset.fader] = parseFloat(fill.style.height) || 50;
     });
+    // Knobs
+    document.querySelectorAll('[data-knob]').forEach(function(k) {
+      var indicator = k.querySelector('.knob-indicator');
+      if (indicator) {
+        var m = indicator.style.transform.match(/rotate\(([^)]+)deg\)/);
+        var deg = m ? parseFloat(m[1]) : 0;
+        session.knobs[k.dataset.knob] = deg;
+      }
+    });
     // Markers
     session.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
     session.markerCounter = markerCounter;
@@ -5445,6 +5454,19 @@ function loadSession() {
         fader.querySelector('.fader-fill').style.height = v + '%';
         fader.querySelector('.fader-handle').style.bottom = (v - 3) + '%';
         fader.querySelector('.fader-value').textContent = (v / 10).toFixed(0);
+      });
+    }
+    // Restore knobs
+    if (s.knobs) {
+      Object.keys(s.knobs).forEach(function(key) {
+        var knob = document.querySelector('[data-knob="'+key+'"]');
+        if (!knob) return;
+        var deg = s.knobs[key];
+        var indicator = knob.querySelector('.knob-indicator');
+        if (indicator) indicator.style.transform = 'translateX(-50%) rotate('+deg+'deg)';
+        var val = ((deg + 135) / 270);
+        var valEl = document.getElementById('knob-val-' + key);
+        if (valEl) valEl.textContent = (val * 100).toFixed(0) + '%';
       });
     }
     // Restore markers
@@ -6821,6 +6843,15 @@ function renderAllMarkers() {
   document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
   markers.forEach(function(m) { renderMarker(m); });
 }
+function clearAllMarkers() {
+  if (markers.length === 0) { toast('No markers to clear'); return; }
+  pushUndo();
+  markers = [];
+  markerCounter = 0;
+  document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
+  saveSession();
+  toast('All markers cleared');
+}
 
 /* ===== FOOTER MODE TOGGLE ===== */
 var footerMode = 'bars'; // 'bars' or 'time'
@@ -6838,6 +6869,7 @@ var CMD_ACTIONS = [
   {label:'Toggle Loop', key:'L', icon:'\u21BB', action: function() { toggleLoop(); }},
   {label:'Toggle Metronome', key:'', icon:'\u266A', action: function() { toggleMetronome(); }},
   {label:'Add Marker', key:'M', icon:'\u2691', action: function() { addMarker(); }},
+  {label:'Clear All Markers', key:'', icon:'\u2691', action: function() { clearAllMarkers(); }},
   {label:'Split Clip', key:'B', icon:'\u2702', action: function() { splitClipAtPlayhead(); }},
   {label:'Copy Clips', key:'Cmd+C', icon:'\u2398', action: function() { copyClips(); }},
   {label:'Paste Clips', key:'Cmd+V', icon:'\u2398', action: function() { pasteClips(); }},
@@ -6883,6 +6915,7 @@ var CMD_ACTIONS = [
   {label:'Playback 0.5x', key:'', icon:'\u25B6', action: function() { playbackSpeed=0.5; document.getElementById('speed-btn').textContent='0.5x'; toast('Speed: 0.5x'); }},
   {label:'Playback 1x (Normal)', key:'', icon:'\u25B6', action: function() { playbackSpeed=1; document.getElementById('speed-btn').textContent='1x'; toast('Speed: 1x'); }},
   {label:'Playback 2x', key:'', icon:'\u25B6', action: function() { playbackSpeed=2; document.getElementById('speed-btn').textContent='2x'; toast('Speed: 2x'); }},
+  {label:'Reverse Track Order', key:'', icon:'\u21C4', action: function() { reverseTrackClips(); }},
 ];
 
 function openCmdPalette() {
@@ -7090,6 +7123,29 @@ function duplicateTrackClips() {
   updateStats(); saveSession();
   sfx('drop');
   toast(count + ' clips duplicated');
+}
+
+function reverseTrackClips() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('Select a track first'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips to reverse'); return; }
+  pushUndo();
+  clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var positions = clips.map(function(c) { return parseInt(c.style.left); });
+  var widths = clips.map(function(c) { return parseInt(c.style.width); });
+  // Reverse: last clip goes to first position, preserving gaps
+  var reversed = clips.slice().reverse();
+  var curLeft = positions[0];
+  for (var ri = 0; ri < reversed.length; ri++) {
+    reversed[ri].style.left = curLeft + 'px';
+    if (ri < reversed.length - 1) {
+      var origGap = positions[ri + 1] - (positions[ri] + widths[ri]);
+      curLeft += parseInt(reversed[ri].style.width) + Math.max(0, origGap);
+    }
+  }
+  updateStats(); saveSession();
+  toast('Track clips reversed');
 }
 
 /* ===== CUSTOM CLIP TOOLTIP ===== */
