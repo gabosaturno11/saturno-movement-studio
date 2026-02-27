@@ -1726,6 +1726,16 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 </style>
 </head>
 <body>
+<!-- Loading Splash -->
+<div id="splash" style="position:fixed;inset:0;z-index:9999;background:#050711;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity 0.4s">
+  <img src="assets/planet-logo.png" alt="" style="width:48px;height:48px;opacity:0.8" onerror="this.style.display='none'">
+  <div style="font-family:Sora,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.5)">Saturno Movement Studio</div>
+  <div style="width:120px;height:2px;background:rgba(255,255,255,0.06);border-radius:1px;overflow:hidden"><div id="splash-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#3b82f6,#06b6d4);transition:width 0.8s ease"></div></div>
+</div>
+<script>
+setTimeout(function(){var b=document.getElementById('splash-bar');if(b)b.style.width='100%'},50);
+setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opacity='0';setTimeout(function(){s.remove()},400)}},1200);
+</script>
 <div class="app">
   <!-- HEADER -->
   <header class="header">
@@ -2082,7 +2092,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="footer-quote">Saturno Movement Studio</div>
       <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
       <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
-      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v1.0</span>
+      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v2.0</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
   </footer>
