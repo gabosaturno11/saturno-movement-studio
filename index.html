@@ -2357,6 +2357,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <span>Est. time: <span id="insp-est-time" style="color:var(--text-secondary)">-</span></span>
           <span>TUT: <span id="insp-tut" style="color:var(--accent-cyan)">-</span></span>
         </div>
+        <div class="inspector-field" style="margin-top:8px">
+          <label>Notes</label>
+          <textarea id="insp-notes" placeholder="Cues, focus points, modifications..." rows="2" style="width:100%;padding:5px 8px;font-size:10px;font-family:Sora,sans-serif;background:rgba(3,5,9,0.5);border:1px solid var(--glass-border);color:var(--text);resize:vertical;min-height:32px;border-radius:var(--radius-sm);transition:border-color 0.2s" onfocus="this.style.borderColor='rgba(59,130,246,0.3)'" onblur="this.style.borderColor='';updateClipNotes()"></textarea>
+        </div>
       </div>
       <div class="mixer-section" id="inspector-empty" style="padding:30px 14px;text-align:center">
         <div style="font-size:9px;color:var(--micro);text-transform:uppercase;letter-spacing:0.1em">Select a clip to inspect</div>
@@ -3608,6 +3612,7 @@ function selectClipEl(clip, addToSelection) {
     '<span class="inspector-tag" style="background:'+((FAMILY_MAP[ex.family]||{}).color||'#666')+'22;color:'+(FAMILY_MAP[ex.family]||{}).color+'">'+ex.family+'</span>' +
     '<span class="inspector-tag">'+(fm.instrument||'')+'</span>' +
     '<span class="inspector-tag">S'+ex.stage+'</span>';
+  document.getElementById('insp-notes').value = clip.dataset.notes || '';
   updateInspectorTime();
 }
 
@@ -3648,6 +3653,12 @@ function updateClipDNA() {
     updateStats();
   }
   updateInspectorTime();
+  saveSession();
+}
+
+function updateClipNotes() {
+  if (!selectedClip) return;
+  selectedClip.dataset.notes = document.getElementById('insp-notes').value;
   saveSession();
 }
 
@@ -4590,7 +4601,8 @@ function saveSession() {
         reps: clip.dataset.reps,
         tempo: clip.dataset.tempo,
         rest: clip.dataset.rest,
-        rpe: clip.dataset.rpe
+        rpe: clip.dataset.rpe,
+        notes: clip.dataset.notes || ''
       });
     });
     document.querySelectorAll('[data-fader]').forEach(function(f) {
@@ -4621,6 +4633,7 @@ function loadSession() {
         var clip = createClipElement(ex, c.left, c.width, {
           sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
         });
+        if (c.notes) clip.dataset.notes = c.notes;
         track.appendChild(clip);
       });
     }
@@ -4666,7 +4679,8 @@ function exportWorkout() {
       reps: parseInt(clip.dataset.reps) || 8,
       tempo: parseFloat(clip.dataset.tempo) || 3,
       rest: parseInt(clip.dataset.rest) || 60,
-      rpe: parseInt(clip.dataset.rpe) || 7
+      rpe: parseInt(clip.dataset.rpe) || 7,
+      notes: clip.dataset.notes || ''
     });
   });
   var blob = new Blob([JSON.stringify(workout, null, 2)], {type: 'application/json'});
@@ -4716,6 +4730,7 @@ function importWorkout() {
               sets: item.sets, reps: item.reps, tempo: item.tempo,
               rest: item.rest, rpe: item.rpe
             });
+            if (item.notes) clip.dataset.notes = item.notes;
             track.appendChild(clip);
           });
         });
@@ -4851,6 +4866,7 @@ function showSummary() {
       tempo: c.dataset.tempo || '3',
       rest: c.dataset.rest || '60',
       rpe: c.dataset.rpe || '7',
+      notes: c.dataset.notes || '',
       left: parseInt(c.style.left) || 0
     });
   });
@@ -4919,6 +4935,9 @@ function showSummary() {
       html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#22c55e">' + restStr + '</span> <span class="summary-param-label">rest</span></div>';
       html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#8b5cf6">' + tempoStr + '</span> <span class="summary-param-label">tempo</span></div>';
       html += '</div>';
+      if (ex.notes) {
+        html += '<div style="margin-top:8px;font-size:10px;color:var(--text-secondary);font-style:italic;line-height:1.5;opacity:0.8">' + ex.notes.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      }
       // Build progression chain for this exercise's pattern
       var chainId = 'prog-' + trackId + '-' + i;
       html += '<div class="summary-ex-prog" onclick="toggleProgChain(\'' + chainId + '\')">Progressions &amp; Alternatives</div>';
@@ -5075,7 +5094,8 @@ function captureState() {
       reps: clip.dataset.reps,
       tempo: clip.dataset.tempo,
       rest: clip.dataset.rest,
-      rpe: clip.dataset.rpe
+      rpe: clip.dataset.rpe,
+      notes: clip.dataset.notes || ''
     });
   });
   return JSON.stringify(state);
@@ -5127,6 +5147,7 @@ function restoreState(state) {
     var clip = createClipElement(ex, c.left, c.width, {
       sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
     });
+    if (c.notes) clip.dataset.notes = c.notes;
     track.appendChild(clip);
   });
   updateStats();
