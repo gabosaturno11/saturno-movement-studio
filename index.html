@@ -7453,6 +7453,9 @@ var CMD_ACTIONS = [
   {label:'Compare Saved Workouts', key:'', icon:'\u2194', action: function() { compareSavedWorkouts(); }},
   {label:'Exercise History', key:'', icon:'\u2139', action: function() { showExerciseHistory(); }},
   {label:'Smart Auto-Arrange', key:'', icon:'\u2630', action: function() { smartAutoArrange(); }},
+  {label:'Ghost Mode (Dim Unselected)', key:'', icon:'\u25D1', action: function() { toggleGhostMode(); }},
+  {label:'Detailed Workout Analysis', key:'', icon:'\u2139', action: function() { detailedWorkoutAnalysis(); }},
+  {label:'Exercise Atlas', key:'', icon:'\u2606', action: function() { showExerciseAtlas(); }},
 ];
 
 function openCmdPalette() {
@@ -10408,6 +10411,105 @@ function smartAutoArrange() {
   }
   updateStats(); saveSession(); sfx('click');
   toast(count + ' clips auto-arranged by family rotation');
+}
+
+/* ===== BATCH 286: GHOST/FOCUS MODE FOR CLIPS ===== */
+var _ghostMode = false;
+function toggleGhostMode() {
+  _ghostMode = !_ghostMode;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    if (_ghostMode) {
+      if (c.classList.contains('selected')) {
+        c.style.opacity = '1';
+        c.style.filter = '';
+      } else {
+        c.style.opacity = '0.2';
+        c.style.filter = 'grayscale(0.8)';
+      }
+    } else {
+      c.style.opacity = '';
+      c.style.filter = '';
+    }
+  });
+  toast('Ghost mode: ' + (_ghostMode ? 'ON (unselected dimmed)' : 'OFF'));
+}
+
+/* ===== BATCH 287: DETAILED WORKOUT ANALYSIS ===== */
+function detailedWorkoutAnalysis() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var totalSets = 0; var totalReps = 0; var totalTUT = 0;
+  var rpeSum = 0; var tempoSum = 0; var restSum = 0;
+  var exercises = {}; var families = {}; var patterns = {}; var disciplines = {}; var stages = {1:0, 2:0, 3:0};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 8;
+    var tempo = parseFloat(c.dataset.tempo) || 3;
+    var rest = parseInt(c.dataset.rest) || 60;
+    var rpe = parseInt(c.dataset.rpe) || 7;
+    totalSets += sets; totalReps += sets * reps;
+    totalTUT += sets * reps * tempo;
+    rpeSum += rpe; tempoSum += tempo; restSum += rest;
+    if (ex) {
+      exercises[ex.name] = true;
+      families[ex.family] = (families[ex.family] || 0) + sets;
+      patterns[ex.pattern] = (patterns[ex.pattern] || 0) + 1;
+      disciplines[ex.discipline] = (disciplines[ex.discipline] || 0) + 1;
+      if (stages[ex.stage] !== undefined) stages[ex.stage]++;
+    }
+  });
+  var msg = 'Detailed Workout Analysis\n';
+  msg += '========================\n';
+  msg += 'Clips: ' + clips.length + ' | Exercises: ' + Object.keys(exercises).length + '\n';
+  msg += 'Sets: ' + totalSets + ' | Reps: ' + totalReps + '\n';
+  msg += 'TUT: ' + Math.round(totalTUT) + 's (' + (totalTUT / 60).toFixed(1) + 'min)\n';
+  msg += 'Avg RPE: ' + (rpeSum / clips.length).toFixed(1) + '\n';
+  msg += 'Avg Tempo: ' + (tempoSum / clips.length).toFixed(1) + 's\n';
+  msg += 'Avg Rest: ' + (restSum / clips.length).toFixed(0) + 's\n';
+  msg += '\nStages: S1=' + stages[1] + ' S2=' + stages[2] + ' S3=' + stages[3] + '\n';
+  msg += 'Patterns: ' + Object.keys(patterns).length + ' | Disciplines: ' + Object.keys(disciplines).length + '\n';
+  msg += '\nFamilies:\n';
+  Object.keys(families).sort(function(a, b) { return families[b] - families[a]; }).forEach(function(f) {
+    msg += '  ' + f + ': ' + families[f] + ' sets\n';
+  });
+  toast(msg);
+}
+
+/* ===== BATCH 288: EXERCISE ATLAS ===== */
+function showExerciseAtlas() {
+  var usedExercises = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    usedExercises[c.dataset.exerciseId] = (usedExercises[c.dataset.exerciseId] || 0) + 1;
+  });
+  var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Exercise Atlas</title>';
+  html += '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#050711;color:#e2e8f0;font-family:Sora,system-ui,sans-serif;padding:20px}';
+  html += 'h1{font-size:18px;margin-bottom:16px;text-align:center}';
+  html += '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}';
+  html += '.card{background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:10px;font-size:10px;transition:border-color 0.2s}';
+  html += '.card:hover{border-color:#334155}.card-name{font-size:12px;font-weight:600;margin-bottom:4px}';
+  html += '.card-meta{color:#64748b;font-size:9px;margin-bottom:4px}';
+  html += '.card-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:8px;font-weight:600;margin-right:3px}';
+  html += '.used{border-left:3px solid #22d3ee}</style></head><body>';
+  html += '<h1>Exercise Atlas (' + EXERCISES.length + ' exercises)</h1>';
+  html += '<div class="grid">';
+  var familyColors = {Push:'#ef4444', Pull:'#3b82f6', Core:'#eab308', Legs:'#22c55e', Skills:'#a855f7', Flow:'#ec4899'};
+  EXERCISES.forEach(function(ex) {
+    var used = usedExercises[ex.id] || 0;
+    var fc = familyColors[ex.family] || '#64748b';
+    html += '<div class="card' + (used > 0 ? ' used' : '') + '">';
+    html += '<div class="card-name">' + ex.name + '</div>';
+    html += '<div class="card-meta">' + ex.pattern + '</div>';
+    html += '<span class="card-badge" style="background:' + fc + '22;color:' + fc + '">' + ex.family + '</span>';
+    html += '<span class="card-badge" style="background:#22d3ee22;color:#22d3ee">S' + ex.stage + '</span>';
+    html += '<span class="card-badge" style="background:#a855f722;color:#a855f7">' + ex.discipline + '</span>';
+    if (used > 0) html += '<span class="card-badge" style="background:#22c55e22;color:#22c55e">x' + used + '</span>';
+    html += '</div>';
+  });
+  html += '</div></body></html>';
+  var blob = new Blob([html], {type: 'text/html'});
+  window.open(URL.createObjectURL(blob), '_blank');
+  toast('Exercise Atlas opened');
 }
 
 function selectClipsByStage(stage) {
