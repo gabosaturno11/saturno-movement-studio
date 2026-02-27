@@ -510,8 +510,17 @@ body {
   background: transparent;
   opacity: 0; transition: opacity 0.1s;
 }
-.clip:hover .clip-resize { opacity: 1; background: rgba(255,255,255,0.15); }
-.clip-resize:hover { background: rgba(255,255,255,0.3) !important; }
+.clip:hover .clip-resize { opacity: 1; background: rgba(255,255,255,0.2); }
+.clip-resize:hover { background: rgba(255,255,255,0.4) !important; }
+.clip-resize::before {
+  content: ''; position: absolute;
+  top: 50%; transform: translateY(-50%);
+  right: 1px; width: 1px; height: 12px;
+  background: rgba(255,255,255,0.4);
+  box-shadow: -2px 0 0 rgba(255,255,255,0.4);
+  opacity: 0; transition: opacity 0.1s;
+}
+.clip:hover .clip-resize::before { opacity: 1; }
 .playhead {
   position: absolute; top: 0; bottom: 0;
   width: 1px; background: var(--text-bright);
@@ -682,6 +691,80 @@ body {
 .track.track-active .track-header {
   border-right-color: rgba(59, 130, 246, 0.3);
 }
+
+/* Empty Timeline State */
+.timeline-empty {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center; pointer-events: none;
+  z-index: 5; opacity: 1;
+  transition: opacity 0.3s;
+}
+.timeline-empty.hidden { opacity: 0; pointer-events: none; }
+.timeline-empty-icon {
+  font-size: 32px; opacity: 0.1; margin-bottom: 12px;
+  line-height: 1;
+}
+.timeline-empty-title {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 6px; letter-spacing: 0.05em;
+}
+.timeline-empty-desc {
+  font-size: 9px; color: var(--micro); max-width: 280px;
+  line-height: 1.6; letter-spacing: 0.03em;
+}
+.timeline-empty-steps {
+  display: flex; gap: 24px; margin-top: 16px; justify-content: center;
+}
+.timeline-empty-step {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.timeline-empty-step-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid var(--border-hover);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; color: var(--muted);
+}
+.timeline-empty-step-text {
+  font-size: 7px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  max-width: 60px; text-align: center;
+}
+@keyframes emptyPulse {
+  0%, 100% { opacity: 0.08; }
+  50% { opacity: 0.15; }
+}
+.timeline-empty-icon { animation: emptyPulse 3s ease-in-out infinite; }
+
+/* Right Panel Tabs */
+.panel-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.panel-tab {
+  flex: 1; padding: 6px 0;
+  font-size: 8px; font-weight: 600; font-family: 'Sora', sans-serif;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--micro); cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.panel-tab:hover { color: var(--text-secondary); }
+.panel-tab.active {
+  color: var(--text); border-bottom-color: var(--blue);
+}
+.panel-tab-content { display: none; }
+.panel-tab-content.active { display: block; }
+
+/* Snap grid indicator */
+.snap-indicator {
+  position: absolute; top: 0; bottom: 0;
+  width: 1px; background: rgba(59, 130, 246, 0.3);
+  pointer-events: none; z-index: 15;
+  opacity: 0; transition: opacity 0.1s;
+}
+.snap-indicator.visible { opacity: 1; }
 
 /* Inspector — Properties Panel */
 .inspector-section {
@@ -1223,31 +1306,53 @@ a:focus-visible, button:focus-visible, input:focus-visible {
         <div class="timeline-tracks" id="timeline-tracks">
           <div class="loop-region" id="loop-region"></div>
           <div class="playhead" id="playhead"></div>
+          <div class="timeline-empty" id="timeline-empty">
+            <div class="timeline-empty-icon">&#9835;</div>
+            <div class="timeline-empty-title">Compose Your Movement</div>
+            <div class="timeline-empty-desc">Drag exercises from the library onto any track to begin building your workout.</div>
+            <div class="timeline-empty-steps">
+              <div class="timeline-empty-step"><div class="timeline-empty-step-num">1</div><div class="timeline-empty-step-text">Browse library</div></div>
+              <div class="timeline-empty-step"><div class="timeline-empty-step-num">2</div><div class="timeline-empty-step-text">Drag to track</div></div>
+              <div class="timeline-empty-step"><div class="timeline-empty-step-num">3</div><div class="timeline-empty-step-text">Press play</div></div>
+            </div>
+          </div>
+          <div class="snap-indicator" id="snap-indicator"></div>
         </div>
       </div>
     </section>
 
     <!-- RIGHT: Mixer + Inspector + Music -->
     <aside class="panel-right">
-      <!-- Meter -->
-      <div class="mixer-section">
-        <div class="mixer-title">Output</div>
-        <div class="meter-group" id="meters"></div>
-        <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
+      <div class="panel-tabs">
+        <button class="panel-tab active" data-tab="mixer" onclick="switchPanelTab('mixer')">Mixer</button>
+        <button class="panel-tab" data-tab="inspector-tab" onclick="switchPanelTab('inspector-tab')">Inspector</button>
+        <button class="panel-tab" data-tab="settings" onclick="switchPanelTab('settings')">Settings</button>
       </div>
 
-      <!-- Faders -->
-      <div class="mixer-section">
-        <div class="mixer-title">Master Faders</div>
-        <div class="fader-group" id="fader-group"></div>
+      <!-- MIXER TAB -->
+      <div class="panel-tab-content active" id="tab-mixer">
+        <!-- Meter -->
+        <div class="mixer-section">
+          <div class="mixer-title">Output</div>
+          <div class="meter-group" id="meters"></div>
+          <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
+        </div>
+
+        <!-- Faders -->
+        <div class="mixer-section">
+          <div class="mixer-title">Master Faders</div>
+          <div class="fader-group" id="fader-group"></div>
+        </div>
+
+        <!-- Knobs -->
+        <div class="mixer-section">
+          <div class="mixer-title">Blend Controls</div>
+          <div class="knob-group" id="knob-group"></div>
+        </div>
       </div>
 
-      <!-- Knobs -->
-      <div class="mixer-section">
-        <div class="mixer-title">Blend Controls</div>
-        <div class="knob-group" id="knob-group"></div>
-      </div>
-
+      <!-- INSPECTOR TAB -->
+      <div class="panel-tab-content" id="tab-inspector-tab">
       <!-- Inspector -->
       <div class="inspector-section" id="inspector" style="display:none">
         <div class="inspector-title">Exercise DNA</div>
@@ -1268,6 +1373,10 @@ a:focus-visible, button:focus-visible, input:focus-visible {
         <div class="inspector-field"><label>RPE (1-10)</label><input type="range" id="insp-rpe" min="1" max="10" value="7" style="width:100%" oninput="updateClipDNA()"></div>
         <div class="inspector-tags" id="insp-tags"></div>
       </div>
+      <div class="mixer-section" id="inspector-empty" style="padding:30px 14px;text-align:center">
+        <div style="font-size:9px;color:var(--micro);text-transform:uppercase;letter-spacing:0.1em">Select a clip to inspect</div>
+        <div style="font-size:7px;color:var(--micro);margin-top:4px;opacity:0.5">Click a clip on the timeline or press Tab</div>
+      </div>
 
       <!-- Music -->
       <div class="music-section" id="music-panel" style="display:none">
@@ -1284,7 +1393,6 @@ a:focus-visible, button:focus-visible, input:focus-visible {
         </div>
       </div>
 
-      <!-- Workout Summary -->
       <!-- Workout Summary — KPI Style -->
       <div class="mixer-section" id="workout-summary" style="display:none;border-left:2px solid var(--accent-purple)">
         <div class="mixer-title">Session Overview</div>
@@ -1312,9 +1420,59 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <div id="balance-labels" style="display:flex;gap:2px;margin-top:3px"></div>
         </div>
       </div>
+      </div><!-- end tab-inspector-tab -->
 
-      <!-- Export / Import -->
-      <div class="mixer-section" style="display:flex;flex-wrap:wrap;gap:4px;padding:10px 14px">
+      <!-- SETTINGS TAB -->
+      <div class="panel-tab-content" id="tab-settings">
+        <div class="mixer-section">
+          <div class="mixer-title">Timeline</div>
+          <div class="inspector-field">
+            <label>Snap to Grid</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button id="settings-snap" class="export-btn" onclick="toggleSnap()" style="width:auto;padding:4px 12px">OFF</button>
+              <span style="font-size:8px;color:var(--micro)">S key</span>
+            </div>
+          </div>
+          <div class="inspector-field">
+            <label>Grid Resolution</label>
+            <select id="settings-grid" onchange="setGridRes(this.value)" style="width:100%;padding:4px 6px;font-size:10px;font-family:Sora,sans-serif;background:var(--bg-deep);border:1px solid var(--border);color:var(--text)">
+              <option value="1">1 Beat</option>
+              <option value="2">2 Beats</option>
+              <option value="4" selected>1 Bar (4 Beats)</option>
+              <option value="8">2 Bars</option>
+            </select>
+          </div>
+          <div class="inspector-field">
+            <label>Auto-scroll during playback</label>
+            <button id="settings-autoscroll" class="export-btn" onclick="toggleAutoScroll()" style="width:auto;padding:4px 12px">ON</button>
+          </div>
+        </div>
+        <div class="mixer-section">
+          <div class="mixer-title">Audio</div>
+          <div class="inspector-field">
+            <label>UI Sounds</label>
+            <button id="settings-sfx" class="export-btn" onclick="toggleSFXSetting()" style="width:auto;padding:4px 12px">ON</button>
+          </div>
+          <div class="inspector-field">
+            <label>Metronome Volume</label>
+            <input type="range" id="settings-metro-vol" min="0" max="100" value="50" style="width:100%" oninput="metroVolume=this.value/100">
+          </div>
+        </div>
+        <div class="mixer-section">
+          <div class="mixer-title">Session</div>
+          <div class="inspector-field">
+            <label>Clear All Clips</label>
+            <button class="export-btn" onclick="clearAllClips()" style="width:auto;padding:4px 12px;color:var(--error);border-color:rgba(239,68,68,0.3)">Clear</button>
+          </div>
+          <div class="inspector-field">
+            <label>Reset to Default</label>
+            <button class="export-btn" onclick="resetSession()" style="width:auto;padding:4px 12px;color:var(--error);border-color:rgba(239,68,68,0.3)">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export / Import (always visible) -->
+      <div class="mixer-section" style="display:flex;flex-wrap:wrap;gap:4px;padding:10px 14px;margin-top:auto">
         <button class="export-btn" onclick="exportWorkout()" style="flex:1;min-width:70px">Export</button>
         <button class="export-btn" onclick="printWorkout()" style="flex:1;min-width:70px">Print</button>
         <button class="export-btn" onclick="importWorkout()" style="flex:1;min-width:70px">Import</button>
@@ -1381,6 +1539,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>M</kbd><span>Add Marker</span></div>
       <div class="shortcut-item"><kbd>Cmd+A</kbd><span>Select All</span></div>
       <div class="shortcut-item"><kbd>Shift+Click</kbd><span>Multi-Select</span></div>
+      <div class="shortcut-item"><kbd>Tab</kbd><span>Cycle Clips</span></div>
+      <div class="shortcut-item"><kbd>Enter</kbd><span>Add from Search</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
@@ -1396,6 +1556,7 @@ function initSFX() {
   try { sfxCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
 }
 function sfx(type) {
+  if (typeof sfxEnabled !== 'undefined' && !sfxEnabled) return;
   if (!sfxCtx) initSFX();
   if (!sfxCtx) return;
   try {
@@ -1792,6 +1953,7 @@ document.addEventListener('DOMContentLoaded', function() {
   buildMeters();
   loadSession();
   updateBPMMode();
+  updateEmptyState();
 });
 
 /* ===== LIBRARY ===== */
@@ -2218,6 +2380,8 @@ function selectClipEl(clip, addToSelection) {
   if (!ex) return;
   var insp = document.getElementById('inspector');
   insp.style.display = '';
+  // Auto-switch to inspector tab
+  switchPanelTab('inspector-tab');
   document.getElementById('insp-name').textContent = ex.name;
   document.getElementById('insp-pattern').textContent = ex.pattern;
   document.getElementById('insp-stage').textContent = 'Stage ' + ex.stage + ' - ' + ex.discipline;
@@ -2327,6 +2491,7 @@ function updateStats() {
   });
   updateSummary();
   updateMinimap();
+  updateEmptyState();
 }
 
 /* ===== MINI-MAP ===== */
@@ -3390,6 +3555,8 @@ function toggleSnap() {
   snapEnabled = !snapEnabled;
   var btn = document.getElementById('btn-snap');
   if (btn) btn.classList.toggle('active', snapEnabled);
+  var settingsBtn = document.getElementById('settings-snap');
+  if (settingsBtn) settingsBtn.textContent = snapEnabled ? 'ON' : 'OFF';
   sfx('snap');
   toast(snapEnabled ? 'Snap ON' : 'Snap OFF');
 }
@@ -3578,6 +3745,75 @@ function renderMarker(marker) {
 function renderAllMarkers() {
   document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
   markers.forEach(function(m) { renderMarker(m); });
+}
+
+/* ===== RIGHT PANEL TABS ===== */
+function switchPanelTab(tabId) {
+  document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.panel-tab-content').forEach(function(c) { c.classList.remove('active'); });
+  document.querySelector('.panel-tab[data-tab="'+tabId+'"]').classList.add('active');
+  document.getElementById('tab-'+tabId).classList.add('active');
+}
+
+/* ===== EMPTY TIMELINE STATE ===== */
+function updateEmptyState() {
+  var clips = document.querySelectorAll('.clip');
+  var el = document.getElementById('timeline-empty');
+  if (!el) return;
+  if (clips.length > 0) {
+    el.classList.add('hidden');
+  } else {
+    el.classList.remove('hidden');
+  }
+}
+
+/* ===== SETTINGS FUNCTIONS ===== */
+var gridRes = 4;
+var autoScrollEnabled = true;
+var sfxEnabled = true;
+var metroVolume = 0.5;
+
+function setGridRes(val) {
+  gridRes = parseInt(val);
+  toast('Grid: ' + gridRes + ' beat' + (gridRes > 1 ? 's' : ''));
+}
+
+function toggleAutoScroll() {
+  autoScrollEnabled = !autoScrollEnabled;
+  document.getElementById('settings-autoscroll').textContent = autoScrollEnabled ? 'ON' : 'OFF';
+  toast('Auto-scroll ' + (autoScrollEnabled ? 'on' : 'off'));
+}
+
+function toggleSFXSetting() {
+  sfxEnabled = !sfxEnabled;
+  document.getElementById('settings-sfx').textContent = sfxEnabled ? 'ON' : 'OFF';
+  toast('UI sounds ' + (sfxEnabled ? 'on' : 'off'));
+}
+
+function clearAllClips() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to clear'); return; }
+  pushUndo();
+  clips.forEach(function(c) { c.remove(); });
+  selectedClip = null;
+  document.getElementById('inspector').style.display = 'none';
+  updateStats(); saveSession(); updateEmptyState();
+  sfx('delete');
+  toast(clips.length + ' clips cleared');
+}
+
+function resetSession() {
+  pushUndo();
+  document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+  selectedClip = null;
+  document.getElementById('inspector').style.display = 'none';
+  bpm = 120;
+  document.getElementById('bpm-input').value = 120;
+  updateBPMMode(); buildRuler();
+  updateStats(); updateEmptyState();
+  try { localStorage.removeItem('saturno-studio-session'); } catch(e) {}
+  sfx('delete');
+  toast('Session reset');
 }
 
 /* ===== SHORTCUTS OVERLAY ===== */
