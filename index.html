@@ -8002,6 +8002,9 @@ var CMD_ACTIONS = [
   {label:'Next Playlist Workout', key:'', icon:'\u23ed', action: function() { nextPlaylistWorkout(); }},
   {label:'Check Exercise Frequency', key:'', icon:'\u26a0', action: function() { checkExerciseFrequency(); }},
   {label:'Training Split Recommender', key:'', icon:'\u2263', action: function() { showSplitRecommender(); }},
+  {label:'Muscle Fatigue Tracker', key:'', icon:'\u2620', action: function() { showFatigueTracker(); }},
+  {label:'Substitution Wizard', key:'', icon:'\u21c6', action: function() { showSubstitutionWizard(); }},
+  {label:'Time Estimator', key:'', icon:'\u23f0', action: function() { showTimeEstimator(); }},
 ];
 
 function openCmdPalette() {
@@ -17643,6 +17646,198 @@ function showSplitRecommender() {
     });
     html += '</div></div>';
   });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 382: Muscle Fatigue Tracker
+function showFatigueTracker() {
+  var muscleMap = {
+    'Horizontal Push': { primary: ['Chest', 'Triceps'], secondary: ['Shoulders'] },
+    'Horizontal Pull': { primary: ['Upper Back', 'Biceps'], secondary: ['Rear Delts'] },
+    'Downward Press': { primary: ['Shoulders', 'Triceps'], secondary: ['Chest'] },
+    'Vertical Pull': { primary: ['Lats', 'Biceps'], secondary: ['Core'] },
+    'Overhead Press': { primary: ['Shoulders', 'Triceps'], secondary: ['Core'] },
+    'Knee-Dominant': { primary: ['Quads', 'Glutes'], secondary: ['Core'] },
+    'Hip-Dominant': { primary: ['Hamstrings', 'Glutes'], secondary: ['Lower Back'] },
+    'Core': { primary: ['Abs', 'Obliques'], secondary: ['Hip Flexors'] },
+    'Mobility': { primary: [], secondary: [] }
+  };
+  var fatigue = {};
+  var clips = document.querySelectorAll('.clip');
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    var pattern = c.dataset.pattern || '';
+    var sets = parseInt(c.dataset.sets) || 3;
+    var rpe = parseFloat(c.dataset.rpe) || 7;
+    var load = sets * (rpe / 10);
+    var mapping = muscleMap[pattern];
+    if (!mapping) return;
+    mapping.primary.forEach(function(m) {
+      fatigue[m] = (fatigue[m] || 0) + load;
+    });
+    mapping.secondary.forEach(function(m) {
+      fatigue[m] = (fatigue[m] || 0) + load * 0.5;
+    });
+  });
+  if (Object.keys(fatigue).length === 0) { showToast('Add clips to track fatigue'); return; }
+  var maxFatigue = Math.max.apply(null, Object.values(fatigue));
+  var sorted = Object.keys(fatigue).sort(function(a,b) { return fatigue[b] - fatigue[a]; });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Muscle Fatigue Tracker</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Estimated fatigue from sets x RPE intensity</div>';
+  sorted.forEach(function(muscle) {
+    var val = fatigue[muscle];
+    var pct = Math.round(val / maxFatigue * 100);
+    var level = pct >= 80 ? 'High' : pct >= 50 ? 'Moderate' : 'Low';
+    var color = pct >= 80 ? '#f87171' : pct >= 50 ? '#fbbf24' : '#4ade80';
+    html += '<div style="margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+    html += '<span style="color:#e2e8f0;font-size:12px">' + muscle + '</span>';
+    html += '<span style="color:' + color + ';font-size:11px;font-weight:600">' + level + ' (' + val.toFixed(1) + ')</span>';
+    html += '</div>';
+    html += '<div style="height:8px;background:rgba(34,211,238,0.05);border-radius:4px;overflow:hidden">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:4px"></div>';
+    html += '</div></div>';
+  });
+  html += '<div style="color:#64748b;font-size:10px;margin-top:12px">Formula: sets x (RPE/10) per exercise pattern, primary muscles 100%, secondary 50%</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 383: Exercise Substitution Wizard
+function showSubstitutionWizard() {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) { showToast('Select a clip to find substitutions'); return; }
+  var currentName = sel.dataset.exercise || '';
+  var currentPattern = sel.dataset.pattern || '';
+  var currentFamily = sel.dataset.family || '';
+  var currentStage = sel.dataset.stage || 'S1';
+  // Find alternatives: same pattern, same family, similar stage
+  var exactMatch = [];
+  var patternMatch = [];
+  var familyMatch = [];
+  EXERCISES.forEach(function(e) {
+    if (e.name === currentName) return;
+    if (e.pattern === currentPattern) {
+      if (e.stage === currentStage) exactMatch.push(e);
+      else patternMatch.push(e);
+    } else if (e.family === currentFamily) {
+      familyMatch.push(e);
+    }
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Substitution Wizard</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Replace: <span style="color:#22d3ee">' + currentName + '</span> (' + currentPattern + ', ' + currentStage + ')</div>';
+  function renderGroup(title, items, color) {
+    if (items.length === 0) return '';
+    var out = '<div style="color:' + color + ';font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px">' + title + ' (' + items.length + ')</div>';
+    items.forEach(function(ex) {
+      out += '<button onclick="executeSubstitution(\'' + ex.name.replace(/'/g, "\\'") + '\')" style="display:block;width:100%;padding:8px 12px;margin-bottom:3px;background:rgba(34,211,238,0.03);color:#e2e8f0;border:1px solid rgba(34,211,238,0.1);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px;text-align:left">';
+      out += ex.name + ' <span style="color:#64748b">' + ex.stage + ' | ' + (ex.discipline||'') + '</span>';
+      out += '</button>';
+    });
+    return out;
+  }
+  html += renderGroup('Same Pattern + Stage', exactMatch, '#4ade80');
+  html += renderGroup('Same Pattern (different stage)', patternMatch, '#fbbf24');
+  html += renderGroup('Same Family', familyMatch, '#94a3b8');
+  if (exactMatch.length === 0 && patternMatch.length === 0 && familyMatch.length === 0) {
+    html += '<div style="color:#64748b;font-size:13px;text-align:center;padding:20px">No substitutions found</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function executeSubstitution(newName) {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) return;
+  var oldName = sel.dataset.exercise || '';
+  var found = null;
+  EXERCISES.forEach(function(e) { if(e.name === newName) found = e; });
+  if (!found) return;
+  captureUndo();
+  sel.dataset.exercise = found.name;
+  sel.dataset.pattern = found.pattern || '';
+  sel.dataset.stage = found.stage || 'S1';
+  sel.dataset.discipline = found.discipline || '';
+  var nameEl = sel.querySelector('.clip-name');
+  if (nameEl) nameEl.textContent = found.name;
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showToast('Swapped: ' + oldName + ' -> ' + found.name);
+  if (typeof logChange === 'function') logChange('substitute', oldName + ' -> ' + found.name);
+}
+
+// Batch 384: Workout Time Estimator
+function showTimeEstimator() {
+  var tracks = document.querySelectorAll('.track');
+  var trackData = [];
+  var grandTotal = 0;
+  tracks.forEach(function(track) {
+    var family = track.dataset.family || '';
+    if (family === 'music') return;
+    var clips = track.querySelectorAll('.clip');
+    var trackTime = 0;
+    var clipCount = 0;
+    clips.forEach(function(c) {
+      clipCount++;
+      var sets = parseInt(c.dataset.sets) || 3;
+      var reps = parseInt(c.dataset.reps) || 10;
+      var tempo = parseInt(c.dataset.tempo) || 3;
+      var rest = parseInt(c.dataset.rest) || 60;
+      var exerciseTime = sets * reps * tempo;
+      var restTime = (sets - 1) * rest;
+      trackTime += exerciseTime + restTime;
+    });
+    if (clipCount > 0) {
+      trackData.push({ family: family, clips: clipCount, seconds: trackTime });
+      grandTotal += trackTime;
+    }
+  });
+  if (trackData.length === 0) { showToast('Add clips to estimate time'); return; }
+  // Add transition time estimate (30s between exercises)
+  var totalClips = 0;
+  trackData.forEach(function(t) { totalClips += t.clips; });
+  var transitionTime = Math.max(0, (totalClips - 1)) * 30;
+  grandTotal += transitionTime;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var famColors = {push:'#f87171',pull:'#60a5fa',core:'#fbbf24',legs:'#4ade80',skills:'#a78bfa'};
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:420px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Time Estimator</div>';
+  // Grand total
+  var totalMin = Math.floor(grandTotal / 60);
+  var totalSec = grandTotal % 60;
+  html += '<div style="text-align:center;margin-bottom:20px">';
+  html += '<div style="color:#22d3ee;font-size:36px;font-weight:200">' + totalMin + '<span style="font-size:18px;color:#94a3b8">min</span> ' + totalSec + '<span style="font-size:18px;color:#94a3b8">sec</span></div>';
+  html += '<div style="color:#64748b;font-size:11px">Total estimated duration</div>';
+  html += '</div>';
+  // Per track breakdown
+  trackData.forEach(function(t) {
+    var min = Math.floor(t.seconds / 60);
+    var sec = t.seconds % 60;
+    var pct = grandTotal > 0 ? Math.round(t.seconds / grandTotal * 100) : 0;
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+    html += '<div style="width:50px;color:' + (famColors[t.family]||'#22d3ee') + ';font-size:12px;font-weight:600;text-transform:capitalize">' + t.family + '</div>';
+    html += '<div style="flex:1;height:8px;background:rgba(34,211,238,0.05);border-radius:4px;overflow:hidden">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + (famColors[t.family]||'#22d3ee') + ';border-radius:4px"></div></div>';
+    html += '<div style="width:80px;text-align:right;color:#e2e8f0;font-size:12px">' + min + 'm ' + sec + 's</div>';
+    html += '</div>';
+  });
+  html += '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:8px;border-top:1px solid rgba(34,211,238,0.1);color:#64748b;font-size:11px">';
+  html += '<span>Transition time (~30s each)</span>';
+  html += '<span>' + Math.floor(transitionTime/60) + 'm ' + (transitionTime%60) + 's</span>';
+  html += '</div>';
+  html += '<div style="color:#64748b;font-size:10px;margin-top:8px">Time = sets x reps x tempo + (sets-1) x rest + transitions</div>';
   html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
