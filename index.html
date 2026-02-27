@@ -7930,6 +7930,9 @@ var CMD_ACTIONS = [
   {label:'All Exercise Tags', key:'', icon:'\u2691', action: function() { showAllTags(); }},
   {label:'Set Session Goal', key:'', icon:'\u2691', action: function() { setSessionGoal(); }},
   {label:'Check Goal Progress', key:'', icon:'\u2714', action: function() { checkSessionGoals(); }},
+  {label:'Share Workout as URL', key:'', icon:'\u21C4', action: function() { shareWorkoutAsURL(); }},
+  {label:'Cooldown Recommendations', key:'', icon:'\u2764', action: function() { suggestCooldown(); }},
+  {label:'Download Summary Card (PNG)', key:'', icon:'\u2B50', action: function() { generateSummaryCard(); }},
 ];
 
 function openCmdPalette() {
@@ -14857,6 +14860,200 @@ function checkSessionGoals() {
   });
   html += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 340: Workout Template Sharing
+function shareWorkoutAsURL() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips to share'); return; }
+  var data = [];
+  clips.forEach(function(c) {
+    data.push({
+      e: c.dataset.exercise || '',
+      f: c.dataset.family || '',
+      t: c.closest('.track-lane') ? c.closest('.track-lane').dataset.track : '0',
+      l: c.style.left,
+      w: c.style.width,
+      s: c.dataset.sets || '3',
+      r: c.dataset.reps || '8',
+      p: c.dataset.rpe || '7'
+    });
+  });
+  var bpm = typeof _bpm !== 'undefined' ? _bpm : 100;
+  var payload = { b: bpm, c: data };
+  try {
+    var json = JSON.stringify(payload);
+    var encoded = btoa(unescape(encodeURIComponent(json)));
+    var url = window.location.origin + window.location.pathname + '#template=' + encoded;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function() { showToast('Template URL copied! (' + data.length + ' exercises)'); });
+    }
+  } catch(e) { showToast('Template too large to share'); }
+}
+function loadWorkoutFromURL() {
+  var hash = window.location.hash;
+  if (!hash || hash.indexOf('#template=') !== 0) return false;
+  try {
+    var encoded = hash.replace('#template=', '');
+    var json = decodeURIComponent(escape(atob(encoded)));
+    var payload = JSON.parse(json);
+    if (!payload.c || !payload.c.length) return false;
+    if (typeof captureUndo === 'function') captureUndo();
+    document.querySelectorAll('.clip').forEach(function(c) { c.remove(); });
+    if (payload.b && typeof _bpm !== 'undefined') {
+      _bpm = payload.b;
+      var bpmEl = document.getElementById('bpm-display');
+      if (bpmEl) bpmEl.textContent = _bpm;
+    }
+    payload.c.forEach(function(d) {
+      var lane = document.querySelector('.track-lane[data-track="' + d.t + '"]');
+      if (!lane) lane = document.querySelector('.track-lane');
+      if (lane && typeof createClipElement === 'function') {
+        var clip = createClipElement(d.e, d.f);
+        clip.style.left = d.l;
+        clip.style.width = d.w;
+        clip.dataset.sets = d.s;
+        clip.dataset.reps = d.r;
+        clip.dataset.rpe = d.p;
+        if (typeof updateClipInfo === 'function') updateClipInfo(clip);
+        lane.appendChild(clip);
+      }
+    });
+    window.location.hash = '';
+    showToast('Template loaded: ' + payload.c.length + ' exercises');
+    return true;
+  } catch(e) { return false; }
+}
+
+// Batch 341: Exercise Cooldown Recommendations
+function suggestCooldown() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips to analyze'); return; }
+  var families = {};
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || 'core';
+    families[fam] = (families[fam] || 0) + 1;
+  });
+  var cooldownMap = {
+    push: ['Chest doorway stretch (30s/side)', 'Shoulder pass-throughs (10 reps)', 'Wrist circles (10 each direction)'],
+    pull: ['Lat hang (20s)', 'Bicep wall stretch (30s/side)', 'Cat-cow (10 reps)'],
+    legs: ['Quad stretch (30s/side)', 'Hamstring fold (30s)', 'Pigeon pose (30s/side)', 'Calf stretch (20s/side)'],
+    core: ['Cobra stretch (20s)', 'Seated twist (20s/side)', 'Child\'s pose (30s)'],
+    skills: ['Wrist stretches (30s)', 'Shoulder circles (10 each)', 'Forearm stretch (20s/side)'],
+    flow: ['Full body stretch sequence (2 min)', 'Savasana (1 min)', 'Deep breathing (5 breaths)']
+  };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:4px">Cooldown Recommendations</span>';
+  html += '<span style="color:#64748b;font-size:9px;display:block;margin-bottom:16px">Based on your workout (' + clips.length + ' exercises)</span>';
+  var famColors = { push: '#f87171', pull: '#60a5fa', core: '#fbbf24', legs: '#4ade80', skills: '#c084fc', flow: '#22d3ee' };
+  var sortedFams = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; });
+  sortedFams.forEach(function(fam) {
+    var stretches = cooldownMap[fam] || cooldownMap.core;
+    var col = famColors[fam] || '#94a3b8';
+    html += '<div style="margin-bottom:12px">';
+    html += '<span style="color:' + col + ';font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em">' + fam + ' (' + families[fam] + ' exercises)</span>';
+    html += '<ul style="margin:6px 0 0;padding-left:16px">';
+    stretches.forEach(function(s) { html += '<li style="color:#cbd5e1;font-size:11px;margin-bottom:4px;line-height:1.4">' + s + '</li>'; });
+    html += '</ul></div>';
+  });
+  html += '<div style="margin-top:12px;padding:12px;background:rgba(34,211,238,0.05);border-radius:8px;border:1px solid rgba(34,211,238,0.1)">';
+  html += '<span style="color:#22d3ee;font-size:10px;font-weight:600">General</span>';
+  html += '<ul style="margin:4px 0 0;padding-left:16px"><li style="color:#94a3b8;font-size:10px;margin-bottom:2px">Walk for 2-3 minutes</li>';
+  html += '<li style="color:#94a3b8;font-size:10px;margin-bottom:2px">Hydrate (300-500ml water)</li>';
+  html += '<li style="color:#94a3b8;font-size:10px">5 deep breaths (inhale 4s, hold 4s, exhale 6s)</li></ul></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 342: Session Summary Card
+function generateSummaryCard() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips for summary card'); return; }
+  var workoutName = '';
+  var nameEl = document.getElementById('workout-name') || document.querySelector('.breadcrumb-name');
+  if (nameEl) workoutName = nameEl.textContent || 'Workout';
+  var totalSets = 0, totalReps = 0, totalRPE = 0, rpeCount = 0;
+  var families = {};
+  var exercises = [];
+  clips.forEach(function(c) {
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 8;
+    var rpe = parseInt(c.dataset.rpe);
+    totalSets += sets;
+    totalReps += sets * reps;
+    if (rpe) { totalRPE += rpe; rpeCount++; }
+    var fam = c.dataset.family || 'core';
+    families[fam] = (families[fam] || 0) + 1;
+    exercises.push(c.dataset.exercise || c.textContent.trim().split('\n')[0]);
+  });
+  var avgRPE = rpeCount > 0 ? (totalRPE / rpeCount).toFixed(1) : '-';
+  var bpm = typeof _bpm !== 'undefined' ? _bpm : 100;
+  var uniqueEx = [];
+  exercises.forEach(function(e) { if (uniqueEx.indexOf(e) < 0) uniqueEx.push(e); });
+  var famKeys = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; });
+  var famColors = { push: '#f87171', pull: '#60a5fa', core: '#fbbf24', legs: '#4ade80', skills: '#c084fc', flow: '#22d3ee' };
+  var canvas = document.createElement('canvas');
+  canvas.width = 600;
+  canvas.height = 400;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#050711';
+  ctx.fillRect(0, 0, 600, 400);
+  ctx.fillStyle = '#0a0f1e';
+  ctx.fillRect(16, 16, 568, 368);
+  ctx.strokeStyle = 'rgba(34,211,238,0.2)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(16, 16, 568, 368);
+  ctx.font = '600 18px Sora, sans-serif';
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillText(workoutName, 40, 56);
+  ctx.font = '400 10px Sora, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.fillText(new Date().toLocaleDateString() + '  |  ' + bpm + ' BPM', 40, 76);
+  var stats = [
+    { label: 'Exercises', value: clips.length },
+    { label: 'Unique', value: uniqueEx.length },
+    { label: 'Total Sets', value: totalSets },
+    { label: 'Total Reps', value: totalReps },
+    { label: 'Avg RPE', value: avgRPE },
+    { label: 'Families', value: famKeys.length }
+  ];
+  var sx = 40;
+  stats.forEach(function(s) {
+    ctx.font = '700 20px Sora, sans-serif';
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillText('' + s.value, sx, 120);
+    ctx.font = '400 8px Sora, sans-serif';
+    ctx.fillStyle = '#475569';
+    ctx.fillText(s.label, sx, 134);
+    sx += 90;
+  });
+  var fy = 164;
+  famKeys.forEach(function(f, idx) {
+    var col = famColors[f] || '#94a3b8';
+    var barWidth = Math.round((families[f] / clips.length) * 400);
+    ctx.fillStyle = col + '30';
+    ctx.fillRect(40, fy + idx * 24, barWidth, 16);
+    ctx.fillStyle = col;
+    ctx.font = '600 9px Sora, sans-serif';
+    ctx.fillText(f.toUpperCase() + ' ' + families[f], 46, fy + idx * 24 + 12);
+  });
+  ctx.fillStyle = '#475569';
+  ctx.font = '400 8px Sora, sans-serif';
+  ctx.fillText('Saturno Movement Studio', 40, 380);
+  ctx.fillStyle = '#22d3ee';
+  ctx.fillText('saturnomovement.com', 240, 380);
+  canvas.toBlob(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (workoutName.replace(/[^a-zA-Z0-9]/g, '_') || 'workout') + '_card.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Summary card downloaded');
+  }, 'image/png');
 }
 
 function selectClipsByStage(stage) {
