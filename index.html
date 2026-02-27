@@ -2230,6 +2230,264 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 }
 ::selection { background: rgba(59, 130, 246, 0.3); color: #fff; }
 ::-moz-selection { background: rgba(59, 130, 246, 0.3); color: #fff; }
+
+/* ===== MOBILE RESPONSIVE — DAW ADAPTED FOR TOUCH ===== */
+
+/* Mobile drawer overlay */
+.mobile-overlay {
+  display: none; position: fixed; inset: 0; z-index: 89;
+  background: rgba(3,5,9,0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0; transition: opacity 0.25s;
+}
+.mobile-overlay.visible { opacity: 1; }
+
+/* Mobile nav toggle button */
+.mobile-nav-toggle {
+  display: none; background: none; border: none;
+  color: var(--text-secondary); cursor: pointer;
+  width: 32px; height: 32px;
+  align-items: center; justify-content: center;
+  font-size: 16px; padding: 0;
+}
+
+/* Mobile panel toggles (fixed bottom bar) */
+.mobile-panel-bar {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  height: 48px; z-index: 90;
+  background: rgba(10,14,26,0.95);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  align-items: center; justify-content: space-around;
+  padding: 0 8px;
+}
+.mobile-panel-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: none; border: none; color: var(--micro);
+  font-family: 'Sora', sans-serif; font-size: 7px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  cursor: pointer; padding: 4px 12px;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-panel-btn .mpb-icon { font-size: 18px; line-height: 1; }
+.mobile-panel-btn.active { color: var(--accent-cyan); }
+
+/* Tablet breakpoint (768px) — shrink panels, bigger touch targets */
+@media (max-width: 768px) {
+  .app { grid-template-rows: 36px 1fr 22px; }
+  .main { grid-template-columns: 160px 3px 1fr 220px; }
+  .header { padding: 0 10px; }
+  .logo-text { font-size: 10px; }
+  .nav-btn { padding: 4px 8px; font-size: 8px; min-height: 36px; }
+  .nav-sep { display: none; }
+  .transport { padding: 4px 10px; height: 40px; }
+  .time-display { font-size: 16px; min-width: 100px; }
+  .bpm-input { width: 44px; font-size: 12px; }
+  .fader-track { height: 60px; }
+  .knob-dial { width: 28px; height: 28px; }
+  .knob-indicator { height: 7px; }
+  .preset-card { min-width: 130px; padding: 8px; }
+  .transport-btn { min-height: 36px; }
+}
+
+/* Mobile breakpoint (640px) — drawer layout */
+@media (max-width: 640px) {
+  .app { grid-template-rows: 44px 1fr; }
+  .footer { display: none; }
+  .mobile-panel-bar { display: flex; }
+  .mobile-nav-toggle { display: flex; }
+  .panel-resize { display: none; }
+
+  /* Header mobile */
+  .header { height: 44px; padding: 0 8px; gap: 4px; }
+  .header-nav { display: none; }
+  .header-nav.mobile-open {
+    display: flex; flex-direction: column;
+    position: fixed; top: 44px; left: 0; right: 0;
+    background: rgba(10,14,26,0.98);
+    border-bottom: 1px solid var(--border);
+    padding: 8px; gap: 4px; z-index: 91;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    max-height: 60vh; overflow-y: auto;
+  }
+  .header-nav.mobile-open .nav-btn {
+    width: 100%; text-align: left; padding: 10px 12px;
+    font-size: 10px; min-height: 44px;
+    display: flex; align-items: center;
+  }
+  .header-nav.mobile-open .nav-sep { display: none; }
+  .logo-text { font-size: 10px; }
+  .logo-sub { display: none; }
+
+  /* Main — single column, panels are drawers */
+  .main {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    overflow: hidden;
+  }
+
+  /* Library becomes slide-out left drawer */
+  .panel-left {
+    position: fixed; top: 44px; left: 0; bottom: 48px;
+    width: 280px; max-width: 85vw;
+    z-index: 90; border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+    background: rgba(10,14,26,0.98);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .panel-left.drawer-open { transform: translateX(0); }
+
+  /* Inspector becomes bottom sheet */
+  .panel-right {
+    position: fixed; left: 0; right: 0; bottom: 48px;
+    max-height: 60vh; z-index: 90;
+    border-top: 1px solid var(--border);
+    border-left: none;
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+    background: rgba(10,14,26,0.98);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 12px 12px 0 0;
+    overflow-y: auto;
+  }
+  .panel-right.drawer-open { transform: translateY(0); }
+  .panel-right::before {
+    content: '';
+    display: block; width: 36px; height: 4px;
+    background: rgba(255,255,255,0.15); border-radius: 2px;
+    margin: 8px auto 4px;
+    flex-shrink: 0;
+  }
+
+  /* Center panel takes full space */
+  .panel-center {
+    grid-column: 1; grid-row: 1;
+    padding-bottom: 48px;
+  }
+
+  /* Transport — 2-row wrap for mobile */
+  .transport {
+    height: auto; min-height: 44px;
+    padding: 6px 8px;
+    flex-wrap: wrap; gap: 6px;
+    justify-content: center;
+  }
+  .transport-btn {
+    width: 38px; height: 38px;
+    font-size: 14px; min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .transport-sep { display: none; }
+  .time-display { font-size: 18px; min-width: 90px; order: -1; }
+  .bpm-section {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    align-items: center; justify-content: center;
+    width: 100%;
+  }
+  .bpm-input { width: 48px; font-size: 13px; height: 32px; }
+  #bars-display { display: none; }
+  #remaining-time { display: none; }
+  #beat-indicator { display: none; }
+  .locate-btn { min-height: 38px; padding: 0 10px; }
+  .snap-badge { min-height: 32px; padding: 0 10px; font-size: 9px; }
+
+  /* Zoom controls — single row */
+  .bpm-section .transport-btn { width: 32px; height: 32px; min-height: 36px; }
+
+  /* Track headers — wider for touch */
+  .track-header { width: 60px; padding: 4px; min-height: 48px; }
+  .track-name { font-size: 8px; padding-left: 2px; }
+  .track-btns button { width: 18px; height: 18px; font-size: 7px; min-height: 22px; }
+  .track-info { display: none; }
+  .track-vol-bar { display: none; }
+
+  /* Clips — larger touch targets */
+  .clip { min-height: 40px; }
+  .clip-name { font-size: 9px; }
+  .clip-rpe-badge { font-size: 8px; }
+  .clip-stage-dots { top: 4px; right: 4px; }
+  .clip-stage-dot { width: 4px; height: 4px; }
+
+  /* Presets drawer */
+  .presets-drawer { padding: 8px; }
+  .preset-card { min-width: 120px; padding: 10px; }
+
+  /* Library search — bigger */
+  .lib-search { font-size: 13px; padding: 10px 12px; min-height: 44px; }
+
+  /* Movement items — bigger touch targets */
+  .movement-item { padding: 8px 12px; min-height: 44px; }
+  .movement-item .mv-name { font-size: 11px; }
+  .movement-item .mv-stage { font-size: 8px; }
+  .movement-item .mv-detail { display: none !important; }
+
+  /* Inspector inputs — touch-friendly */
+  .inspector-field input, .inspector-field select {
+    font-size: 14px; min-height: 36px; padding: 6px 8px;
+  }
+  .inspector-field input[type="range"] { min-height: 24px; }
+
+  /* Context menu — bigger for touch */
+  .clip-context-menu { min-width: 200px; }
+  .ctx-item { padding: 10px 16px; font-size: 12px; min-height: 44px; }
+
+  /* Command palette — full width */
+  .cmd-palette {
+    width: 95vw !important; max-width: 95vw !important;
+    left: 2.5vw !important; margin-left: 0 !important;
+  }
+  .cmd-input { font-size: 14px !important; min-height: 44px !important; }
+  .cmd-item { min-height: 44px !important; font-size: 11px !important; }
+
+  /* Shortcuts panel — full width */
+  .shortcuts-panel { width: 95vw; left: 2.5vw; }
+
+  /* Summary panel — mobile padding */
+  .summary-inner { padding: 24px 16px 64px; }
+  .summary-close { width: 44px; height: 44px; font-size: 20px; }
+
+  /* Saved modal */
+  .saved-modal-content { width: 95%; }
+  .saved-item { padding: 12px 14px; min-height: 44px; }
+
+  /* Toast — above mobile bar */
+  .toast { bottom: 60px !important; }
+
+  /* Video section */
+  .video-section { max-height: 30vh; }
+
+  /* Minimap */
+  .timeline-minimap { height: 20px; }
+
+  /* Ruler */
+  .timeline-ruler { height: 22px; }
+
+  /* Timeline scroll momentum */
+  .timeline-container { -webkit-overflow-scrolling: touch; }
+
+  /* Selection badge */
+  .selection-badge { bottom: 56px; }
+
+  /* Focus indicator */
+  .focus-indicator { top: 48px; }
+}
+
+/* Small phone (380px) */
+@media (max-width: 380px) {
+  .transport-btn { width: 36px; height: 36px; min-height: 40px; }
+  .time-display { font-size: 16px; min-width: 80px; }
+  .bpm-input { width: 44px; }
+  .track-header { width: 50px; }
+  .track-name { font-size: 7px; }
+  .panel-left { width: 260px; }
+}
 </style>
 </head>
 <body>
@@ -2258,7 +2516,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span style="font-size:8px;color:var(--micro)">/</span>
       <span id="header-workout-name" style="font-size:9px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="renameWorkout()" data-tip="Click to rename">Untitled</span>
     </div>
-    <nav class="header-nav">
+    <button class="mobile-nav-toggle" id="mobile-nav-toggle" onclick="toggleMobileNav()" data-tip="Menu">&#9776;</button>
+    <nav class="header-nav" id="header-nav">
       <button class="nav-btn" id="btn-presets" onclick="togglePresets()">PRESETS</button>
       <button class="nav-btn" onclick="clearTimeline()">CLEAR</button>
       <div class="nav-sep"></div>
@@ -2693,6 +2952,33 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
   </footer>
+</div>
+
+<!-- Mobile overlay (closes drawers) -->
+<div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileDrawers()"></div>
+
+<!-- Mobile bottom panel bar -->
+<div class="mobile-panel-bar" id="mobile-panel-bar">
+  <button class="mobile-panel-btn" id="mpb-library" onclick="toggleMobileLibrary()" data-tip="Movement Library">
+    <span class="mpb-icon">&#9835;</span>
+    <span>Library</span>
+  </button>
+  <button class="mobile-panel-btn" id="mpb-play" onclick="togglePlay()" data-tip="Play/Pause">
+    <span class="mpb-icon" id="mpb-play-icon">&#9654;</span>
+    <span>Play</span>
+  </button>
+  <button class="mobile-panel-btn" id="mpb-cmd" onclick="toggleCommandPalette()" data-tip="Commands">
+    <span class="mpb-icon">&#8984;</span>
+    <span>Cmd</span>
+  </button>
+  <button class="mobile-panel-btn" id="mpb-mixer" onclick="toggleMobileInspector()" data-tip="Mixer + Inspector">
+    <span class="mpb-icon">&#9776;</span>
+    <span>Mixer</span>
+  </button>
+  <button class="mobile-panel-btn" id="mpb-more" onclick="toggleMobileNav()" data-tip="More actions">
+    <span class="mpb-icon">&#8943;</span>
+    <span>More</span>
+  </button>
 </div>
 
 <div class="selection-badge" id="selection-badge">
@@ -7456,6 +7742,9 @@ var CMD_ACTIONS = [
   {label:'Ghost Mode (Dim Unselected)', key:'', icon:'\u25D1', action: function() { toggleGhostMode(); }},
   {label:'Detailed Workout Analysis', key:'', icon:'\u2139', action: function() { detailedWorkoutAnalysis(); }},
   {label:'Exercise Atlas', key:'', icon:'\u2606', action: function() { showExerciseAtlas(); }},
+  {label:'Toggle Library (Mobile)', key:'', icon:'\u266B', action: function() { if(isMobileView()) toggleMobileLibrary(); else toast('Desktop: library always visible'); }},
+  {label:'Toggle Mixer (Mobile)', key:'', icon:'\u2699', action: function() { if(isMobileView()) toggleMobileInspector(); else toast('Desktop: mixer always visible'); }},
+  {label:'Close All Drawers (Mobile)', key:'', icon:'\u2715', action: function() { closeMobileDrawers(); }},
 ];
 
 function openCmdPalette() {
@@ -10511,6 +10800,301 @@ function showExerciseAtlas() {
   window.open(URL.createObjectURL(blob), '_blank');
   toast('Exercise Atlas opened');
 }
+
+/* ===== BATCH 289-291: MOBILE RESPONSIVE SYSTEM ===== */
+
+/* --- Batch 289: Mobile drawer system --- */
+var _mobileLibraryOpen = false;
+var _mobileInspectorOpen = false;
+var _mobileNavOpen = false;
+
+function isMobileView() {
+  return window.innerWidth <= 640;
+}
+
+function toggleMobileNav() {
+  var nav = document.getElementById('header-nav');
+  if (!nav) return;
+  _mobileNavOpen = !_mobileNavOpen;
+  if (_mobileNavOpen) {
+    nav.classList.add('mobile-open');
+    showMobileOverlay();
+    var btn = document.getElementById('mpb-more');
+    if (btn) btn.classList.add('active');
+  } else {
+    nav.classList.remove('mobile-open');
+    hideMobileOverlay();
+    var btn = document.getElementById('mpb-more');
+    if (btn) btn.classList.remove('active');
+  }
+}
+
+function toggleMobileLibrary() {
+  var panel = document.querySelector('.panel-left');
+  if (!panel) return;
+  if (_mobileInspectorOpen) closeMobileInspector();
+  if (_mobileNavOpen) closeMobileNavMenu();
+  _mobileLibraryOpen = !_mobileLibraryOpen;
+  if (_mobileLibraryOpen) {
+    panel.classList.add('drawer-open');
+    showMobileOverlay();
+    var btn = document.getElementById('mpb-library');
+    if (btn) btn.classList.add('active');
+  } else {
+    panel.classList.remove('drawer-open');
+    hideMobileOverlay();
+    var btn = document.getElementById('mpb-library');
+    if (btn) btn.classList.remove('active');
+  }
+}
+
+function toggleMobileInspector() {
+  var panel = document.querySelector('.panel-right');
+  if (!panel) return;
+  if (_mobileLibraryOpen) closeMobileLibrary();
+  if (_mobileNavOpen) closeMobileNavMenu();
+  _mobileInspectorOpen = !_mobileInspectorOpen;
+  if (_mobileInspectorOpen) {
+    panel.classList.add('drawer-open');
+    showMobileOverlay();
+    var btn = document.getElementById('mpb-mixer');
+    if (btn) btn.classList.add('active');
+  } else {
+    panel.classList.remove('drawer-open');
+    hideMobileOverlay();
+    var btn = document.getElementById('mpb-mixer');
+    if (btn) btn.classList.remove('active');
+  }
+}
+
+function closeMobileLibrary() {
+  var panel = document.querySelector('.panel-left');
+  if (panel) panel.classList.remove('drawer-open');
+  _mobileLibraryOpen = false;
+  var btn = document.getElementById('mpb-library');
+  if (btn) btn.classList.remove('active');
+}
+
+function closeMobileInspector() {
+  var panel = document.querySelector('.panel-right');
+  if (panel) panel.classList.remove('drawer-open');
+  _mobileInspectorOpen = false;
+  var btn = document.getElementById('mpb-mixer');
+  if (btn) btn.classList.remove('active');
+}
+
+function closeMobileNavMenu() {
+  var nav = document.getElementById('header-nav');
+  if (nav) nav.classList.remove('mobile-open');
+  _mobileNavOpen = false;
+  var btn = document.getElementById('mpb-more');
+  if (btn) btn.classList.remove('active');
+}
+
+function closeMobileDrawers() {
+  closeMobileLibrary();
+  closeMobileInspector();
+  closeMobileNavMenu();
+  hideMobileOverlay();
+}
+
+function showMobileOverlay() {
+  var ov = document.getElementById('mobile-overlay');
+  if (ov) { ov.style.display = 'block'; requestAnimationFrame(function() { ov.classList.add('visible'); }); }
+}
+
+function hideMobileOverlay() {
+  var ov = document.getElementById('mobile-overlay');
+  if (ov) { ov.classList.remove('visible'); setTimeout(function() { ov.style.display = 'none'; }, 250); }
+}
+
+/* Update mobile play button state */
+function updateMobilePlayBtn() {
+  var icon = document.getElementById('mpb-play-icon');
+  var btn = document.getElementById('mpb-play');
+  if (!icon || !btn) return;
+  if (typeof isPlaying !== 'undefined' && isPlaying) {
+    icon.innerHTML = '&#9646;&#9646;';
+    btn.classList.add('active');
+  } else {
+    icon.innerHTML = '&#9654;';
+    btn.classList.remove('active');
+  }
+}
+
+/* --- Batch 290: Touch drag-drop for timeline --- */
+var _touchDragData = null;
+
+function initTouchDragDrop() {
+  /* Library items — touch to add to timeline */
+  document.addEventListener('touchstart', function(e) {
+    if (!isMobileView()) return;
+    var item = e.target.closest('.movement-item');
+    if (!item) return;
+    var exName = item.getAttribute('data-exercise');
+    if (!exName) return;
+    _touchDragData = { exercise: exName, startX: e.touches[0].clientX, startY: e.touches[0].clientY, moved: false };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!_touchDragData) return;
+    var dx = Math.abs(e.touches[0].clientX - _touchDragData.startX);
+    var dy = Math.abs(e.touches[0].clientY - _touchDragData.startY);
+    if (dx > 10 || dy > 10) _touchDragData.moved = true;
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e) {
+    if (!_touchDragData) return;
+    var data = _touchDragData;
+    _touchDragData = null;
+    /* If user tapped (not dragged), add exercise at playhead on active track */
+    if (!data.moved && data.exercise) {
+      if (typeof quickAddExercise === 'function') {
+        quickAddExercise(data.exercise);
+        if (isMobileView()) closeMobileDrawers();
+      }
+    }
+  }, { passive: true });
+
+  /* Timeline clips — touch-move for repositioning */
+  var _clipTouch = null;
+  var timelineTracks = document.getElementById('timeline-tracks');
+  if (!timelineTracks) return;
+
+  timelineTracks.addEventListener('touchstart', function(e) {
+    if (!isMobileView()) return;
+    var clip = e.target.closest('.clip');
+    if (!clip || clip.classList.contains('clip-locked')) return;
+    _clipTouch = {
+      clip: clip,
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      origLeft: parseFloat(clip.style.left) || 0,
+      moved: false
+    };
+    clip.style.zIndex = '20';
+    clip.style.opacity = '0.85';
+  }, { passive: true });
+
+  timelineTracks.addEventListener('touchmove', function(e) {
+    if (!_clipTouch) return;
+    var dx = e.touches[0].clientX - _clipTouch.startX;
+    var dy = Math.abs(e.touches[0].clientY - _clipTouch.startY);
+    if (Math.abs(dx) > 5 || dy > 5) _clipTouch.moved = true;
+    if (_clipTouch.moved) {
+      _clipTouch.clip.style.left = (_clipTouch.origLeft + dx) + 'px';
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  timelineTracks.addEventListener('touchend', function(e) {
+    if (!_clipTouch) return;
+    var clip = _clipTouch.clip;
+    clip.style.zIndex = '';
+    clip.style.opacity = '';
+    if (_clipTouch.moved) {
+      /* Snap to grid if enabled */
+      var left = parseFloat(clip.style.left) || 0;
+      if (left < 0) left = 0;
+      if (typeof getSnapSize === 'function' && typeof settings !== 'undefined' && settings.snap) {
+        var snap = getSnapSize();
+        left = Math.round(left / snap) * snap;
+      }
+      clip.style.left = left + 'px';
+      if (typeof captureUndo === 'function') captureUndo();
+      if (typeof updateStats === 'function') updateStats();
+    } else {
+      /* Tap to select */
+      if (clip.classList.contains('selected')) {
+        clip.classList.remove('selected');
+      } else {
+        if (!e.shiftKey) document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+        clip.classList.add('selected');
+      }
+      if (typeof inspectClip === 'function') inspectClip(clip);
+    }
+    _clipTouch = null;
+  }, { passive: true });
+}
+
+/* --- Batch 291: Swipe gestures + mobile play sync --- */
+function initMobileSwipeGestures() {
+  /* Swipe right on timeline to open library */
+  var container = document.getElementById('timeline-container');
+  if (!container) return;
+  var _swipe = null;
+
+  container.addEventListener('touchstart', function(e) {
+    if (!isMobileView()) return;
+    if (e.touches.length !== 1) return;
+    var t = e.touches[0];
+    /* Only trigger swipe from left edge (first 30px) */
+    if (t.clientX > 30 && !_mobileLibraryOpen) return;
+    _swipe = { startX: t.clientX, startY: t.clientY };
+  }, { passive: true });
+
+  container.addEventListener('touchmove', function(e) {
+    if (!_swipe) return;
+    var dx = e.touches[0].clientX - _swipe.startX;
+    var dy = Math.abs(e.touches[0].clientY - _swipe.startY);
+    /* Horizontal swipe detection */
+    if (Math.abs(dx) > 50 && dy < 40) {
+      if (dx > 0 && !_mobileLibraryOpen) {
+        toggleMobileLibrary();
+      }
+      _swipe = null;
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchend', function() { _swipe = null; }, { passive: true });
+}
+
+/* Wire mobile play button into togglePlay */
+(function() {
+  var origTogglePlay = typeof togglePlay === 'function' ? togglePlay : null;
+  if (!origTogglePlay) return;
+  /* Patch after DOMContentLoaded to ensure togglePlay is defined */
+  var _patchAttempted = false;
+  function patchTogglePlay() {
+    if (_patchAttempted) return;
+    _patchAttempted = true;
+    var _origPlay = window.togglePlay;
+    window.togglePlay = function() {
+      _origPlay.apply(this, arguments);
+      updateMobilePlayBtn();
+    };
+  }
+  if (document.readyState === 'complete') {
+    setTimeout(patchTogglePlay, 100);
+  } else {
+    window.addEventListener('load', function() { setTimeout(patchTogglePlay, 100); });
+  }
+})();
+
+/* Initialize mobile features on DOM ready */
+(function() {
+  function initMobile() {
+    initTouchDragDrop();
+    initMobileSwipeGestures();
+    /* Handle resize — clean up drawer states when switching to desktop */
+    window.addEventListener('resize', function() {
+      if (!isMobileView()) {
+        closeMobileDrawers();
+        var panel = document.querySelector('.panel-left');
+        if (panel) panel.classList.remove('drawer-open');
+        var right = document.querySelector('.panel-right');
+        if (right) right.classList.remove('drawer-open');
+        var nav = document.getElementById('header-nav');
+        if (nav) nav.classList.remove('mobile-open');
+      }
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobile);
+  } else {
+    initMobile();
+  }
+})();
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
