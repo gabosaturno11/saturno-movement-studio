@@ -671,9 +671,11 @@ body {
   filter: brightness(1.08);
 }
 .clip .clip-name {
-  overflow: hidden; text-overflow: ellipsis;
-  max-width: calc(100% - 30px); white-space: nowrap;
+  overflow: hidden; white-space: nowrap;
+  max-width: calc(100% - 30px);
   display: inline-block; vertical-align: top;
+  -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 70%, transparent 100%);
 }
 .clip .clip-info {
   font-size: 7px; opacity: 0.5; margin-left: 4px;
@@ -3678,7 +3680,7 @@ function createClipElement(exercise, left, width, dna) {
       var newW = Math.max(40, startW - delta);
       clip.style.left = newLeft + 'px';
       clip.style.width = newW + 'px';
-      drawClipWaveform(canvas, 'rgba(255,255,255,' + waveOpacity + ')', newW + 'px');
+      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity);
       addBeatMarkers(clip, newW);
       updateStats();
     }
@@ -3739,7 +3741,7 @@ function createClipElement(exercise, left, width, dna) {
       var newW = Math.max(40, startW + e.clientX - startX);
       newW = snapEnabled ? Math.max(40, snapValue(newW)) : newW;
       clip.style.width = newW + 'px';
-      drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', newW + 'px');
+      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity);
       addBeatMarkers(clip, newW);
       var durSec = Math.round(newW / 80 * 15);
       var durM = Math.floor(durSec / 60);
@@ -3788,7 +3790,7 @@ function createClipElement(exercise, left, width, dna) {
       e.preventDefault();
       var newW = Math.max(40, startW + e.touches[0].clientX - startX);
       clip.style.width = newW + 'px';
-      drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', newW + 'px');
+      drawClipWaveform(canvas, waveColor, newW + 'px', waveOpacity);
       addBeatMarkers(clip, newW);
       updateStats();
     }
@@ -6580,7 +6582,8 @@ function splitClipAtPlayhead() {
   // Resize current clip to left portion
   selectedClip.style.width = leftW + 'px';
   var canvas = selectedClip.querySelector('.clip-waveform');
-  if (canvas) drawClipWaveform(canvas, 'rgba(255,255,255,0.55)', leftW + 'px');
+  var splitFm = FAMILY_MAP[ex.family] || {color:'#fff'};
+  if (canvas) drawClipWaveform(canvas, splitFm.color, leftW + 'px', 0.5);
   addBeatMarkers(selectedClip, leftW);
   // Create right portion
   var dna = {
