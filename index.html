@@ -7991,6 +7991,10 @@ var CMD_ACTIONS = [
   {label:'Show Saved Flows', key:'', icon:'\u2194', action: function() { showFlowList(); }},
   {label:'Export Analytics Report', key:'', icon:'\u2197', action: function() { exportAnalyticsHTML(); }},
   {label:'Quick Workout Wizard', key:'', icon:'\u2606', action: function() { showWorkoutWizard(); }},
+  {label:'Exercise Encyclopedia', key:'', icon:'\u2637', action: function() { showEncyclopedia(); }},
+  {label:'Training Calendar (6 months)', key:'', icon:'\u2610', action: function() { showExtendedCalendar(); }},
+  {label:'Custom Countdown Builder', key:'', icon:'\u23f1', action: function() { showCountdownBuilder(); }},
+  {label:'Run Saved Countdown', key:'', icon:'\u23f1', action: function() { showSavedSeqs(); }},
 ];
 
 function openCmdPalette() {
@@ -16987,6 +16991,284 @@ function wizardGenerate() {
   showToast('Wizard generated ' + selected.length + ' exercises');
   if (typeof logChange === 'function') logChange('wizard', selected.length + ' exercises');
 }
+
+// Batch 373: Exercise Encyclopedia
+function showEncyclopedia() {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa',Mobility:'#818cf8'};
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:650px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700">Exercise Encyclopedia</div>';
+  html += '<div style="color:#94a3b8;font-size:12px">' + EXERCISES.length + ' exercises</div></div>';
+  html += '<input id="sms-ency-search" placeholder="Search exercises..." oninput="filterEncyclopedia()" style="width:100%;padding:10px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:8px;font-family:Sora,sans-serif;font-size:14px;margin-bottom:8px;box-sizing:border-box">';
+  html += '<div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap">';
+  html += '<button onclick="filterEncyFamily(\'all\')" class="ency-fam-btn" style="padding:4px 10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">All</button>';
+  ['Push','Pull','Core','Legs','Skills','Mobility'].forEach(function(f) {
+    html += '<button onclick="filterEncyFamily(\'' + f + '\')" class="ency-fam-btn" style="padding:4px 10px;background:rgba(34,211,238,0.05);color:#94a3b8;border:1px solid rgba(34,211,238,0.1);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">' + f + '</button>';
+  });
+  html += '</div>';
+  html += '<div id="sms-ency-list">';
+  EXERCISES.forEach(function(ex) {
+    var notes = '';
+    try { var n = JSON.parse(localStorage.getItem('sms_coaching_notes') || '{}'); notes = n[ex.name] || ''; } catch(e) {}
+    var difficulty = '';
+    try { var d = JSON.parse(localStorage.getItem('sms_difficulty') || '{}'); difficulty = d[ex.name] ? '\u2605'.repeat(d[ex.name]) : ''; } catch(e) {}
+    html += '<div class="ency-item" data-family="' + ex.family + '" style="padding:10px;background:rgba(34,211,238,0.03);border-radius:6px;margin-bottom:4px;display:flex;gap:10px;align-items:flex-start">';
+    html += '<div style="width:6px;height:100%;min-height:36px;border-radius:3px;background:' + (famColors[ex.family]||'#22d3ee') + ';flex-shrink:0"></div>';
+    html += '<div style="flex:1">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+    html += '<span style="color:#e2e8f0;font-weight:600;font-size:13px">' + ex.name + '</span>';
+    if (difficulty) html += '<span style="color:#fbbf24;font-size:11px">' + difficulty + '</span>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">';
+    html += '<span style="color:' + (famColors[ex.family]||'#22d3ee') + ';font-size:10px">' + ex.family + '</span>';
+    html += '<span style="color:#a78bfa;font-size:10px">' + (ex.pattern || '') + '</span>';
+    html += '<span style="color:#94a3b8;font-size:10px">' + (ex.stage || 'S1') + '</span>';
+    html += '<span style="color:#64748b;font-size:10px">' + (ex.discipline || '') + '</span>';
+    html += '</div>';
+    if (notes) html += '<div style="color:#64748b;font-size:11px;margin-top:4px;font-style:italic">' + notes.substring(0,80) + (notes.length > 80 ? '...' : '') + '</div>';
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+  document.getElementById('sms-ency-search').focus();
+}
+function filterEncyclopedia() {
+  var q = (document.getElementById('sms-ency-search').value || '').toLowerCase();
+  document.querySelectorAll('.ency-item').forEach(function(item) {
+    item.style.display = (!q || item.textContent.toLowerCase().indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+function filterEncyFamily(fam) {
+  document.querySelectorAll('.ency-fam-btn').forEach(function(b) {
+    b.style.background = 'rgba(34,211,238,0.05)'; b.style.color = '#94a3b8';
+  });
+  event.target.style.background = 'rgba(34,211,238,0.15)';
+  event.target.style.color = '#22d3ee';
+  document.querySelectorAll('.ency-item').forEach(function(item) {
+    item.style.display = (fam === 'all' || item.dataset.family === fam) ? '' : 'none';
+  });
+}
+
+// Batch 374: Extended Workout Heatmap Calendar
+function showExtendedCalendar() {
+  var dates = {};
+  // Collect from ratings
+  try {
+    var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+    ratings.forEach(function(r) {
+      if (r.date) {
+        var d = r.date.split('T')[0];
+        if (!dates[d]) dates[d] = { count: 0, rating: 0, names: [] };
+        dates[d].count++;
+        dates[d].rating = r.rating || 0;
+        if (r.name) dates[d].names.push(r.name);
+      }
+    });
+  } catch(e) {}
+  // Collect from journal
+  try {
+    var journal = JSON.parse(localStorage.getItem('sms_journal') || '[]');
+    journal.forEach(function(j) {
+      if (j.date) {
+        var d = j.date.split('T')[0];
+        if (!dates[d]) dates[d] = { count: 0, rating: 0, names: [] };
+        dates[d].count++;
+      }
+    });
+  } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:700px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Training Calendar</div>';
+  // Show last 6 months
+  var now = new Date();
+  for (var m = 5; m >= 0; m--) {
+    var month = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    var monthName = month.toLocaleString('default', { month: 'long', year: 'numeric' });
+    html += '<div style="margin-bottom:16px">';
+    html += '<div style="color:#94a3b8;font-size:12px;font-weight:600;margin-bottom:6px">' + monthName + '</div>';
+    html += '<div style="display:flex;gap:3px;flex-wrap:wrap">';
+    var daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    // Day labels
+    var firstDay = month.getDay();
+    for (var pad = 0; pad < firstDay; pad++) {
+      html += '<div style="width:18px;height:18px"></div>';
+    }
+    for (var d = 1; d <= daysInMonth; d++) {
+      var dateStr = month.getFullYear() + '-' + String(month.getMonth() + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      var entry = dates[dateStr];
+      var bg = 'rgba(34,211,238,0.05)';
+      var title = dateStr;
+      if (entry) {
+        var intensity = Math.min(entry.count, 3);
+        bg = intensity >= 3 ? 'rgba(34,211,238,0.6)' : intensity >= 2 ? 'rgba(34,211,238,0.35)' : 'rgba(34,211,238,0.18)';
+        title = dateStr + ' - ' + entry.count + ' session(s)';
+        if (entry.names.length) title += ': ' + entry.names.join(', ');
+      }
+      html += '<div title="' + title + '" style="width:18px;height:18px;border-radius:3px;background:' + bg + ';cursor:default"></div>';
+    }
+    html += '</div></div>';
+  }
+  // Legend
+  html += '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">';
+  html += '<span style="color:#64748b;font-size:10px">Less</span>';
+  html += '<div style="width:12px;height:12px;border-radius:2px;background:rgba(34,211,238,0.05)"></div>';
+  html += '<div style="width:12px;height:12px;border-radius:2px;background:rgba(34,211,238,0.18)"></div>';
+  html += '<div style="width:12px;height:12px;border-radius:2px;background:rgba(34,211,238,0.35)"></div>';
+  html += '<div style="width:12px;height:12px;border-radius:2px;background:rgba(34,211,238,0.6)"></div>';
+  html += '<span style="color:#64748b;font-size:10px">More</span>';
+  html += '<span style="color:#94a3b8;font-size:10px;margin-left:12px">' + Object.keys(dates).length + ' training days</span>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 375: Custom Countdown Sequences
+var _countdownSeqs = [];
+function loadCountdownSeqs() {
+  try { _countdownSeqs = JSON.parse(localStorage.getItem('sms_countdown_seqs') || '[]'); } catch(e) { _countdownSeqs = []; }
+}
+function saveCountdownSeqs() {
+  try { localStorage.setItem('sms_countdown_seqs', JSON.stringify(_countdownSeqs)); } catch(e) {}
+}
+function showCountdownBuilder() {
+  var overlay = document.createElement('div');
+  overlay.id = 'sms-cd-builder';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:12px">Custom Countdown Builder</div>';
+  html += '<input id="cd-seq-name" placeholder="Sequence name..." style="width:100%;padding:10px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:8px;font-family:Sora,sans-serif;font-size:14px;margin-bottom:12px;box-sizing:border-box">';
+  html += '<div id="cd-steps" style="margin-bottom:12px"></div>';
+  html += '<div style="display:flex;gap:6px;margin-bottom:12px">';
+  html += '<button onclick="addCDStep(\'work\')" style="flex:1;padding:8px;background:rgba(34,211,238,0.1);color:#22d3ee;border:1px solid rgba(34,211,238,0.2);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px">+ Work</button>';
+  html += '<button onclick="addCDStep(\'rest\')" style="flex:1;padding:8px;background:rgba(74,222,128,0.1);color:#4ade80;border:1px solid rgba(74,222,128,0.2);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px">+ Rest</button>';
+  html += '<button onclick="addCDStep(\'prep\')" style="flex:1;padding:8px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px">+ Prep</button>';
+  html += '</div>';
+  html += '<div style="margin-bottom:12px">';
+  html += '<label style="color:#94a3b8;font-size:12px;display:block;margin-bottom:4px">Rounds: <input id="cd-rounds" type="number" value="1" min="1" max="20" style="width:50px;padding:4px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:4px;font-family:Sora,sans-serif;font-size:13px;text-align:center"></label>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px">';
+  html += '<button onclick="saveCountdownSeq()" style="flex:1;padding:10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Save Sequence</button>';
+  html += '<button onclick="showSavedSeqs()" style="flex:1;padding:10px;background:rgba(100,116,139,0.1);color:#94a3b8;border:1px solid rgba(100,116,139,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Saved (' + _countdownSeqs.length + ')</button>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+var _cdSteps = [];
+function addCDStep(type) {
+  var colors = { work: '#22d3ee', rest: '#4ade80', prep: '#fbbf24' };
+  _cdSteps.push({ type: type, seconds: type === 'work' ? 30 : type === 'rest' ? 15 : 5 });
+  renderCDSteps();
+}
+function renderCDSteps() {
+  var container = document.getElementById('cd-steps');
+  if (!container) return;
+  var colors = { work: '#22d3ee', rest: '#4ade80', prep: '#fbbf24' };
+  var html = '';
+  _cdSteps.forEach(function(step, i) {
+    html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">';
+    html += '<span style="color:' + colors[step.type] + ';font-size:11px;width:40px;text-transform:uppercase;font-weight:600">' + step.type + '</span>';
+    html += '<input type="number" value="' + step.seconds + '" min="1" max="600" onchange="_cdSteps[' + i + '].seconds=parseInt(this.value)||10" style="width:60px;padding:4px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.2);border-radius:4px;font-family:Sora,sans-serif;font-size:12px;text-align:center">';
+    html += '<span style="color:#64748b;font-size:11px">sec</span>';
+    html += '<button onclick="_cdSteps.splice(' + i + ',1);renderCDSteps()" style="padding:2px 8px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.15);border-radius:4px;cursor:pointer;font-size:11px;font-family:Sora,sans-serif">x</button>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+function saveCountdownSeq() {
+  var name = document.getElementById('cd-seq-name') ? document.getElementById('cd-seq-name').value.trim() : '';
+  if (!name) { showToast('Enter a sequence name'); return; }
+  if (_cdSteps.length === 0) { showToast('Add at least one step'); return; }
+  var rounds = parseInt(document.getElementById('cd-rounds').value) || 1;
+  loadCountdownSeqs();
+  _countdownSeqs.push({ name: name, steps: JSON.parse(JSON.stringify(_cdSteps)), rounds: rounds, created: new Date().toISOString() });
+  if (_countdownSeqs.length > 20) _countdownSeqs = _countdownSeqs.slice(-20);
+  saveCountdownSeqs();
+  _cdSteps = [];
+  var builder = document.getElementById('sms-cd-builder');
+  if (builder) builder.remove();
+  showToast('Countdown "' + name + '" saved');
+}
+function showSavedSeqs() {
+  loadCountdownSeqs();
+  if (_countdownSeqs.length === 0) { showToast('No saved sequences'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Saved Countdown Sequences</div>';
+  _countdownSeqs.forEach(function(seq, i) {
+    var totalTime = 0;
+    seq.steps.forEach(function(s) { totalTime += s.seconds; });
+    totalTime *= seq.rounds;
+    html += '<div style="padding:12px;background:rgba(34,211,238,0.05);border-radius:8px;margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<span style="color:#22d3ee;font-weight:600;font-size:14px">' + seq.name + '</span>';
+    html += '<div style="display:flex;gap:4px">';
+    html += '<button onclick="runCountdownSeq(' + i + ')" style="padding:4px 10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:4px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Run</button>';
+    html += '<button onclick="_countdownSeqs.splice(' + i + ',1);saveCountdownSeqs();this.closest(\'div[style*=fixed]\').remove();showSavedSeqs();" style="padding:4px 8px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:4px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Del</button>';
+    html += '</div></div>';
+    html += '<div style="color:#94a3b8;font-size:11px">' + seq.steps.length + ' steps x ' + seq.rounds + ' round(s) = ' + Math.round(totalTime/60) + ' min</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function runCountdownSeq(idx) {
+  loadCountdownSeqs();
+  var seq = _countdownSeqs[idx];
+  if (!seq) return;
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  var allSteps = [];
+  for (var r = 0; r < seq.rounds; r++) {
+    seq.steps.forEach(function(s) { allSteps.push({ type: s.type, seconds: s.seconds, round: r + 1 }); });
+  }
+  var stepIdx = 0;
+  var remaining = allSteps[0].seconds;
+  var colors = { work: '#22d3ee', rest: '#4ade80', prep: '#fbbf24' };
+  var overlay = document.createElement('div');
+  overlay.id = 'sms-cd-runner';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.97);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  function renderStep() {
+    var step = allSteps[stepIdx];
+    var col = colors[step.type] || '#22d3ee';
+    var min = Math.floor(remaining / 60);
+    var sec = remaining % 60;
+    overlay.innerHTML = '<div style="text-align:center">' +
+      '<div style="color:' + col + ';font-size:14px;text-transform:uppercase;letter-spacing:3px;margin-bottom:8px">' + step.type + '</div>' +
+      '<div style="color:#e2e8f0;font-size:80px;font-weight:200;letter-spacing:4px;margin-bottom:8px">' + String(min).padStart(2,'0') + ':' + String(sec).padStart(2,'0') + '</div>' +
+      '<div style="color:#94a3b8;font-size:12px;margin-bottom:24px">Step ' + (stepIdx+1) + '/' + allSteps.length + ' | Round ' + step.round + '/' + seq.rounds + '</div>' +
+      '<button onclick="document.getElementById(\'sms-cd-runner\').remove();clearInterval(window._cdInterval)" style="padding:10px 24px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Stop</button>' +
+      '</div>';
+  }
+  renderStep();
+  document.body.appendChild(overlay);
+  window._cdInterval = setInterval(function() {
+    remaining--;
+    if (remaining <= 0) {
+      stepIdx++;
+      if (stepIdx >= allSteps.length) {
+        clearInterval(window._cdInterval);
+        overlay.remove();
+        showToast('Countdown sequence complete!');
+        if (typeof playUISound === 'function') playUISound('success');
+        return;
+      }
+      remaining = allSteps[stepIdx].seconds;
+      if (typeof playUISound === 'function') playUISound('snap');
+    }
+    if (remaining <= 3 && remaining > 0 && typeof playUISound === 'function') playUISound('place');
+    renderStep();
+  }, 1000);
+}
+loadCountdownSeqs();
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
