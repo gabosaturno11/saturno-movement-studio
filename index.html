@@ -1798,6 +1798,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Del</kbd><span>Delete Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd+Z</kbd><span>Undo</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+Z</kbd><span>Redo</span></div>
+      <div class="shortcut-item"><kbd>Cmd+C</kbd><span>Copy Clips</span></div>
+      <div class="shortcut-item"><kbd>Cmd+V</kbd><span>Paste Clips</span></div>
       <div class="shortcut-item"><kbd>Cmd+D</kbd><span>Duplicate</span></div>
       <div class="shortcut-item"><kbd>B</kbd><span>Split Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+D</kbd><span>Dup Track</span></div>
@@ -4200,12 +4202,15 @@ var CMD_ACTIONS = [
   {label:'Toggle Metronome', key:'', icon:'\u266A', action: function() { toggleMetronome(); }},
   {label:'Add Marker', key:'M', icon:'\u2691', action: function() { addMarker(); }},
   {label:'Split Clip', key:'B', icon:'\u2702', action: function() { splitClipAtPlayhead(); }},
+  {label:'Copy Clips', key:'Cmd+C', icon:'\u2398', action: function() { copyClips(); }},
+  {label:'Paste Clips', key:'Cmd+V', icon:'\u2398', action: function() { pasteClips(); }},
   {label:'Duplicate Clip', key:'Cmd+D', icon:'\u2398', action: function() { duplicateClip(); }},
   {label:'Duplicate Track', key:'Cmd+Shift+D', icon:'\u2398', action: function() { duplicateTrackClips(); }},
   {label:'Zoom to Fit', key:'', icon:'\u2922', action: function() { zoomToFit(); }},
   {label:'Zoom In', key:'Cmd++', icon:'+', action: function() { zoomIn(); }},
   {label:'Zoom Out', key:'Cmd+-', icon:'-', action: function() { zoomOut(); }},
   {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
+  {label:'Quantize All Clips', key:'', icon:'\u2593', action: function() { quantizeClips(); }},
   {label:'Clear All Clips', key:'', icon:'\u2716', action: function() { clearAllClips(); }},
   {label:'Save Session', key:'Cmd+S', icon:'\u2913', action: function() { saveSession(); sfx('click'); toast('Session saved'); }},
   {label:'Save as Named Workout', key:'', icon:'\u2913', action: function() { saveNamedWorkout(); }},
@@ -4484,6 +4489,63 @@ function toggleSFXSetting() {
   toast('UI sounds ' + (sfxEnabled ? 'on' : 'off'));
 }
 
+/* ===== QUANTIZE — Snap All Clips to Grid ===== */
+function quantizeClips() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to quantize'); return; }
+  pushUndo();
+  var beatPx = 80 / 4; // pixels per beat at standard zoom
+  clips.forEach(function(c) {
+    var left = parseInt(c.style.left) || 0;
+    c.style.left = Math.round(left / beatPx) * beatPx + 'px';
+  });
+  saveSession();
+  sfx('snap');
+  toast(clips.length + ' clips quantized');
+}
+
+/* ===== CLIPBOARD — Copy/Paste Clips ===== */
+var clipboardData = [];
+
+function copyClips() {
+  var selected = document.querySelectorAll('.clip.selected');
+  if (selected.length === 0) { toast('No clips selected'); return; }
+  clipboardData = [];
+  selected.forEach(function(c) {
+    clipboardData.push({
+      exerciseId: c.dataset.exerciseId,
+      left: parseInt(c.style.left),
+      width: parseInt(c.style.width),
+      track: c.parentElement.dataset.track,
+      sets: c.dataset.sets,
+      reps: c.dataset.reps,
+      tempo: c.dataset.tempo,
+      rest: c.dataset.rest,
+      rpe: c.dataset.rpe
+    });
+  });
+  sfx('click');
+  toast(clipboardData.length + ' clip' + (clipboardData.length > 1 ? 's' : '') + ' copied');
+}
+
+function pasteClips() {
+  if (clipboardData.length === 0) { toast('Nothing to paste'); return; }
+  pushUndo();
+  var offset = 40; // paste slightly offset from original
+  clipboardData.forEach(function(cd) {
+    var track = document.querySelector('.track-content[data-track="'+cd.track+'"]');
+    var ex = getExercise(cd.exerciseId);
+    if (!track || !ex) return;
+    var clip = createClipElement(ex, cd.left + offset, cd.width, {
+      sets: cd.sets, reps: cd.reps, tempo: cd.tempo, rest: cd.rest, rpe: cd.rpe
+    });
+    track.appendChild(clip);
+  });
+  updateStats(); saveSession();
+  sfx('drop');
+  toast(clipboardData.length + ' clip' + (clipboardData.length > 1 ? 's' : '') + ' pasted');
+}
+
 function clearAllClips() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('No clips to clear'); return; }
@@ -4550,6 +4612,16 @@ document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyD') {
     e.preventDefault();
     duplicateTrackClips();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyC') {
+    e.preventDefault();
+    copyClips();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyV') {
+    e.preventDefault();
+    pasteClips();
     return;
   }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyD') {
