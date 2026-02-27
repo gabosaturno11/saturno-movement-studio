@@ -8051,6 +8051,12 @@ var CMD_ACTIONS = [
   {label:'Workout Similarity', key:'', icon:'\ud83d\udd0d', action: function() { showWorkoutSimilarity(); }},
   {label:'Muscle Heatmap', key:'', icon:'\ud83e\uddb4', action: function() { showMuscleHeatmap(); }},
   {label:'Consistency Score', key:'', icon:'\ud83d\udcca', action: function() { showConsistencyScore(); }},
+  {label:'Cooldown Planner', key:'', icon:'\ud83e\uddd8', action: function() { showCooldownPlanner(); }},
+  {label:'Training Monotony', key:'', icon:'\ud83d\udd01', action: function() { showMonotonyIndex(); }},
+  {label:'Quick Dashboard', key:'', icon:'\ud83d\udcca', action: function() { showQuickDashboard(); }},
+  {label:'Share Card', key:'', icon:'\ud83d\udce4', action: function() { generateShareCard(); }},
+  {label:'Session Bookmarks', key:'', icon:'\ud83d\udd16', action: function() { showSessionBookmarks(); }},
+  {label:'Deload Check', key:'', icon:'\u26a0', action: function() { checkDeloadNeeded(); }},
 ];
 
 function openCmdPalette() {
@@ -20410,8 +20416,327 @@ function showConsistencyScore() {
   document.body.appendChild(overlay);
 }
 
+// Batch 428: Exercise Cooldown Planner
+function showCooldownPlanner() {
+  var families = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    if (!families[fam]) families[fam] = 0;
+    families[fam] += parseInt(c.dataset.sets || 3);
+  });
+  var cooldownMap = {
+    'Push': ['Chest Doorway Stretch (30s each side)', 'Triceps Overhead Stretch (20s each)', 'Shoulder Cross-body Stretch (20s each)'],
+    'Pull': ['Lat Stretch (30s each side)', 'Bicep Wall Stretch (20s each)', 'Cat-Cow Stretch (10 reps)'],
+    'Core': ['Cobra Stretch (30s)', 'Child\'s Pose (30s)', 'Seated Twist (20s each side)'],
+    'Legs': ['Quad Stretch (30s each)', 'Hamstring Fold (30s)', 'Pigeon Pose (30s each)', '90/90 Hip Stretch (30s each)'],
+    'Skills': ['Wrist Flexor Stretch (20s)', 'Shoulder Dislocates (10 reps)', 'Forearm Prayer Stretch (20s)']
+  };
+  var dominant = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; });
+  var cooldownList = [];
+  dominant.forEach(function(fam) {
+    var famKey = Object.keys(cooldownMap).find(function(k) { return fam.toLowerCase().indexOf(k.toLowerCase()) > -1; });
+    if (famKey && cooldownMap[famKey]) {
+      cooldownMap[famKey].forEach(function(ex) {
+        if (cooldownList.indexOf(ex) === -1 && cooldownList.length < 8) cooldownList.push(ex);
+      });
+    }
+  });
+  if (cooldownList.length === 0) cooldownList = ['Child\'s Pose (30s)', 'Cobra Stretch (30s)', 'Hamstring Fold (30s)'];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Cooldown Plan</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Based on: ' + dominant.slice(0, 3).join(', ') + '</div>';
+  cooldownList.forEach(function(ex, i) {
+    html += '<div style="display:flex;align-items:center;gap:12px;padding:10px;margin-bottom:6px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<span style="color:#a78bfa;font-weight:700;font-size:16px;width:24px;text-align:center;">' + (i + 1) + '</span>';
+    html += '<span style="font-size:14px;">' + ex + '</span>';
+    html += '</div>';
+  });
+  var estTime = cooldownList.length * 1;
+  html += '<div style="text-align:center;margin-top:12px;font-size:13px;color:#94a3b8;">Est. ' + estTime + '-' + (estTime + 2) + ' minutes</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 429: Training Monotony Index
+function showMonotonyIndex() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var recent = saved.slice(-7);
+  if (recent.length < 2) { showToast('Need 2+ saved workouts for monotony analysis'); return; }
+  var exerciseFreq = {};
+  recent.forEach(function(s) {
+    var seen = {};
+    (s.clips || []).forEach(function(c) {
+      var name = c.exercise || (c.dataset && c.dataset.exercise) || '';
+      if (name && !seen[name]) { seen[name] = true; exerciseFreq[name] = (exerciseFreq[name] || 0) + 1; }
+    });
+  });
+  var totalUnique = Object.keys(exerciseFreq).length;
+  var avgPerSession = 0;
+  recent.forEach(function(s) {
+    var unique = {};
+    (s.clips || []).forEach(function(c) { var n = c.exercise || (c.dataset && c.dataset.exercise) || ''; if (n) unique[n] = true; });
+    avgPerSession += Object.keys(unique).length;
+  });
+  avgPerSession = avgPerSession / recent.length;
+  var monotony = totalUnique > 0 ? (1 - (totalUnique / (avgPerSession * recent.length))) * 100 : 0;
+  monotony = Math.max(0, Math.min(100, Math.round(monotony)));
+  var repeated = Object.keys(exerciseFreq).filter(function(k) { return exerciseFreq[k] >= Math.ceil(recent.length * 0.7); }).sort(function(a, b) { return exerciseFreq[b] - exerciseFreq[a]; });
+  var rating = monotony > 70 ? 'Very Repetitive' : monotony > 40 ? 'Moderate Variety' : 'Good Variety';
+  var ratingColor = monotony > 70 ? '#f87171' : monotony > 40 ? '#fbbf24' : '#4ade80';
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Training Monotony</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:16px 0;">';
+  html += '<div style="font-size:42px;font-weight:700;color:' + ratingColor + ';">' + monotony + '%</div>';
+  html += '<div style="font-size:14px;color:' + ratingColor + ';">' + rating + '</div></div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#06b6d4;">' + totalUnique + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Unique Exercises</div></div>';
+  html += '<div style="text-align:center;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#22d3ee;">' + recent.length + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Recent Sessions</div></div></div>';
+  if (repeated.length > 0) {
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;color:#fbbf24;">Most Repeated</div>';
+    repeated.slice(0, 8).forEach(function(name) {
+      html += '<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;font-size:13px;">';
+      html += '<span>' + name + '</span>';
+      html += '<span style="color:#94a3b8;">' + exerciseFreq[name] + '/' + recent.length + ' sessions</span></div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 430: Quick Stats Dashboard
+function showQuickDashboard() {
+  var clipCount = document.querySelectorAll('.clip').length;
+  var totalSets = 0, totalReps = 0, avgRPE = 0, rpeCount = 0;
+  var families = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var s = parseInt(c.dataset.sets || 3);
+    var r = parseInt(c.dataset.reps || 8);
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var fam = c.dataset.family || 'Other';
+    totalSets += s;
+    totalReps += s * r;
+    avgRPE += rpe;
+    rpeCount++;
+    families[fam] = (families[fam] || 0) + s;
+  });
+  avgRPE = rpeCount > 0 ? (avgRPE / rpeCount).toFixed(1) : 0;
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var streak = 0;
+  var d = new Date();
+  var dayMap = {};
+  ratings.forEach(function(r) { dayMap[new Date(r.date || r.timestamp).toISOString().split('T')[0]] = true; });
+  for (var i = 0; i < 365; i++) {
+    if (dayMap[d.toISOString().split('T')[0]]) { streak++; d.setDate(d.getDate() - 1); } else break;
+  }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;"><span style="font-size:18px;font-weight:600;">Quick Dashboard</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">';
+  var stats = [
+    {val: clipCount, label: 'Exercises', color: '#06b6d4'},
+    {val: totalSets, label: 'Total Sets', color: '#22d3ee'},
+    {val: totalReps, label: 'Total Reps', color: '#67e8f9'},
+    {val: avgRPE, label: 'Avg RPE', color: avgRPE >= 8 ? '#f87171' : '#4ade80'},
+    {val: saved.length, label: 'Saved Workouts', color: '#a78bfa'},
+    {val: streak, label: 'Day Streak', color: '#fbbf24'}
+  ];
+  stats.forEach(function(s) {
+    html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="font-size:22px;font-weight:700;color:' + s.color + ';">' + s.val + '</div>';
+    html += '<div style="font-size:11px;color:#94a3b8;">' + s.label + '</div></div>';
+  });
+  html += '</div>';
+  if (Object.keys(families).length > 0) {
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">Current Workout Split</div>';
+    Object.keys(families).sort(function(a, b) { return families[b] - families[a]; }).forEach(function(f) {
+      var pct = totalSets > 0 ? Math.round((families[f] / totalSets) * 100) : 0;
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+      html += '<span style="font-size:12px;color:' + getFamilyColor(f) + ';width:60px;">' + f + '</span>';
+      html += '<div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+      html += '<div style="height:100%;width:' + pct + '%;background:' + getFamilyColor(f) + ';border-radius:3px;"></div></div>';
+      html += '<span style="font-size:11px;color:#94a3b8;width:40px;text-align:right;">' + families[f] + ' sets</span>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 431: Workout Share Card
+function generateShareCard() {
+  var clipCount = document.querySelectorAll('.clip').length;
+  if (clipCount === 0) { showToast('Add exercises first'); return; }
+  var totalSets = 0;
+  var families = {};
+  var avgRPE = 0;
+  var rpeCount = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    totalSets += parseInt(c.dataset.sets || 3);
+    avgRPE += parseFloat(c.dataset.rpe || 7);
+    rpeCount++;
+    var fam = c.dataset.family || '';
+    families[fam] = (families[fam] || 0) + 1;
+  });
+  avgRPE = rpeCount > 0 ? (avgRPE / rpeCount).toFixed(1) : 0;
+  var dominant = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; })[0] || 'Full Body';
+  var name = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Workout';
+  var text = '---\n';
+  text += name + '\n';
+  text += '---\n';
+  text += clipCount + ' exercises | ' + totalSets + ' sets | RPE ' + avgRPE + '\n';
+  text += 'Focus: ' + dominant + '\n';
+  text += 'Families: ' + Object.keys(families).join(', ') + '\n';
+  text += '---\n';
+  text += 'Built with Saturno Movement Studio\n';
+  text += 'saturnomovement.com\n';
+  try { navigator.clipboard.writeText(text); showToast('Share card copied to clipboard'); } catch(e) { showToast('Copy failed'); }
+}
+
+// Batch 432: Session Bookmark Notes
+function showSessionBookmarks() {
+  var bookmarkNotes = [];
+  try { bookmarkNotes = JSON.parse(localStorage.getItem('sms_session_bookmarks') || '[]'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Session Bookmarks</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<button onclick="addSessionBookmark()" style="background:#06b6d4;color:#050711;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600;margin-bottom:16px;">+ Add Bookmark</button>';
+  if (bookmarkNotes.length === 0) {
+    html += '<div style="text-align:center;color:#64748b;padding:24px;font-size:13px;">No bookmarks yet. Add notes for specific moments.</div>';
+  } else {
+    bookmarkNotes.slice().reverse().forEach(function(b, i) {
+      var idx = bookmarkNotes.length - 1 - i;
+      html += '<div style="margin-bottom:8px;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:4px;">';
+      html += '<span>' + new Date(b.time).toLocaleTimeString() + '</span>';
+      html += '<span onclick="deleteSessionBookmark(' + idx + ')" style="cursor:pointer;color:#f87171;">Del</span></div>';
+      html += '<div style="font-size:13px;">' + b.note + '</div>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function addSessionBookmark() {
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showInlinePrompt('Bookmark note:', '', function(note) {
+    if (!note) return;
+    var bookmarks = [];
+    try { bookmarks = JSON.parse(localStorage.getItem('sms_session_bookmarks') || '[]'); } catch(e) {}
+    bookmarks.push({time: new Date().toISOString(), note: note});
+    if (bookmarks.length > 50) bookmarks = bookmarks.slice(-50);
+    try { localStorage.setItem('sms_session_bookmarks', JSON.stringify(bookmarks)); } catch(e) {}
+    showToast('Bookmark added');
+    showSessionBookmarks();
+  });
+}
+
+function deleteSessionBookmark(idx) {
+  var bookmarks = [];
+  try { bookmarks = JSON.parse(localStorage.getItem('sms_session_bookmarks') || '[]'); } catch(e) {}
+  bookmarks.splice(idx, 1);
+  try { localStorage.setItem('sms_session_bookmarks', JSON.stringify(bookmarks)); } catch(e) {}
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showSessionBookmarks();
+}
+
+// Batch 433: Auto-deload Detector
+function checkDeloadNeeded() {
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var sessionRPE = [];
+  try { sessionRPE = JSON.parse(localStorage.getItem('sms_session_rpe_logs') || '[]'); } catch(e) {}
+  var readiness = {};
+  try { readiness = JSON.parse(localStorage.getItem('sms_readiness') || '{}'); } catch(e) {}
+  var signals = [];
+  var score = 0;
+  if (sessionRPE.length >= 3) {
+    var lastThree = sessionRPE.slice(-3);
+    var avgSessionRPE = lastThree.reduce(function(s, l) { return s + l.rpe; }, 0) / lastThree.length;
+    if (avgSessionRPE >= 8.5) { signals.push('Session RPE averaging ' + avgSessionRPE.toFixed(1) + ' (very high)'); score += 30; }
+    else if (avgSessionRPE >= 7.5) { signals.push('Session RPE averaging ' + avgSessionRPE.toFixed(1) + ' (elevated)'); score += 15; }
+  }
+  var recentDays = Object.keys(readiness).sort().slice(-5);
+  if (recentDays.length >= 3) {
+    var avgReadiness = 0;
+    recentDays.forEach(function(k) {
+      var d = readiness[k];
+      avgReadiness += (d.sleep + d.energy + d.stress + d.soreness) / 4;
+    });
+    avgReadiness = avgReadiness / recentDays.length;
+    if (avgReadiness <= 2) { signals.push('Readiness score very low (' + (avgReadiness * 20).toFixed(0) + '%)'); score += 30; }
+    else if (avgReadiness <= 2.5) { signals.push('Readiness score declining (' + (avgReadiness * 20).toFixed(0) + '%)'); score += 15; }
+  }
+  if (ratings.length >= 5) {
+    var lastFive = ratings.slice(-5);
+    var declining = 0;
+    for (var i = 1; i < lastFive.length; i++) {
+      if (lastFive[i].rating < lastFive[i - 1].rating) declining++;
+    }
+    if (declining >= 3) { signals.push('Workout ratings declining over last 5 sessions'); score += 20; }
+  }
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var last7Days = saved.filter(function(s) {
+    return s.date && (Date.now() - new Date(s.date).getTime()) < 7 * 86400000;
+  });
+  if (last7Days.length >= 6) { signals.push('Training 6+ days in a row this week'); score += 20; }
+  var needDeload = score >= 40;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Deload Check</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:16px 0;">';
+  if (needDeload) {
+    html += '<div style="font-size:36px;font-weight:700;color:#fbbf24;">DELOAD SUGGESTED</div>';
+    html += '<div style="font-size:13px;color:#94a3b8;margin-top:4px;">Fatigue score: ' + score + '/100</div>';
+  } else {
+    html += '<div style="font-size:36px;font-weight:700;color:#4ade80;">ALL CLEAR</div>';
+    html += '<div style="font-size:13px;color:#94a3b8;margin-top:4px;">Fatigue score: ' + score + '/100</div>';
+  }
+  html += '</div>';
+  if (signals.length > 0) {
+    html += '<div style="margin-top:12px;">';
+    signals.forEach(function(s) {
+      html += '<div style="padding:8px;margin-bottom:6px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;border-radius:0 6px 6px 0;font-size:13px;">' + s + '</div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="padding:12px;background:rgba(74,222,128,0.08);border-radius:8px;font-size:13px;color:#4ade80;">No fatigue signals detected. Keep training!</div>';
+  }
+  html += '<div style="margin-top:16px;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;font-size:12px;color:#94a3b8;">';
+  html += 'Checks session RPE, readiness scores, rating trends, and training frequency to estimate fatigue accumulation.</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+
 
   var count = 0;
   document.querySelectorAll('.clip').forEach(function(c) {
