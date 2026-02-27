@@ -182,7 +182,12 @@ body {
   background: rgba(255,255,255,0.03);
   border-left-color: var(--muted);
 }
-.movement-item:active { cursor: grabbing; background: rgba(59,130,246,0.08); }
+.movement-item:active {
+  cursor: grabbing;
+  background: rgba(59,130,246,0.08);
+  border-left-color: var(--blue);
+  transform: scale(0.98);
+}
 .movement-item .mv-icon {
   width: 18px; height: 18px;
   display: flex; align-items: center; justify-content: center;
@@ -357,6 +362,19 @@ body {
 .track:hover { background: rgba(10,14,26,0.8); }
 .track:nth-child(even) { background: rgba(10,14,26,0.3); }
 .track:nth-child(even):hover { background: rgba(10,14,26,0.6); }
+/* Track grip dots (reorder indicator) */
+.track-grip {
+  display: flex; flex-direction: column; gap: 2px;
+  position: absolute; left: 4px; top: 50%;
+  transform: translateY(-50%);
+  opacity: 0; transition: opacity 0.15s;
+}
+.track-header:hover .track-grip { opacity: 0.4; }
+.track-grip-dot {
+  width: 2px; height: 2px;
+  background: var(--muted);
+  border-radius: 50%;
+}
 .track-header {
   width: 100px;
   background: var(--surface);
@@ -1591,6 +1609,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   <div class="ctx-item" data-action="duplicate">Duplicate<span class="ctx-key">Cmd+D</span></div>
   <div class="ctx-item" data-action="inspect">Inspect</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="split">Split at Playhead<span class="ctx-key">B</span></div>
+  <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="snap-start">Snap to Start</div>
   <div class="ctx-item" data-action="snap-next">Snap After Previous</div>
   <div class="ctx-sep"></div>
@@ -1610,6 +1630,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Cmd+Z</kbd><span>Undo</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+Z</kbd><span>Redo</span></div>
       <div class="shortcut-item"><kbd>Cmd+D</kbd><span>Duplicate</span></div>
+      <div class="shortcut-item"><kbd>B</kbd><span>Split Clip</span></div>
+      <div class="shortcut-item"><kbd>Cmd+Shift+D</kbd><span>Dup Track</span></div>
       <div class="shortcut-item"><kbd>Cmd++</kbd><span>Zoom In</span></div>
       <div class="shortcut-item"><kbd>Cmd+-</kbd><span>Zoom Out</span></div>
       <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
@@ -2158,7 +2180,7 @@ function buildTracks() {
     } else {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
-      html += '<div class="track-header"><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
+      html += '<div class="track-header"><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
       html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
       html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
       html += '</div>';
@@ -3744,6 +3766,9 @@ document.addEventListener('DOMContentLoaded', function() {
       duplicateClip();
     } else if (action === 'inspect') {
       selectClipEl(ctxClip);
+    } else if (action === 'split') {
+      selectClipEl(ctxClip);
+      splitClipAtPlayhead();
     } else if (action === 'snap-start') {
       pushUndo();
       ctxClip.style.left = '0px';
@@ -3860,6 +3885,74 @@ function renderMarker(marker) {
 function renderAllMarkers() {
   document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
   markers.forEach(function(m) { renderMarker(m); });
+}
+
+/* ===== CLIP SPLIT ===== */
+function splitClipAtPlayhead() {
+  if (!selectedClip) { toast('Select a clip to split'); return; }
+  var pps = 80 / 15;
+  var clipLeft = parseInt(selectedClip.style.left);
+  var clipW = parseInt(selectedClip.style.width);
+  var splitPos = 100 + currentTime * pps;
+  // Check if playhead is within the clip
+  if (splitPos <= clipLeft || splitPos >= clipLeft + clipW) {
+    toast('Move playhead inside clip to split');
+    return;
+  }
+  pushUndo();
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var leftW = splitPos - clipLeft;
+  var rightW = clipW - leftW;
+  // Resize current clip to left portion
+  selectedClip.style.width = leftW + 'px';
+  var canvas = selectedClip.querySelector('.clip-waveform');
+  if (canvas) drawClipWaveform(canvas, 'rgba(255,255,255,0.55)', leftW + 'px');
+  addBeatMarkers(selectedClip, leftW);
+  // Create right portion
+  var dna = {
+    sets: selectedClip.dataset.sets,
+    reps: selectedClip.dataset.reps,
+    tempo: selectedClip.dataset.tempo,
+    rest: selectedClip.dataset.rest,
+    rpe: selectedClip.dataset.rpe
+  };
+  var rightClip = createClipElement(ex, splitPos, rightW, dna);
+  selectedClip.parentElement.appendChild(rightClip);
+  updateStats(); saveSession();
+  sfx('click');
+  toast('Clip split at ' + formatTime(currentTime));
+}
+
+/* ===== DUPLICATE TRACK CLIPS ===== */
+function duplicateTrackClips() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('Select a track first'); return; }
+  var clips = activeTrack.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips in track'); return; }
+  pushUndo();
+  var maxRight = 0;
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var offset = maxRight + 8;
+  var count = 0;
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex) return;
+    var newLeft = parseInt(c.style.left) + offset;
+    var dna = {
+      sets: c.dataset.sets, reps: c.dataset.reps,
+      tempo: c.dataset.tempo, rest: c.dataset.rest, rpe: c.dataset.rpe
+    };
+    var dup = createClipElement(ex, newLeft, parseInt(c.style.width), dna);
+    activeTrack.appendChild(dup);
+    count++;
+  });
+  updateStats(); saveSession();
+  sfx('drop');
+  toast(count + ' clips duplicated');
 }
 
 /* ===== CUSTOM CLIP TOOLTIP ===== */
@@ -4027,10 +4120,18 @@ document.addEventListener('keydown', function(e) {
     if (e.shiftKey) { redo(); } else { undo(); }
     return;
   }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyD') {
+    e.preventDefault();
+    duplicateTrackClips();
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyD') {
     e.preventDefault();
     duplicateClip();
     return;
+  }
+  if (e.code === 'KeyB' && !e.metaKey && !e.ctrlKey) {
+    splitClipAtPlayhead();
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
