@@ -1015,6 +1015,37 @@ input[type="range"]:focus::-webkit-slider-thumb {
   background: var(--blue); border-color: var(--blue);
 }
 
+/* Global Number Inputs — DAW Style */
+input[type="number"] {
+  -moz-appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 0; height: 100%;
+}
+input[type="number"]:hover::-webkit-inner-spin-button,
+input[type="number"]:hover::-webkit-outer-spin-button {
+  opacity: 0.4;
+}
+
+/* Track solo/mute state indicators */
+.track.track-muted .track-header { opacity: 0.4; }
+.track.track-muted .track-name { text-decoration: line-through; }
+
+/* Snap indicator in transport */
+.snap-badge {
+  font-size: 7px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 2px 6px;
+  border-radius: 2px; color: var(--micro);
+  background: transparent; border: 1px solid transparent;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.snap-badge.active {
+  color: var(--accent-cyan); background: rgba(6,182,212,0.1);
+  border-color: rgba(6,182,212,0.2);
+}
+
 /* ===== COMMAND PALETTE ===== */
 .cmd-palette {
   display: none; position: fixed; inset: 0; z-index: 250;
@@ -1486,6 +1517,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <button class="transport-btn rec" id="rec-btn" onclick="toggleRec()" title="Record" style="border-radius:0 3px 3px 0">&#9679;</button>
         </div>
         <span id="playback-state" style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:var(--micro);min-width:30px;text-align:center">STOP</span>
+        <span class="snap-badge" id="snap-badge" onclick="toggleSnap()" title="Snap to grid (S)">SNAP</span>
         <div class="transport-sep"></div>
         <div class="transport-buttons">
           <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
@@ -3888,6 +3920,8 @@ function toggleSnap() {
   if (btn) btn.classList.toggle('active', snapEnabled);
   var settingsBtn = document.getElementById('settings-snap');
   if (settingsBtn) settingsBtn.textContent = snapEnabled ? 'ON' : 'OFF';
+  var snapBadge = document.getElementById('snap-badge');
+  if (snapBadge) snapBadge.classList.toggle('active', snapEnabled);
   sfx('snap');
   toast(snapEnabled ? 'Snap ON' : 'Snap OFF');
 }
