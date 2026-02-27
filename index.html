@@ -5178,9 +5178,19 @@ function printWorkout() {
   html += '<h1>' + (workoutName && workoutName !== 'Untitled' ? workoutName : 'Saturno Movement Studio') + '</h1>';
   html += '<div class="subtitle">' + (workoutName && workoutName !== 'Untitled' ? 'Saturno Movement Studio' : 'The Ableton of Movement') + '</div>';
   html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span></div>';
+  var totalDur = 0;
+  clips.forEach(function(c) {
+    var st = parseInt(c.dataset.sets) || 3;
+    var rp = parseInt(c.dataset.reps) || 8;
+    var tp = parseFloat(c.dataset.tempo) || 3;
+    var rs = parseInt(c.dataset.rest) || 60;
+    totalDur += (st * rp * tp) + ((st - 1) * rs);
+  });
+  var durMin = Math.floor(totalDur / 60);
   html += '<div class="stats"><div class="stat"><div class="stat-val">' + totalClips + '</div><div class="stat-label">Exercises</div></div>';
   html += '<div class="stat"><div class="stat-val">' + totalSets + '</div><div class="stat-label">Total Sets</div></div>';
-  html += '<div class="stat"><div class="stat-val">' + totalReps + '</div><div class="stat-label">Total Reps</div></div></div>';
+  html += '<div class="stat"><div class="stat-val">' + totalReps + '</div><div class="stat-label">Total Reps</div></div>';
+  html += '<div class="stat"><div class="stat-val">' + durMin + '</div><div class="stat-label">Est. Minutes</div></div></div>';
   var trackNames = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
   var trackColors = {push:'#3b82f6',pull:'#8b5cf6',core:'#f97316',legs:'#22c55e',skills:'#06b6d4'};
   var trackOrder = ['push','pull','legs','core','skills'];
@@ -5203,9 +5213,12 @@ function printWorkout() {
       html += '<div class="param"><span class="param-val" style="color:#3b82f6">' + ex.sets + '</span> <span class="param-label">sets</span></div>';
       html += '<div class="param"><span class="param-val" style="color:#22c55e">' + ex.rest + 's</span> <span class="param-label">rest</span></div>';
       html += '<div class="param"><span class="param-val" style="color:#8b5cf6">' + ex.tempo + 's</span> <span class="param-label">tempo</span></div>';
+      html += '<div class="param"><span class="param-val" style="color:#ef4444">' + ex.rpe + '</span> <span class="param-label">rpe</span></div>';
       html += '</div>';
       if (ex.notes) {
         html += '<div style="margin-top:6px;font-size:10px;color:#64748b;font-style:italic;line-height:1.4">' + ex.notes.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      } else {
+        html += '<div style="margin-top:8px;border-bottom:1px dashed rgba(255,255,255,0.06);height:1px"></div>';
       }
       html += '</div></div>';
     });
