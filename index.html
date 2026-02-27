@@ -7008,6 +7008,8 @@ var CMD_ACTIONS = [
   {label:'Quantize All Clips', key:'Q', icon:'\u2593', action: function() { quantizeClips(); }},
   {label:'Auto-Arrange Clips', key:'', icon:'\u21F6', action: function() { autoArrange(); }},
   {label:'Humanize Clips', key:'', icon:'\u223F', action: function() { humanizeClips(); }},
+  {label:'Spread Clips Evenly', key:'', icon:'\u21F6', action: function() { spreadClipsEvenly(); }},
+  {label:'Select Track Clips', key:'Cmd+Shift+A', icon:'\u2610', action: function() { var at=document.querySelector('.track.track-active .track-content'); if(at){document.querySelectorAll('.clip.selected').forEach(function(c){c.classList.remove('selected')});at.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')});if(typeof updateSelectionBadge==='function')updateSelectionBadge();toast('Track clips selected');} }},
   {label:'Invert Selection', key:'Cmd+I', icon:'\u21C4', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.toggle('selected')}); if(typeof updateSelectionBadge==='function')updateSelectionBadge(); toast('Selection inverted'); }},
   {label:'Clear All Clips', key:'', icon:'\u2716', action: function() { clearAllClips(); }},
   {label:'Save Session', key:'Cmd+S', icon:'\u2913', action: function() { saveSession(); sfx('click'); toast('Session saved'); }},
@@ -7515,6 +7517,27 @@ function autoArrange() {
   toast(totalMoved + ' clips arranged');
 }
 
+function spreadClipsEvenly() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('Select a track first'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips to spread'); return; }
+  pushUndo();
+  clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var totalClipWidth = 0;
+  clips.forEach(function(c) { totalClipWidth += parseInt(c.style.width) || 80; });
+  var maxRight = parseInt(clips[clips.length - 1].style.left) + (parseInt(clips[clips.length - 1].style.width) || 80);
+  var availableSpace = maxRight - totalClipWidth;
+  var gap = clips.length > 1 ? availableSpace / (clips.length - 1) : 0;
+  var curLeft = parseInt(clips[0].style.left) || 0;
+  clips.forEach(function(c, i) {
+    c.style.left = Math.round(curLeft) + 'px';
+    curLeft += (parseInt(c.style.width) || 80) + gap;
+  });
+  updateStats(); saveSession();
+  toast('Clips spread evenly');
+}
+
 function humanizeClips() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('No clips to humanize'); return; }
@@ -7708,7 +7731,18 @@ document.addEventListener('keydown', function(e) {
     saveSession(); updateStats();
   }
   // Up/Down arrow: move clip between tracks
-  if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && selectedClip && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  // Shift+Up/Down: adjust RPE of selected clip
+  if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && selectedClip && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    var curRpe = parseInt(selectedClip.dataset.rpe) || 7;
+    var newRpe = e.code === 'ArrowUp' ? Math.min(10, curRpe + 1) : Math.max(1, curRpe - 1);
+    selectedClip.dataset.rpe = newRpe;
+    document.getElementById('insp-rpe').value = newRpe;
+    updateStats(); saveSession();
+    toast('RPE: ' + newRpe);
+    return;
+  }
+  if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && selectedClip && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
     e.preventDefault();
     var trackIds = ['push','pull','core','legs','skills'];
     var curTrackId = selectedClip.parentElement.dataset.track;
@@ -7775,6 +7809,17 @@ document.addEventListener('keydown', function(e) {
     deleteSelectedClips();
   }
   // Select all clips with Cmd+A
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyA') {
+    e.preventDefault();
+    var activeTrack = document.querySelector('.track.track-active .track-content');
+    if (activeTrack) {
+      document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+      activeTrack.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
+      if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+      toast('Track clips selected');
+    }
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyA') {
     e.preventDefault();
     document.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
