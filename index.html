@@ -5587,8 +5587,16 @@ function duplicateClip() {
     reps: selectedClip.dataset.reps,
     tempo: selectedClip.dataset.tempo,
     rest: selectedClip.dataset.rest,
-    rpe: selectedClip.dataset.rpe
+    rpe: selectedClip.dataset.rpe,
+    fadeIn: selectedClip.dataset.fadeIn || '0',
+    fadeOut: selectedClip.dataset.fadeOut || '0'
   });
+  if (selectedClip.dataset.notes) clip.dataset.notes = selectedClip.dataset.notes;
+  if (selectedClip.dataset.customColor) {
+    clip.dataset.customColor = selectedClip.dataset.customColor;
+    clip.style.background = 'linear-gradient(180deg, ' + selectedClip.dataset.customColor + '44 0%, ' + selectedClip.dataset.customColor + '22 100%)';
+    clip.style.borderTopColor = selectedClip.dataset.customColor;
+  }
   track.appendChild(clip);
   selectClipEl(clip);
   updateStats();
@@ -6275,9 +6283,22 @@ function splitClipAtPlayhead() {
     reps: selectedClip.dataset.reps,
     tempo: selectedClip.dataset.tempo,
     rest: selectedClip.dataset.rest,
-    rpe: selectedClip.dataset.rpe
+    rpe: selectedClip.dataset.rpe,
+    fadeIn: '0',
+    fadeOut: selectedClip.dataset.fadeOut || '0'
   };
+  // Left clip keeps fadeIn, loses fadeOut
+  selectedClip.dataset.fadeOut = '0';
+  var foEl = selectedClip.querySelector('.clip-fade-out');
+  if (foEl) { foEl.style.width = '0px'; foEl.classList.remove('has-fade'); }
+  updateFadeOverlay(selectedClip);
   var rightClip = createClipElement(ex, splitPos, rightW, dna);
+  if (selectedClip.dataset.notes) rightClip.dataset.notes = selectedClip.dataset.notes;
+  if (selectedClip.dataset.customColor) {
+    rightClip.dataset.customColor = selectedClip.dataset.customColor;
+    rightClip.style.background = selectedClip.style.background;
+    rightClip.style.borderTopColor = selectedClip.style.borderTopColor;
+  }
   selectedClip.parentElement.appendChild(rightClip);
   updateStats(); saveSession();
   sfx('click');
@@ -6304,9 +6325,16 @@ function duplicateTrackClips() {
     var newLeft = parseInt(c.style.left) + offset;
     var dna = {
       sets: c.dataset.sets, reps: c.dataset.reps,
-      tempo: c.dataset.tempo, rest: c.dataset.rest, rpe: c.dataset.rpe
+      tempo: c.dataset.tempo, rest: c.dataset.rest, rpe: c.dataset.rpe,
+      fadeIn: c.dataset.fadeIn || '0', fadeOut: c.dataset.fadeOut || '0'
     };
     var dup = createClipElement(ex, newLeft, parseInt(c.style.width), dna);
+    if (c.dataset.notes) dup.dataset.notes = c.dataset.notes;
+    if (c.dataset.customColor) {
+      dup.dataset.customColor = c.dataset.customColor;
+      dup.style.background = c.style.background;
+      dup.style.borderTopColor = c.style.borderTopColor;
+    }
     activeTrack.appendChild(dup);
     count++;
   });
@@ -6491,7 +6519,11 @@ function copyClips() {
       reps: c.dataset.reps,
       tempo: c.dataset.tempo,
       rest: c.dataset.rest,
-      rpe: c.dataset.rpe
+      rpe: c.dataset.rpe,
+      notes: c.dataset.notes || '',
+      customColor: c.dataset.customColor || '',
+      fadeIn: c.dataset.fadeIn || '0',
+      fadeOut: c.dataset.fadeOut || '0'
     });
   });
   sfx('click');
@@ -6507,8 +6539,15 @@ function pasteClips() {
     var ex = getExercise(cd.exerciseId);
     if (!track || !ex) return;
     var clip = createClipElement(ex, cd.left + offset, cd.width, {
-      sets: cd.sets, reps: cd.reps, tempo: cd.tempo, rest: cd.rest, rpe: cd.rpe
+      sets: cd.sets, reps: cd.reps, tempo: cd.tempo, rest: cd.rest, rpe: cd.rpe,
+      fadeIn: cd.fadeIn || '0', fadeOut: cd.fadeOut || '0'
     });
+    if (cd.notes) clip.dataset.notes = cd.notes;
+    if (cd.customColor) {
+      clip.dataset.customColor = cd.customColor;
+      clip.style.background = 'linear-gradient(180deg, ' + cd.customColor + '44 0%, ' + cd.customColor + '22 100%)';
+      clip.style.borderTopColor = cd.customColor;
+    }
     track.appendChild(clip);
   });
   updateStats(); saveSession();
