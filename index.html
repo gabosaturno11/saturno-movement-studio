@@ -7447,6 +7447,9 @@ var CMD_ACTIONS = [
   {label:'Swap Push <-> Pull', key:'', icon:'\u21C4', action: function() { swapTracks('push', 'pull'); }},
   {label:'Swap Core <-> Legs', key:'', icon:'\u21C4', action: function() { swapTracks('core', 'legs'); }},
   {label:'Export Timeline Image', key:'', icon:'\u2B1A', action: function() { exportTimelineImage(); }},
+  {label:'Pattern Balance', key:'', icon:'\u2696', action: function() { showPatternBalance(); }},
+  {label:'Paste Exercises from Clipboard', key:'', icon:'\u2398', action: function() { pasteExercisesFromText(); }},
+  {label:'Workout Streak', key:'', icon:'\u2605', action: function() { showWorkoutStreak(); }},
 ];
 
 function openCmdPalette() {
@@ -10170,6 +10173,129 @@ function exportTimelineImage() {
     a.click();
     toast('Timeline image exported');
   });
+}
+
+/* ===== BATCH 280: MOVEMENT PATTERN BALANCE ===== */
+function showPatternBalance() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var patterns = {};
+  var pushSets = 0; var pullSets = 0; var upperSets = 0; var lowerSets = 0;
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (!ex) return;
+    var sets = parseInt(c.dataset.sets) || 3;
+    patterns[ex.pattern] = (patterns[ex.pattern] || 0) + sets;
+    if (ex.family === 'Push') pushSets += sets;
+    if (ex.family === 'Pull') pullSets += sets;
+    if (ex.family === 'Push' || ex.family === 'Pull' || ex.family === 'Skills') upperSets += sets;
+    if (ex.family === 'Legs') lowerSets += sets;
+  });
+  var msg = 'Movement Pattern Balance\n\n';
+  var pushPull = pullSets > 0 ? (pushSets / pullSets).toFixed(2) : 'N/A';
+  var upperLower = lowerSets > 0 ? (upperSets / lowerSets).toFixed(2) : 'N/A';
+  msg += 'Push/Pull ratio: ' + pushPull + ':1 (ideal: 1.0-1.5)\n';
+  msg += 'Upper/Lower ratio: ' + upperLower + ':1 (ideal: 1.0-2.0)\n\n';
+  msg += 'By Pattern:\n';
+  Object.keys(patterns).sort(function(a, b) { return patterns[b] - patterns[a]; }).forEach(function(p) {
+    msg += '  ' + p + ': ' + patterns[p] + ' sets\n';
+  });
+  var totalPush = pushSets + pullSets;
+  if (totalPush > 0) {
+    var pushPct = Math.round((pushSets / totalPush) * 100);
+    msg += '\nPush ' + pushPct + '% / Pull ' + (100 - pushPct) + '%';
+  }
+  toast(msg);
+}
+
+/* ===== BATCH 281: PASTE EXERCISES FROM TEXT ===== */
+function pasteExercisesFromText() {
+  navigator.clipboard.readText().then(function(text) {
+    if (!text || !text.trim()) { toast('Clipboard empty'); return; }
+    var lines = text.split('\n').filter(function(l) { return l.trim(); });
+    if (lines.length === 0) { toast('No exercise names found'); return; }
+    pushUndo();
+    var ho = 100;
+    var beatPx = Math.round((60 / bpm) * (80 / 15));
+    var clipW = beatPx * 4;
+    var gap = 4;
+    var maxRight = ho;
+    document.querySelectorAll('.clip').forEach(function(c) {
+      var r = parseInt(c.style.left) + parseInt(c.style.width);
+      if (r > maxRight) maxRight = r;
+    });
+    var xPos = maxRight + beatPx * 2;
+    var count = 0;
+    lines.forEach(function(line) {
+      var name = line.trim().replace(/^\d+[\.\)]\s*/, '');
+      var match = null;
+      var nameLower = name.toLowerCase();
+      EXERCISES.forEach(function(e) {
+        if (e.name.toLowerCase() === nameLower) match = e;
+      });
+      if (!match) {
+        EXERCISES.forEach(function(e) {
+          if (!match && e.name.toLowerCase().indexOf(nameLower) !== -1) match = e;
+        });
+      }
+      if (!match) {
+        EXERCISES.forEach(function(e) {
+          if (!match && nameLower.indexOf(e.name.toLowerCase().split(' ')[0]) !== -1) match = e;
+        });
+      }
+      if (match) {
+        var familyTrack = {Push:'push', Pull:'pull', Core:'core', Legs:'legs', Skills:'skills', Flow:'skills'};
+        var tid = familyTrack[match.family] || 'push';
+        var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+        if (tc) {
+          var clip = createClipElement(match, xPos, clipW, {});
+          tc.appendChild(clip);
+          xPos += clipW + gap;
+          count++;
+        }
+      }
+    });
+    updateStats(); saveSession(); sfx('drop');
+    toast(count + '/' + lines.length + ' exercises added from clipboard');
+  }).catch(function() { toast('Cannot read clipboard'); });
+}
+
+/* ===== BATCH 282: WORKOUT STREAK TRACKER ===== */
+function showWorkoutStreak() {
+  try {
+    var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+    if (ratings.length === 0) { toast('No workout history for streak'); return; }
+    var days = {};
+    ratings.forEach(function(r) {
+      var d = new Date(r.date).toISOString().split('T')[0];
+      days[d] = true;
+    });
+    var dayList = Object.keys(days).sort().reverse();
+    var streak = 0;
+    var today = new Date();
+    for (var i = 0; i < 365; i++) {
+      var checkDate = new Date(today);
+      checkDate.setDate(checkDate.getDate() - i);
+      var dateStr = checkDate.toISOString().split('T')[0];
+      if (days[dateStr]) {
+        streak++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    var totalDays = dayList.length;
+    var firstDate = dayList.length > 0 ? dayList[dayList.length - 1] : 'N/A';
+    var msg = 'Workout Streak\n\n';
+    msg += 'Current streak: ' + streak + ' day' + (streak !== 1 ? 's' : '') + '\n';
+    msg += 'Total workout days: ' + totalDays + '\n';
+    msg += 'First workout: ' + firstDate + '\n';
+    msg += 'Total workouts: ' + ratings.length + '\n';
+    var avgRating = 0;
+    ratings.forEach(function(r) { avgRating += r.rating; });
+    avgRating = (avgRating / ratings.length).toFixed(1);
+    msg += 'Avg rating: ' + avgRating + '/5';
+    toast(msg);
+  } catch(e) { toast('Error loading streak data'); }
 }
 
 function selectClipsByStage(stage) {
