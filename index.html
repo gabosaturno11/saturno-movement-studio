@@ -7345,6 +7345,9 @@ var CMD_ACTIONS = [
   {label:'Stagger Clips (2-beat offset)', key:'', icon:'\u21F6', action: function() { staggerClips(); }},
   {label:'Random Exercise Swap', key:'', icon:'\u2684', action: function() { randomSwapExercise(); }},
   {label:'Randomize All Exercises', key:'', icon:'\u2684', action: function() { randomizeAllExercises(); }},
+  {label:'Consolidate Adjacent Clips', key:'', icon:'\u25A0', action: function() { consolidateClips(); }},
+  {label:'Exercise Frequency', key:'', icon:'\u2139', action: function() { showExerciseFrequency(); }},
+  {label:'Balance Report', key:'', icon:'\u2261', action: function() { showBalanceReport(); }},
 ];
 
 function openCmdPalette() {
@@ -8316,6 +8319,70 @@ function quickAddExercise(exerciseId) {
   addToRecent(ex.id);
   updateStats(); saveSession(); sfx('drop');
   toast('Added: ' + ex.name);
+}
+
+function consolidateClips() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('No active track'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips to consolidate'); return; }
+  clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  pushUndo();
+  var merged = 0;
+  var i = 0;
+  while (i < clips.length - 1) {
+    if (clips[i].classList.contains('clip-locked') || clips[i + 1].classList.contains('clip-locked')) { i++; continue; }
+    var aR = parseInt(clips[i].style.left) + parseInt(clips[i].style.width);
+    var bL = parseInt(clips[i + 1].style.left);
+    if (Math.abs(aR - bL) <= 8) {
+      var newWidth = parseInt(clips[i].style.width) + parseInt(clips[i + 1].style.width) + (bL - aR);
+      clips[i].style.width = newWidth + 'px';
+      var totalSets = (parseInt(clips[i].dataset.sets) || 3) + (parseInt(clips[i + 1].dataset.sets) || 3);
+      clips[i].dataset.sets = totalSets;
+      updateClipInfo(clips[i]);
+      clips[i + 1].remove();
+      clips.splice(i + 1, 1);
+      merged++;
+    } else {
+      i++;
+    }
+  }
+  updateStats(); saveSession(); sfx('click');
+  toast(merged + ' clip' + (merged !== 1 ? 's' : '') + ' consolidated');
+}
+
+function showExerciseFrequency() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var freq = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) freq[ex.name] = (freq[ex.name] || 0) + 1;
+  });
+  var sorted = Object.keys(freq).sort(function(a, b) { return freq[b] - freq[a]; });
+  var top5 = sorted.slice(0, 5).map(function(name) { return name + ' (' + freq[name] + ')'; });
+  toast('Top exercises: ' + top5.join(', ') + (sorted.length > 5 ? ' +' + (sorted.length - 5) + ' more' : ''));
+}
+
+function showBalanceReport() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var famSets = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) {
+      var sets = parseInt(c.dataset.sets) || 3;
+      famSets[ex.family] = (famSets[ex.family] || 0) + sets;
+    }
+  });
+  var total = 0;
+  Object.keys(famSets).forEach(function(f) { total += famSets[f]; });
+  var report = Object.keys(famSets).sort(function(a, b) { return famSets[b] - famSets[a]; }).map(function(f) {
+    var pct = Math.round(famSets[f] / total * 100);
+    return f + ': ' + pct + '%';
+  });
+  var pushPull = (famSets['Push'] || 0) + '/' + (famSets['Pull'] || 0);
+  toast('Balance: ' + report.join(' | ') + ' (Push/Pull: ' + pushPull + ')');
 }
 
 function selectClipsByStage(stage) {
