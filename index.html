@@ -1385,6 +1385,11 @@ button:focus-visible, .transport-btn:focus-visible {
 }
 
 /* Clip overlap warning — pulsing border when clips overlap */
+.clip.clip-superset::after {
+  content: 'SS'; position: absolute; top: 1px; right: 2px;
+  font-size: 6px; font-weight: 700; color: rgba(168,85,247,0.7);
+  letter-spacing: 0.04em; pointer-events: none; z-index: 3;
+}
 .clip.clip-overlap {
   border: 1px solid rgba(239,68,68,0.4);
   box-shadow: inset 0 0 6px rgba(239,68,68,0.1);
@@ -2628,6 +2633,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span data-tip="Est. workout time (sets x reps x tempo + rest)" style="color:var(--muted)">Est: <span id="footer-est-time" style="color:var(--muted)">0:00</span></span>
       <span style="color:var(--border)">|</span>
       <span data-tip="Workout intensity score (0-100)" style="color:var(--muted)">Int: <span id="footer-intensity" style="font-variant-numeric:tabular-nums">0</span></span>
+      <span id="footer-supersets" data-tip="Cross-track supersets" style="color:rgba(168,85,247,0.8);font-size:8px;font-weight:600"></span>
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
@@ -4198,6 +4204,28 @@ function updateStats() {
     document.querySelectorAll('.clip.clip-overlap').forEach(function(c) { c.classList.add('clip-overlap-flash'); });
     toast('Overlapping clips detected (' + newOverlapCount + ')');
   }
+  // Cross-track superset detection
+  var allClipEls = Array.from(document.querySelectorAll('.clip'));
+  allClipEls.forEach(function(c) { c.classList.remove('clip-superset'); });
+  var supersetCount = 0;
+  for (var si = 0; si < allClipEls.length; si++) {
+    var aTrack = allClipEls[si].parentElement.dataset.track;
+    var aL = parseInt(allClipEls[si].style.left) || 0;
+    var aR = aL + (parseInt(allClipEls[si].style.width) || 80);
+    for (var sj = si + 1; sj < allClipEls.length; sj++) {
+      var bTrack = allClipEls[sj].parentElement.dataset.track;
+      if (bTrack === aTrack) continue;
+      var bL = parseInt(allClipEls[sj].style.left) || 0;
+      var bR = bL + (parseInt(allClipEls[sj].style.width) || 80);
+      if (aR > bL && bR > aL) {
+        allClipEls[si].classList.add('clip-superset');
+        allClipEls[sj].classList.add('clip-superset');
+        supersetCount++;
+      }
+    }
+  }
+  var ssEl = document.getElementById('footer-supersets');
+  if (ssEl) ssEl.textContent = supersetCount > 0 ? supersetCount + ' SS' : '';
   updateSummary();
   updateMinimap();
   updateEmptyState();
