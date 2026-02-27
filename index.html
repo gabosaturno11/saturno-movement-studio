@@ -5436,8 +5436,9 @@ function _doSaveSession() {
     // Markers
     session.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
     session.markerCounter = markerCounter;
-    // Workout name
+    // Workout name + creation date
     session.workoutName = workoutName || '';
+    session.createdAt = _sessionCreatedAt || new Date().toISOString();
     // Recently used exercises
     if (typeof recentExercises !== 'undefined') session.recentExercises = recentExercises.slice(0);
     // Loop region
@@ -5562,6 +5563,7 @@ function loadSession() {
       var hn = document.getElementById('header-workout-name');
       if (hn) hn.textContent = workoutName;
     }
+    if (s.createdAt) _sessionCreatedAt = s.createdAt;
     // Restore recently used exercises
     if (s.recentExercises && s.recentExercises.length) {
       recentExercises = s.recentExercises;
@@ -5652,6 +5654,7 @@ function exportWorkout() {
   var workout = {
     name: workoutName || 'Saturno Movement Studio Export',
     timestamp: new Date().toISOString(),
+    createdAt: _sessionCreatedAt,
     bpm: bpm,
     bpmMode: document.getElementById('bpm-mode').textContent,
     tracks: {}
@@ -5713,7 +5716,7 @@ function exportWorkout() {
 function exportCSV() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('No clips to export'); return; }
-  var rows = [['Track','Exercise','Pattern','Family','Discipline','Stage','Sets','Reps','Tempo','Rest','RPE','Notes']];
+  var rows = [['Track','Exercise','Pattern','Family','Discipline','Stage','Sets','Reps','Tempo','Rest','RPE','Color','Locked','Notes']];
   clips.forEach(function(c) {
     var ex = getExercise(c.dataset.exerciseId);
     var track = c.parentElement.dataset.track;
@@ -5722,6 +5725,8 @@ function exportCSV() {
       ex ? ex.discipline : '', ex ? ex.stage : '',
       c.dataset.sets || '3', c.dataset.reps || '8', c.dataset.tempo || '3',
       c.dataset.rest || '60', c.dataset.rpe || '7',
+      c.dataset.customColor || '',
+      c.dataset.locked ? 'Yes' : '',
       (c.dataset.notes || '').replace(/"/g, '""')
     ]);
   });
@@ -5886,6 +5891,7 @@ function importWorkout() {
           lReg.classList.toggle('active', loopEnabled);
           if (loopEnabled) updateLoopRegion();
         }
+        if (workout.createdAt) _sessionCreatedAt = workout.createdAt;
         updateStats();
         saveSession();
         sfx('preset');
@@ -5962,7 +5968,10 @@ function printWorkout() {
   html += '</style></head><body>';
   html += '<h1>' + (workoutName && workoutName !== 'Untitled' ? workoutName : 'Saturno Movement Studio') + '</h1>';
   html += '<div class="subtitle">' + (workoutName && workoutName !== 'Untitled' ? 'Saturno Movement Studio' : 'The Ableton of Movement') + '</div>';
-  html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span></div>';
+  var printCreated = _sessionCreatedAt ? new Date(_sessionCreatedAt).toLocaleDateString('en-US', {month:'short',day:'numeric'}) : '';
+  html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span>';
+  if (printCreated) html += '<span>Created ' + printCreated + '</span>';
+  html += '</div>';
   var totalDur = 0;
   clips.forEach(function(c) {
     var st = parseInt(c.dataset.sets) || 3;
@@ -7231,6 +7240,7 @@ document.addEventListener('keydown', function(e) {
 
 /* ===== WORKOUT NAME ===== */
 var workoutName = 'Untitled';
+var _sessionCreatedAt = new Date().toISOString();
 function setWorkoutName(name) {
   workoutName = name;
   document.getElementById('workout-name').textContent = name;
