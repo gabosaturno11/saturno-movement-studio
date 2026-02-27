@@ -7429,6 +7429,10 @@ var CMD_ACTIONS = [
   {label:'Add Phase Markers', key:'', icon:'\u2691', action: function() { addPhaseMarkers(); }},
   {label:'Show RPE Curve', key:'', icon:'\u2197', action: function() { showRPECurve(); }},
   {label:'Name Superset Groups', key:'', icon:'\u2387', action: function() { nameSupersetGroups(); }},
+  {label:'Density Heatmap', key:'', icon:'\u2593', action: function() { showDensityHeatmap(); }},
+  {label:'Search & Replace Exercise', key:'', icon:'\u21C4', action: function() { searchReplaceExercise(); }},
+  {label:'Progressive RPE (Ascending)', key:'', icon:'\u2197', action: function() { progressiveRPE('ascending'); }},
+  {label:'Progressive RPE (Descending)', key:'', icon:'\u2198', action: function() { progressiveRPE('descending'); }},
 ];
 
 function openCmdPalette() {
@@ -9647,6 +9651,129 @@ function nameSupersetGroups() {
   });
   saveSession(); sfx('click');
   toast(count + ' superset group' + (count !== 1 ? 's' : '') + ' labeled');
+}
+
+/* ===== BATCH 265: DENSITY HEATMAP ===== */
+function showDensityHeatmap() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var ho = 100; var pps = 80 / 15;
+  var maxRight = 0;
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var totalSec = Math.ceil((maxRight - ho) / pps);
+  var bucketSize = 15;
+  var buckets = [];
+  for (var b = 0; b < Math.ceil(totalSec / bucketSize); b++) buckets.push(0);
+  clips.forEach(function(c) {
+    var startSec = (parseInt(c.style.left) - ho) / pps;
+    var endSec = startSec + parseInt(c.style.width) / pps;
+    for (var b = 0; b < buckets.length; b++) {
+      var bStart = b * bucketSize;
+      var bEnd = (b + 1) * bucketSize;
+      if (startSec < bEnd && endSec > bStart) buckets[b]++;
+    }
+  });
+  var maxDensity = Math.max.apply(null, buckets) || 1;
+  var barW = 20; var barH = 80;
+  var svgW = buckets.length * (barW + 2) + 40;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgW + '" height="' + (barH + 50) + '" style="background:#0f172a;border-radius:8px;padding:8px">';
+  svg += '<text x="' + (svgW / 2) + '" y="14" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Sora,sans-serif">Timeline Density (' + bucketSize + 's buckets)</text>';
+  buckets.forEach(function(count, i) {
+    var x = 20 + i * (barW + 2);
+    var h = (count / maxDensity) * barH * 0.8;
+    var y = 24 + barH * 0.8 - h;
+    var intensity = count / maxDensity;
+    var r = Math.round(34 + intensity * 205);
+    var g = Math.round(211 - intensity * 143);
+    var b = Math.round(238 - intensity * 170);
+    var color = 'rgb(' + r + ',' + g + ',' + b + ')';
+    svg += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(2, h) + '" fill="' + color + '44" stroke="' + color + '" stroke-width="1" rx="2"/>';
+    svg += '<text x="' + (x + barW / 2) + '" y="' + (y - 3) + '" text-anchor="middle" fill="' + color + '" font-size="8" font-family="Sora,sans-serif">' + count + '</text>';
+    var label = Math.floor(i * bucketSize / 60) + ':' + (String(Math.floor(i * bucketSize % 60))).padStart(2, '0');
+    svg += '<text x="' + (x + barW / 2) + '" y="' + (24 + barH * 0.8 + 12) + '" text-anchor="middle" fill="#475569" font-size="7" font-family="Sora,sans-serif">' + label + '</text>';
+  });
+  svg += '</svg>';
+  var blob = new Blob([svg], {type: 'image/svg+xml'});
+  window.open(URL.createObjectURL(blob), '_blank');
+  toast('Density heatmap opened');
+}
+
+/* ===== BATCH 266: EXERCISE SEARCH AND REPLACE ===== */
+function searchReplaceExercise() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var exerciseMap = {};
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) exerciseMap[ex.id] = ex.name;
+  });
+  var exList = Object.keys(exerciseMap);
+  if (exList.length === 0) { toast('No exercises found'); return; }
+  var promptText = 'Exercises in workout:\n';
+  exList.forEach(function(id, i) { promptText += (i + 1) + '. ' + exerciseMap[id] + '\n'; });
+  promptText += '\nEnter number to replace:';
+  showInlinePrompt(promptText, function(val) {
+    var idx = parseInt(val) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= exList.length) { toast('Invalid selection'); return; }
+    var oldId = exList[idx];
+    var oldEx = getExercise(oldId);
+    var samePattern = EXERCISES.filter(function(e) { return e.pattern === oldEx.pattern && e.id !== oldId; });
+    if (samePattern.length === 0) { toast('No alternatives for ' + oldEx.pattern); return; }
+    var replaceText = 'Replace ' + oldEx.name + ' with:\n';
+    samePattern.forEach(function(e, i) { replaceText += (i + 1) + '. ' + e.name + ' (S' + e.stage + ')\n'; });
+    showInlinePrompt(replaceText, function(val2) {
+      var rIdx = parseInt(val2) - 1;
+      if (isNaN(rIdx) || rIdx < 0 || rIdx >= samePattern.length) { toast('Invalid selection'); return; }
+      var newEx = samePattern[rIdx];
+      pushUndo();
+      var count = 0;
+      clips.forEach(function(c) {
+        if (c.dataset.exerciseId === oldId) {
+          if (c.classList.contains('clip-locked')) return;
+          c.dataset.exerciseId = newEx.id;
+          var nameEl = c.querySelector('.clip-name');
+          if (nameEl) nameEl.textContent = newEx.name;
+          var dots = c.querySelector('.clip-stage-dots');
+          if (dots) {
+            dots.innerHTML = '';
+            for (var d = 1; d <= 3; d++) {
+              var dot = document.createElement('span');
+              dot.style.cssText = 'width:3px;height:3px;border-radius:50%;background:' + (d <= newEx.stage ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.15)');
+              dots.appendChild(dot);
+            }
+          }
+          count++;
+        }
+      });
+      updateStats(); saveSession(); sfx('click');
+      toast('Replaced ' + count + ' clips: ' + oldEx.name + ' -> ' + newEx.name);
+    });
+  });
+}
+
+/* ===== BATCH 267: PROGRESSIVE RPE ===== */
+function progressiveRPE(direction) {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips'); return; }
+  pushUndo();
+  clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var startRPE = direction === 'ascending' ? 4 : 9;
+  var endRPE = direction === 'ascending' ? 9 : 4;
+  var count = 0;
+  clips.forEach(function(c, i) {
+    if (c.classList.contains('clip-locked')) return;
+    var rpe = Math.round(startRPE + (endRPE - startRPE) * (i / Math.max(1, clips.length - 1)));
+    c.dataset.rpe = String(rpe);
+    var badge = c.querySelector('.clip-rpe-badge');
+    if (badge) badge.textContent = rpe;
+    updateClipDNA(c);
+    count++;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast(count + ' clips set to ' + direction + ' RPE (' + startRPE + '->' + endRPE + ')');
 }
 
 function selectClipsByStage(stage) {
