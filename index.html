@@ -92,6 +92,16 @@ body {
   height: 1px;
   background: linear-gradient(90deg, transparent 5%, rgba(59,130,246,0.2) 30%, rgba(139,92,246,0.15) 70%, transparent 95%);
 }
+/* Global progress bar — thin line at bottom of header showing playback position */
+.header-progress {
+  position: absolute; bottom: 0; left: 0;
+  height: 2px; width: 0%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+  z-index: 5;
+  transition: width 0.1s linear;
+  opacity: 0;
+}
+.header-progress.active { opacity: 1; }
 .logo { display: flex; align-items: center; gap: 8px; }
 .logo-icon {
   width: 24px; height: 24px;
@@ -420,14 +430,15 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.03);
   display: flex;
   background: var(--bg-deep);
-  transition: background 0.15s, height 0.15s;
+  transition: background 0.15s, height 0.2s ease;
+  overflow: hidden;
 }
 .track.track-collapsed {
   height: 24px;
 }
 .track.track-collapsed .track-controls,
 .track.track-collapsed .track-info,
-.track.track-collapsed .track-clip-count { display: none; }
+.track.track-collapsed .track-clip-count { opacity: 0; pointer-events: none; }
 .track.track-collapsed .clip { height: 18px; top: 3px; font-size: 7px; padding: 1px 4px 0; }
 .track.track-collapsed .clip canvas { display: none; }
 .track.track-collapsed .clip .beat-markers { display: none; }
@@ -650,6 +661,13 @@ body {
 .playhead.playing {
   box-shadow: 0 0 12px rgba(59,130,246,0.5), 0 0 4px rgba(255,255,255,0.3);
   background: #60a5fa;
+  /* Gradient trail behind the playhead */
+  border-image: linear-gradient(to right, rgba(59,130,246,0.02), rgba(59,130,246,0.15), transparent) 1;
+}
+.playhead.playing::after {
+  width: 40px; left: -40px; height: 100%; bottom: auto; top: 0;
+  background: linear-gradient(to right, transparent, rgba(59,130,246,0.04));
+  border-radius: 0; opacity: 1;
 }
 .playhead::before {
   content: '';
@@ -1246,6 +1264,12 @@ button:focus-visible, .transport-btn:focus-visible {
   animation: snapFlash 0.3s ease-out forwards;
 }
 
+/* Clip overlap warning — pulsing border when clips overlap */
+.clip.clip-overlap {
+  border: 1px solid rgba(239,68,68,0.4);
+  box-shadow: inset 0 0 6px rgba(239,68,68,0.1);
+}
+
 /* Clip shimmer — animated gradient sweep on playing clips */
 @keyframes clipShimmer {
   0% { transform: translateX(-100%); }
@@ -1693,6 +1717,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 <div class="app">
   <!-- HEADER -->
   <header class="header">
+    <div class="header-progress" id="header-progress"></div>
     <div class="logo">
       <div class="logo-icon"><img src="assets/planet-logo.png" alt="" onerror="this.style.display='none'"></div>
       <div>
@@ -1847,9 +1872,9 @@ a:focus-visible, button:focus-visible, input:focus-visible {
             <div class="timeline-empty-title">Compose Your Movement</div>
             <div class="timeline-empty-desc">Drag exercises from the library onto any track to begin building your workout.</div>
             <div class="timeline-empty-steps">
-              <div class="timeline-empty-step"><div class="timeline-empty-step-num">1</div><div class="timeline-empty-step-text">Browse library</div></div>
-              <div class="timeline-empty-step"><div class="timeline-empty-step-num">2</div><div class="timeline-empty-step-text">Drag to track</div></div>
-              <div class="timeline-empty-step"><div class="timeline-empty-step-num">3</div><div class="timeline-empty-step-text">Press play</div></div>
+              <div class="timeline-empty-step"><div class="timeline-empty-step-num">1</div><div class="timeline-empty-step-text">Browse the library</div></div>
+              <div class="timeline-empty-step"><div class="timeline-empty-step-num">2</div><div class="timeline-empty-step-text">Drag to track or double-click</div></div>
+              <div class="timeline-empty-step"><div class="timeline-empty-step-num">3</div><div class="timeline-empty-step-text">Press space to play</div></div>
             </div>
           </div>
           <div class="snap-indicator" id="snap-indicator"></div>
@@ -3189,6 +3214,23 @@ function updateStats() {
       el.style.color = count === 0 ? 'var(--micro)' : count >= 3 ? 'var(--text-secondary)' : 'var(--muted)';
     }
   });
+  // Detect clip overlaps per track
+  document.querySelectorAll('.track-content').forEach(function(tc) {
+    var trackClips = Array.from(tc.querySelectorAll('.clip'));
+    trackClips.forEach(function(c) { c.classList.remove('clip-overlap'); });
+    for (var i = 0; i < trackClips.length; i++) {
+      var aL = parseInt(trackClips[i].style.left) || 0;
+      var aR = aL + (parseInt(trackClips[i].style.width) || 80);
+      for (var j = i + 1; j < trackClips.length; j++) {
+        var bL = parseInt(trackClips[j].style.left) || 0;
+        var bR = bL + (parseInt(trackClips[j].style.width) || 80);
+        if (aR > bL && bR > aL) {
+          trackClips[i].classList.add('clip-overlap');
+          trackClips[j].classList.add('clip-overlap');
+        }
+      }
+    }
+  });
   updateSummary();
   updateMinimap();
   updateEmptyState();
@@ -3398,6 +3440,22 @@ function updatePlayheadPosition() {
         clip.classList.remove('clip-playing');
       }
     });
+  }
+  // Update header progress bar
+  var hpBar = document.getElementById('header-progress');
+  if (hpBar) {
+    if (isPlaying) {
+      var maxRight = 600;
+      document.querySelectorAll('.clip').forEach(function(c) {
+        var r = parseInt(c.style.left) + parseInt(c.style.width);
+        if (r > maxRight) maxRight = r;
+      });
+      var pct = Math.min(100, ((pos - 100) / maxRight) * 100);
+      hpBar.style.width = pct + '%';
+      hpBar.classList.add('active');
+    } else {
+      hpBar.classList.remove('active');
+    }
   }
 }
 
