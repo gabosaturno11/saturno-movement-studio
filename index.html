@@ -8045,6 +8045,12 @@ var CMD_ACTIONS = [
   {label:'Tempo Map', key:'', icon:'\u23f1', action: function() { showTempoMap(); }},
   {label:'Smart Warm-up', key:'', icon:'\ud83e\uddd8', action: function() { generateSmartWarmup(); }},
   {label:'Completion Tracker', key:'', icon:'\u2705', action: function() { showCompletionTracker(); }},
+  {label:'Export Timeline', key:'', icon:'\ud83d\udccb', action: function() { exportWorkoutTimeline(); }},
+  {label:'Progression Log', key:'', icon:'\ud83d\udcc8', action: function() { showProgressionLog(); }},
+  {label:'Work:Rest Ratio', key:'', icon:'\u23f3', action: function() { showWorkRestRatio(); }},
+  {label:'Workout Similarity', key:'', icon:'\ud83d\udd0d', action: function() { showWorkoutSimilarity(); }},
+  {label:'Muscle Heatmap', key:'', icon:'\ud83e\uddb4', action: function() { showMuscleHeatmap(); }},
+  {label:'Consistency Score', key:'', icon:'\ud83d\udcca', action: function() { showConsistencyScore(); }},
 ];
 
 function openCmdPalette() {
@@ -20080,8 +20086,333 @@ function toggleCompletionItem(idx) {
   }
 }
 
+// Batch 422: Workout Timeline Export
+function exportWorkoutTimeline() {
+  var tracks = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || 'Other';
+    if (!tracks[fam]) tracks[fam] = [];
+    tracks[fam].push({exercise: c.dataset.exercise || '', pos: parseInt(c.style.left) || 0, sets: c.dataset.sets || '3', reps: c.dataset.reps || '8', rpe: c.dataset.rpe || '7'});
+  });
+  if (Object.keys(tracks).length === 0) { showToast('Add exercises first'); return; }
+  var text = '=== WORKOUT TIMELINE ===\n';
+  text += 'Generated: ' + new Date().toLocaleString() + '\n';
+  text += 'BPM: ' + (typeof currentBPM !== 'undefined' ? currentBPM : 120) + '\n\n';
+  Object.keys(tracks).forEach(function(fam) {
+    var sorted = tracks[fam].sort(function(a, b) { return a.pos - b.pos; });
+    text += '--- ' + fam.toUpperCase() + ' ---\n';
+    sorted.forEach(function(c, i) {
+      text += '  ' + (i + 1) + '. ' + c.exercise + ' | ' + c.sets + 'x' + c.reps + ' @ RPE ' + c.rpe + '\n';
+    });
+    text += '\n';
+  });
+  var total = document.querySelectorAll('.clip').length;
+  text += '--- STATS ---\n';
+  text += 'Total exercises: ' + total + '\n';
+  text += 'Tracks: ' + Object.keys(tracks).length + '\n';
+  try { navigator.clipboard.writeText(text); showToast('Timeline copied to clipboard'); } catch(e) { showToast('Copy failed'); }
+}
+
+// Batch 423: Exercise Progression Log
+function showProgressionLog() {
+  var log = [];
+  try { log = JSON.parse(localStorage.getItem('sms_progression_log') || '[]'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Progression Log</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Track stage advances per exercise</div>';
+  html += '<button onclick="logCurrentProgressions()" style="background:#06b6d4;color:#050711;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600;margin-bottom:16px;">Log Current Stages</button>';
+  if (log.length === 0) {
+    html += '<div style="text-align:center;color:#64748b;padding:24px;font-size:13px;">No progressions logged yet. Click "Log Current Stages" to start tracking.</div>';
+  } else {
+    log.slice(-20).reverse().forEach(function(entry) {
+      html += '<div style="margin-bottom:8px;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:6px;">';
+      html += '<span>' + new Date(entry.date).toLocaleDateString() + '</span>';
+      html += '<span>' + entry.exercises.length + ' exercises</span></div>';
+      entry.exercises.forEach(function(ex) {
+        var sColor = ex.stage === 'S3' ? '#a78bfa' : ex.stage === 'S2' ? '#06b6d4' : '#94a3b8';
+        html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;">';
+        html += '<span>' + ex.name + '</span>';
+        html += '<span style="color:' + sColor + ';font-weight:600;">' + ex.stage + '</span></div>';
+      });
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function logCurrentProgressions() {
+  var exercises = [];
+  var seen = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var name = c.dataset.exercise || '';
+    var stage = c.dataset.stage || 'S1';
+    if (name && !seen[name]) {
+      seen[name] = true;
+      exercises.push({name: name, stage: stage});
+    }
+  });
+  if (exercises.length === 0) { showToast('No exercises on timeline'); return; }
+  var log = [];
+  try { log = JSON.parse(localStorage.getItem('sms_progression_log') || '[]'); } catch(e) {}
+  log.push({date: new Date().toISOString(), exercises: exercises});
+  if (log.length > 50) log = log.slice(-50);
+  try { localStorage.setItem('sms_progression_log', JSON.stringify(log)); } catch(e) {}
+  showToast('Logged ' + exercises.length + ' exercise stages');
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showProgressionLog();
+}
+
+// Batch 424: Work-to-Rest Ratio Analyzer
+function showWorkRestRatio() {
+  var totalWork = 0;
+  var totalRest = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var sets = parseInt(c.dataset.sets || 3);
+    var reps = parseInt(c.dataset.reps || 8);
+    var tempo = parseInt(c.dataset.tempo || 3);
+    var rest = parseInt(c.dataset.rest || 60);
+    var workTime = sets * reps * tempo;
+    var restTime = (sets - 1) * rest;
+    totalWork += workTime;
+    totalRest += restTime;
+  });
+  if (totalWork === 0) { showToast('Add exercises first'); return; }
+  var ratio = totalRest > 0 ? (totalWork / totalRest).toFixed(2) : 'N/A';
+  var workMin = Math.floor(totalWork / 60);
+  var restMin = Math.floor(totalRest / 60);
+  var style = '';
+  var styleColor = '#94a3b8';
+  if (ratio !== 'N/A') {
+    var r = parseFloat(ratio);
+    if (r > 1.5) { style = 'High Density (minimal rest)'; styleColor = '#f87171'; }
+    else if (r > 0.8) { style = 'Balanced'; styleColor = '#4ade80'; }
+    else if (r > 0.4) { style = 'Strength-focused (longer rest)'; styleColor = '#06b6d4'; }
+    else { style = 'Power-focused (max recovery)'; styleColor = '#a78bfa'; }
+  }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Work:Rest Ratio</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:20px 0;">';
+  html += '<div style="font-size:42px;font-weight:700;color:#06b6d4;">' + ratio + '</div>';
+  html += '<div style="font-size:14px;color:' + styleColor + ';margin-top:4px;">' + style + '</div></div>';
+  var totalTime = totalWork + totalRest;
+  var workPct = Math.round((totalWork / totalTime) * 100);
+  var restPct = 100 - workPct;
+  html += '<div style="height:20px;display:flex;border-radius:10px;overflow:hidden;margin:16px 0;">';
+  html += '<div style="width:' + workPct + '%;background:#06b6d4;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#050711;">Work ' + workPct + '%</div>';
+  html += '<div style="width:' + restPct + '%;background:rgba(148,163,184,0.3);display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8;">Rest ' + restPct + '%</div>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#06b6d4;">' + workMin + 'm ' + (totalWork % 60) + 's</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Total Work Time</div></div>';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#94a3b8;">' + restMin + 'm ' + (totalRest % 60) + 's</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Total Rest Time</div></div>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 425: Workout Similarity Finder
+function showWorkoutSimilarity() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length === 0) { showToast('No saved workouts to compare'); return; }
+  var currentVec = {};
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var name = c.dataset.exercise || '';
+    if (name) currentVec[name] = (currentVec[name] || 0) + 1;
+  });
+  if (Object.keys(currentVec).length === 0) { showToast('Add exercises first'); return; }
+  var results = saved.map(function(s) {
+    var savedVec = {};
+    (s.clips || []).forEach(function(c) {
+      var name = c.exercise || (c.dataset && c.dataset.exercise) || '';
+      if (name) savedVec[name] = (savedVec[name] || 0) + 1;
+    });
+    var allKeys = {};
+    Object.keys(currentVec).forEach(function(k) { allKeys[k] = true; });
+    Object.keys(savedVec).forEach(function(k) { allKeys[k] = true; });
+    var dotProduct = 0, magA = 0, magB = 0;
+    Object.keys(allKeys).forEach(function(k) {
+      var a = currentVec[k] || 0;
+      var b = savedVec[k] || 0;
+      dotProduct += a * b;
+      magA += a * a;
+      magB += b * b;
+    });
+    var similarity = (magA > 0 && magB > 0) ? dotProduct / (Math.sqrt(magA) * Math.sqrt(magB)) : 0;
+    return {name: s.name || 'Unnamed', similarity: Math.round(similarity * 100), clipCount: (s.clips || []).length};
+  });
+  results.sort(function(a, b) { return b.similarity - a.similarity; });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Workout Similarity</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Cosine similarity between current and saved workouts</div>';
+  results.slice(0, 10).forEach(function(r) {
+    var color = r.similarity > 80 ? '#4ade80' : r.similarity > 50 ? '#fbbf24' : r.similarity > 20 ? '#06b6d4' : '#94a3b8';
+    html += '<div style="margin-bottom:8px;">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;">';
+    html += '<span>' + r.name + ' <span style="color:#64748b;font-size:11px;">(' + r.clipCount + ' clips)</span></span>';
+    html += '<span style="color:' + color + ';font-weight:600;">' + r.similarity + '%</span></div>';
+    html += '<div style="height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + r.similarity + '%;background:' + color + ';border-radius:3px;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 426: Muscle Group Heatmap
+function showMuscleHeatmap() {
+  var muscleLoad = {
+    'Chest': 0, 'Front Deltoid': 0, 'Triceps': 0,
+    'Back': 0, 'Rear Deltoid': 0, 'Biceps': 0,
+    'Abs': 0, 'Obliques': 0, 'Lower Back': 0,
+    'Quads': 0, 'Hamstrings': 0, 'Glutes': 0, 'Calves': 0,
+    'Shoulders': 0, 'Wrists': 0, 'Forearms': 0
+  };
+  var famToMuscle = {
+    'Push': ['Chest', 'Front Deltoid', 'Triceps'],
+    'Pull': ['Back', 'Rear Deltoid', 'Biceps', 'Forearms'],
+    'Core': ['Abs', 'Obliques', 'Lower Back'],
+    'Legs': ['Quads', 'Hamstrings', 'Glutes', 'Calves'],
+    'Skills': ['Shoulders', 'Wrists', 'Abs']
+  };
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var sets = parseInt(c.dataset.sets || 3);
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var load = sets * (rpe / 10);
+    Object.keys(famToMuscle).forEach(function(f) {
+      if (fam.toLowerCase().indexOf(f.toLowerCase()) > -1) {
+        famToMuscle[f].forEach(function(m, i) {
+          muscleLoad[m] += i === 0 ? load : load * 0.6;
+        });
+      }
+    });
+  });
+  var maxLoad = Math.max.apply(null, Object.values(muscleLoad)) || 1;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Muscle Heatmap</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+  var groups = [
+    {title: 'Upper Front', muscles: ['Chest', 'Front Deltoid', 'Triceps']},
+    {title: 'Upper Back', muscles: ['Back', 'Rear Deltoid', 'Biceps', 'Forearms']},
+    {title: 'Core', muscles: ['Abs', 'Obliques', 'Lower Back']},
+    {title: 'Lower Body', muscles: ['Quads', 'Hamstrings', 'Glutes', 'Calves']},
+    {title: 'Joints/Stability', muscles: ['Shoulders', 'Wrists']}
+  ];
+  groups.forEach(function(g) {
+    html += '<div style="padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="font-weight:600;font-size:12px;margin-bottom:6px;color:#94a3b8;">' + g.title + '</div>';
+    g.muscles.forEach(function(m) {
+      var load = muscleLoad[m] || 0;
+      var pct = Math.round((load / maxLoad) * 100);
+      var hue = 200 - (pct * 2);
+      var color = pct > 70 ? '#f87171' : pct > 40 ? '#fbbf24' : pct > 10 ? '#06b6d4' : '#1e293b';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">';
+      html += '<span style="font-size:11px;">' + m + '</span>';
+      html += '<div style="display:flex;align-items:center;gap:4px;">';
+      html += '<div style="width:50px;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+      html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;"></div></div>';
+      html += '<span style="font-size:10px;color:' + color + ';width:24px;text-align:right;">' + pct + '%</span></div></div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '<div style="margin-top:12px;display:flex;gap:12px;justify-content:center;font-size:11px;color:#94a3b8;">';
+  html += '<span><span style="color:#1e293b;">_</span> None</span>';
+  html += '<span><span style="color:#06b6d4;">_</span> Low</span>';
+  html += '<span><span style="color:#fbbf24;">_</span> Medium</span>';
+  html += '<span><span style="color:#f87171;">_</span> High</span></div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 427: Training Consistency Score
+function showConsistencyScore() {
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var sessionDays = {};
+  ratings.forEach(function(r) { var d = new Date(r.date || r.timestamp).toISOString().split('T')[0]; sessionDays[d] = true; });
+  saved.forEach(function(s) { if (s.date || s.timestamp) { var d = new Date(s.date || s.timestamp).toISOString().split('T')[0]; sessionDays[d] = true; } });
+  var now = new Date();
+  var weeks = [];
+  for (var w = 0; w < 8; w++) {
+    var weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - (weekStart.getDay() + 7 * w));
+    var count = 0;
+    for (var d = 0; d < 7; d++) {
+      var day = new Date(weekStart);
+      day.setDate(day.getDate() + d);
+      var key = day.toISOString().split('T')[0];
+      if (sessionDays[key]) count++;
+    }
+    var label = 'Week ' + (w === 0 ? '(current)' : '-' + w);
+    weeks.push({label: label, count: count});
+  }
+  weeks.reverse();
+  var totalDays = Object.keys(sessionDays).length;
+  var last30Days = 0;
+  for (var i = 0; i < 30; i++) {
+    var d2 = new Date(now);
+    d2.setDate(d2.getDate() - i);
+    if (sessionDays[d2.toISOString().split('T')[0]]) last30Days++;
+  }
+  var consistencyPct = Math.round((last30Days / 30) * 100);
+  var grade = consistencyPct >= 80 ? 'S' : consistencyPct >= 60 ? 'A' : consistencyPct >= 40 ? 'B' : consistencyPct >= 20 ? 'C' : 'D';
+  var gradeColor = grade === 'S' ? '#fbbf24' : grade === 'A' ? '#4ade80' : grade === 'B' ? '#06b6d4' : grade === 'C' ? '#fb923c' : '#f87171';
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Training Consistency</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="display:flex;gap:16px;justify-content:center;margin:16px 0;">';
+  html += '<div style="text-align:center;">';
+  html += '<div style="font-size:48px;font-weight:700;color:' + gradeColor + ';">' + grade + '</div>';
+  html += '<div style="font-size:12px;color:#94a3b8;">Grade</div></div>';
+  html += '<div style="text-align:center;">';
+  html += '<div style="font-size:48px;font-weight:700;color:#06b6d4;">' + consistencyPct + '%</div>';
+  html += '<div style="font-size:12px;color:#94a3b8;">30-Day Score</div></div></div>';
+  html += '<div style="margin:16px 0;font-weight:600;font-size:13px;margin-bottom:8px;">Weekly Activity (last 8 weeks)</div>';
+  weeks.forEach(function(w) {
+    var barPct = Math.round((w.count / 7) * 100);
+    var color = w.count >= 5 ? '#4ade80' : w.count >= 3 ? '#06b6d4' : w.count >= 1 ? '#fbbf24' : '#1e293b';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+    html += '<span style="font-size:11px;color:#94a3b8;width:80px;text-align:right;">' + w.label + '</span>';
+    html += '<div style="flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + barPct + '%;background:' + color + ';border-radius:4px;"></div></div>';
+    html += '<span style="font-size:11px;color:#94a3b8;width:20px;">' + w.count + '</span>';
+    html += '</div>';
+  });
+  html += '<div style="margin-top:12px;text-align:center;font-size:12px;color:#64748b;">Total unique training days: ' + totalDays + '</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+
   var count = 0;
   document.querySelectorAll('.clip').forEach(function(c) {
     var ex = getExercise(c.dataset.exerciseId);
