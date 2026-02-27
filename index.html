@@ -8074,6 +8074,12 @@ var CMD_ACTIONS = [
   {label:'Timeline Replay', key:'', icon:'\u25b6', action: function() { showTimelineReplay(); }},
   {label:'Frequency Optimizer', key:'', icon:'\ud83d\udcc5', action: function() { showFrequencyOptimizer(); }},
   {label:'Workout Genome', key:'', icon:'\ud83e\uddec', action: function() { showWorkoutGenome(); }},
+  {label:'Goal Tracker', key:'', icon:'\ud83c\udfaf', action: function() { showGoalTracker(); }},
+  {label:'Cluster Presets', key:'', icon:'\ud83e\udde9', action: function() { showClusterPresets(); }},
+  {label:'Photo References', key:'', icon:'\ud83d\udcf7', action: function() { showPhotoReference(); }},
+  {label:'Complexity Timeline', key:'', icon:'\ud83d\udcc8', action: function() { showComplexityTimeline(); }},
+  {label:'Smart Rest Calculator', key:'', icon:'\u23f1', action: function() { showAutoRestCalc(); }},
+  {label:'Exercise Info', key:'', icon:'\u2139', action: function() { showExerciseInfo(); }},
 ];
 
 function openCmdPalette() {
@@ -21587,6 +21593,309 @@ function showWorkoutGenome() {
     html += '</div>';
   });
   html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 451: Goal Tracker Dashboard
+function showGoalTracker() {
+  var goals = [];
+  try { goals = JSON.parse(localStorage.getItem('sms_workout_goals') || '[]'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Goal Tracker</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<button onclick="addWorkoutGoal()" style="background:#06b6d4;color:#050711;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600;margin-bottom:16px;">+ New Goal</button>';
+  if (goals.length === 0) {
+    html += '<div style="text-align:center;color:#64748b;padding:24px;font-size:13px;">No goals set. Add one to start tracking!</div>';
+  } else {
+    goals.forEach(function(g, i) {
+      var pct = Math.min(100, Math.round((g.current / g.target) * 100));
+      var done = pct >= 100;
+      var color = done ? '#4ade80' : pct >= 50 ? '#06b6d4' : '#fbbf24';
+      html += '<div style="margin-bottom:10px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+      html += '<span style="font-weight:600;font-size:14px;' + (done ? 'text-decoration:line-through;color:#4ade80;' : '') + '">' + g.name + '</span>';
+      html += '<div>';
+      html += '<button onclick="incrementGoal(' + i + ')" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;">+1</button>';
+      html += '<button onclick="deleteGoal(' + i + ')" style="background:rgba(248,113,113,0.15);color:#f87171;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">X</button>';
+      html += '</div></div>';
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:4px;">';
+      html += '<span>' + g.current + ' / ' + g.target + '</span><span>' + pct + '%</span></div>';
+      html += '<div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+      html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;"></div></div>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function addWorkoutGoal() {
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showInlinePrompt('Goal name (e.g. "10 Pull-up sessions"):', '', function(name) {
+    if (!name) return;
+    showInlinePrompt('Target number:', '10', function(target) {
+      var t = parseInt(target) || 10;
+      var goals = [];
+      try { goals = JSON.parse(localStorage.getItem('sms_workout_goals') || '[]'); } catch(e) {}
+      goals.push({name: name, target: t, current: 0, created: new Date().toISOString()});
+      if (goals.length > 20) goals = goals.slice(-20);
+      try { localStorage.setItem('sms_workout_goals', JSON.stringify(goals)); } catch(e) {}
+      showToast('Goal added: ' + name);
+      showGoalTracker();
+    });
+  });
+}
+
+function incrementGoal(idx) {
+  var goals = [];
+  try { goals = JSON.parse(localStorage.getItem('sms_workout_goals') || '[]'); } catch(e) {}
+  if (goals[idx]) {
+    goals[idx].current++;
+    try { localStorage.setItem('sms_workout_goals', JSON.stringify(goals)); } catch(e) {}
+    if (goals[idx].current >= goals[idx].target) showToast('Goal complete: ' + goals[idx].name + '!');
+  }
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showGoalTracker();
+}
+
+function deleteGoal(idx) {
+  var goals = [];
+  try { goals = JSON.parse(localStorage.getItem('sms_workout_goals') || '[]'); } catch(e) {}
+  goals.splice(idx, 1);
+  try { localStorage.setItem('sms_workout_goals', JSON.stringify(goals)); } catch(e) {}
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showGoalTracker();
+}
+
+// Batch 452: Exercise Cluster Presets
+function showClusterPresets() {
+  var presets = [
+    {name: 'Push Day', exercises: EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf('push') > -1; }).slice(0, 6).map(function(e) { return e.name; })},
+    {name: 'Pull Day', exercises: EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf('pull') > -1; }).slice(0, 6).map(function(e) { return e.name; })},
+    {name: 'Leg Day', exercises: EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf('leg') > -1; }).slice(0, 6).map(function(e) { return e.name; })},
+    {name: 'Core Circuit', exercises: EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf('core') > -1; }).slice(0, 5).map(function(e) { return e.name; })},
+    {name: 'Skills Focus', exercises: EXERCISES.filter(function(e) { return e.family && e.family.toLowerCase().indexOf('skill') > -1; }).slice(0, 5).map(function(e) { return e.name; })},
+    {name: 'Full Body', exercises: ['Push', 'Pull', 'Core', 'Legs', 'Skills'].map(function(f) { var ex = EXERCISES.find(function(e) { return e.family && e.family.toLowerCase().indexOf(f.toLowerCase()) > -1; }); return ex ? ex.name : ''; }).filter(function(n) { return n; })}
+  ];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Cluster Presets</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Pre-built exercise groupings — click to save to your clusters</div>';
+  presets.forEach(function(p) {
+    html += '<div style="margin-bottom:10px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    html += '<span style="font-weight:600;font-size:14px;">' + p.name + ' <span style="color:#94a3b8;font-size:12px;">(' + p.exercises.length + ')</span></span>';
+    html += '<button onclick="saveClusterPreset(\'' + p.name.replace(/'/g, "\\'") + '\',' + JSON.stringify(p.exercises).replace(/"/g, '&quot;') + ')" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;">Save</button>';
+    html += '</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+    p.exercises.forEach(function(name) {
+      var ex = EXERCISES.find(function(e) { return e.name === name; });
+      var fColor = ex ? getFamilyColor(ex.family) : '#94a3b8';
+      html += '<span style="font-size:11px;color:' + fColor + ';padding:2px 6px;background:rgba(255,255,255,0.04);border-radius:4px;">' + name + '</span>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function saveClusterPreset(name, exercises) {
+  if (typeof exercises === 'string') exercises = JSON.parse(exercises.replace(/&quot;/g, '"'));
+  try { smsExerciseClusters = JSON.parse(localStorage.getItem('sms_exercise_clusters') || '[]'); } catch(e) { smsExerciseClusters = []; }
+  smsExerciseClusters.push({name: name, exercises: exercises, created: new Date().toISOString()});
+  if (smsExerciseClusters.length > 30) smsExerciseClusters = smsExerciseClusters.slice(-30);
+  try { localStorage.setItem('sms_exercise_clusters', JSON.stringify(smsExerciseClusters)); } catch(e) {}
+  showToast('Cluster "' + name + '" saved');
+}
+
+// Batch 453: Session Photo Reference
+function showPhotoReference() {
+  var photos = {};
+  try { photos = JSON.parse(localStorage.getItem('sms_session_photos') || '{}'); } catch(e) {}
+  var today = new Date().toISOString().split('T')[0];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Photo References</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Link reference photos to sessions</div>';
+  html += '<button onclick="addPhotoRef()" style="background:#06b6d4;color:#050711;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600;margin-bottom:16px;">+ Add Photo URL</button>';
+  var keys = Object.keys(photos).sort().reverse();
+  if (keys.length === 0) {
+    html += '<div style="text-align:center;color:#64748b;padding:24px;font-size:13px;">No photos linked yet.</div>';
+  } else {
+    keys.slice(0, 15).forEach(function(k) {
+      var urls = photos[k] || [];
+      html += '<div style="margin-bottom:8px;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+      html += '<div style="font-size:12px;color:#94a3b8;margin-bottom:4px;">' + k + '</div>';
+      urls.forEach(function(url) {
+        html += '<div style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">';
+        html += '<a href="' + url + '" target="_blank" style="color:#06b6d4;text-decoration:none;">' + url + '</a></div>';
+      });
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function addPhotoRef() {
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showInlinePrompt('Photo URL:', '', function(url) {
+    if (!url) return;
+    var photos = {};
+    try { photos = JSON.parse(localStorage.getItem('sms_session_photos') || '{}'); } catch(e) {}
+    var today = new Date().toISOString().split('T')[0];
+    if (!photos[today]) photos[today] = [];
+    photos[today].push(url);
+    try { localStorage.setItem('sms_session_photos', JSON.stringify(photos)); } catch(e) {}
+    showToast('Photo reference added');
+    showPhotoReference();
+  });
+}
+
+// Batch 454: Workout Complexity Timeline
+function showComplexityTimeline() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length < 2) { showToast('Need 2+ saved workouts'); return; }
+  var points = saved.slice(-12).map(function(s) {
+    var families = {}, patterns = {}, stages = {};
+    (s.clips || []).forEach(function(c) {
+      var f = c.family || (c.dataset && c.dataset.family) || '';
+      var p = c.pattern || (c.dataset && c.dataset.pattern) || '';
+      var st = c.stage || (c.dataset && c.dataset.stage) || 'S1';
+      families[f] = true;
+      if (p) patterns[p] = true;
+      stages[st] = true;
+    });
+    var score = Object.keys(families).length + Object.keys(patterns).length + Object.keys(stages).length + ((s.clips || []).length > 10 ? 2 : 0);
+    return {name: s.name || 'Workout', score: score, date: s.date || s.timestamp};
+  });
+  var maxScore = Math.max.apply(null, points.map(function(p) { return p.score; })) || 1;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:600px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Complexity Timeline</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  points.forEach(function(p) {
+    var pct = Math.round((p.score / maxScore) * 100);
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+    html += '<span style="font-size:11px;color:#94a3b8;width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (p.name || '-') + '</span>';
+    html += '<div style="flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + (pct > 70 ? '#a78bfa' : pct > 40 ? '#06b6d4' : '#4ade80') + ';border-radius:4px;"></div></div>';
+    html += '<span style="font-size:11px;color:#94a3b8;width:24px;text-align:right;">' + p.score + '</span>';
+    html += '</div>';
+  });
+  var trend = points.length >= 2 ? points[points.length - 1].score - points[0].score : 0;
+  html += '<div style="text-align:center;margin-top:12px;font-size:12px;color:' + (trend > 0 ? '#4ade80' : trend < 0 ? '#f87171' : '#94a3b8') + ';">Trend: ' + (trend > 0 ? '+' : '') + trend + ' complexity over ' + points.length + ' sessions</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 455: Auto-rest Calculator
+function showAutoRestCalc() {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) { showToast('Select a clip first'); return; }
+  var rpe = parseFloat(sel.dataset.rpe || 7);
+  var sets = parseInt(sel.dataset.sets || 3);
+  var fam = sel.dataset.family || '';
+  var stage = sel.dataset.stage || 'S1';
+  var baseRest = 60;
+  if (rpe >= 9) baseRest = 180;
+  else if (rpe >= 8) baseRest = 120;
+  else if (rpe >= 7) baseRest = 90;
+  else if (rpe >= 5) baseRest = 60;
+  else baseRest = 30;
+  var isCompound = ['push', 'pull', 'legs'].some(function(f) { return fam.toLowerCase().indexOf(f) > -1; });
+  if (isCompound) baseRest += 30;
+  if (stage === 'S3') baseRest += 15;
+  var suggestions = [
+    {label: 'Strength Focus', rest: Math.round(baseRest * 1.3), desc: 'Full recovery between sets'},
+    {label: 'Hypertrophy', rest: baseRest, desc: 'Balanced work-rest for growth'},
+    {label: 'Endurance', rest: Math.round(baseRest * 0.5), desc: 'Short rest, metabolic stress'},
+    {label: 'Circuit', rest: Math.round(baseRest * 0.3), desc: 'Minimal rest, high density'}
+  ];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Smart Rest Calculator</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">' + (sel.dataset.exercise || 'Selected') + ' (RPE ' + rpe + ', ' + (isCompound ? 'compound' : 'isolation') + ')</div>';
+  suggestions.forEach(function(s) {
+    html += '<div onclick="applyAutoRest(' + s.rest + ')" style="padding:12px;margin-bottom:8px;background:rgba(6,182,212,0.05);border-radius:8px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background=\'rgba(6,182,212,0.12)\'" onmouseout="this.style.background=\'rgba(6,182,212,0.05)\'">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+    html += '<span style="font-weight:600;font-size:14px;">' + s.label + '</span>';
+    html += '<span style="font-size:16px;font-weight:700;color:#06b6d4;">' + s.rest + 's</span></div>';
+    html += '<div style="font-size:12px;color:#94a3b8;margin-top:2px;">' + s.desc + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function applyAutoRest(rest) {
+  var sel = document.querySelector('.clip.selected');
+  if (sel) {
+    sel.dataset.rest = rest;
+    saveState();
+    updateInspector(sel);
+  }
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showToast('Rest set to ' + rest + 's');
+}
+
+// Batch 456: Quick Exercise Info
+function showExerciseInfo() {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) { showToast('Select a clip first'); return; }
+  var name = sel.dataset.exercise || '';
+  var ex = EXERCISES.find(function(e) { return e.name === name; });
+  if (!ex) { showToast('Exercise not found in database'); return; }
+  var notes = {};
+  try { notes = JSON.parse(localStorage.getItem('sms_coaching_notes') || '{}'); } catch(e) {}
+  var confidence = {};
+  try { confidence = JSON.parse(localStorage.getItem('sms_exercise_confidence') || '{}'); } catch(e) {}
+  var difficulty = {};
+  try { difficulty = JSON.parse(localStorage.getItem('sms_exercise_difficulty') || '{}'); } catch(e) {}
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">' + name + '</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var fColor = getFamilyColor(ex.family);
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">';
+  html += '<span style="font-size:12px;padding:3px 8px;background:rgba(6,182,212,0.1);color:' + fColor + ';border-radius:4px;">' + ex.family + '</span>';
+  if (ex.pattern) html += '<span style="font-size:12px;padding:3px 8px;background:rgba(167,139,250,0.1);color:#a78bfa;border-radius:4px;">' + ex.pattern + '</span>';
+  if (ex.discipline) html += '<span style="font-size:12px;padding:3px 8px;background:rgba(6,182,212,0.1);color:#22d3ee;border-radius:4px;">' + ex.discipline + '</span>';
+  html += '<span style="font-size:12px;padding:3px 8px;background:rgba(255,255,255,0.05);color:#94a3b8;border-radius:4px;">' + (ex.stage || 'S1') + '</span>';
+  html += '</div>';
+  var confVal = confidence[name] || 0;
+  var diffHistory = difficulty[name] || [];
+  var latestDiff = diffHistory.length > 0 ? diffHistory[diffHistory.length - 1].val : 0;
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">';
+  html += '<div style="padding:8px;background:rgba(6,182,212,0.05);border-radius:6px;text-align:center;">';
+  html += '<div style="font-size:14px;font-weight:600;color:' + (confVal >= 4 ? '#4ade80' : confVal >= 2 ? '#fbbf24' : '#94a3b8') + ';">' + (confVal > 0 ? confVal + '/5' : 'Unrated') + '</div>';
+  html += '<div style="font-size:10px;color:#64748b;">Confidence</div></div>';
+  html += '<div style="padding:8px;background:rgba(6,182,212,0.05);border-radius:6px;text-align:center;">';
+  html += '<div style="font-size:14px;font-weight:600;color:' + (latestDiff >= 4 ? '#f87171' : latestDiff >= 2 ? '#fbbf24' : '#94a3b8') + ';">' + (latestDiff > 0 ? latestDiff + '/5' : 'Unrated') + '</div>';
+  html += '<div style="font-size:10px;color:#64748b;">Difficulty</div></div></div>';
+  if (notes[name]) {
+    html += '<div style="margin-top:8px;padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">Coaching Notes</div>';
+    html += '<div style="font-size:13px;white-space:pre-wrap;">' + notes[name] + '</div></div>';
+  }
+  html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
 }
