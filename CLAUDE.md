@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~18,625 lines). No build step. No framework.
+Single-file HTML app (index.html, ~19,679 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-384)
+### Features (Batches 1-400)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -419,7 +419,23 @@ saturno-movement-studio/
 - **Muscle fatigue tracker** (per-muscle bars from sets x RPE pattern mapping)
 - **Exercise substitution wizard** (same-pattern/stage/family alternatives, one-click swap)
 - **Workout time estimator** (per-track breakdown with transition estimates)
-- **Command palette** (Cmd+K, 320+ commands)
+- **Workout blueprint system** (save/apply reusable slot templates)
+- **RPE auto-suggest** (position-based warmup/main/peak/cooldown ramp)
+- **Movement pattern analyzer** (present/missing patterns with one-click add)
+- **Quick-build presets panel** (Strength/Skills/Recovery/HIIT categories)
+- **Session history log** (persistent log of all sessions)
+- **PDF-ready export** (print-optimized HTML with A4 page size)
+- **Workout fingerprint** (SVG radial visualization + hex hash)
+- **Auto superset pairing** (antagonist pair detection)
+- **Volume landmarks** (MEV/MAV/MRV indicators per family)
+- **Clip color legend** (family + custom color explanation)
+- **Exercise pool manager** (enable/disable exercises globally)
+- **Session comparison timeline** (visual bar charts across sessions)
+- **Workout insights** (smart analysis: volume, balance, RPE, duplicates)
+- **Exercise favorites** (star/unstar for quick access)
+- **About modal** (app info, stats, credits)
+- **Workout DNA generator** (visual DNA strip, archetype, intensity class)
+- **Command palette** (Cmd+K, 340+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
