@@ -1878,8 +1878,31 @@ button:focus-visible, .transport-btn:focus-visible {
   font-size: 8px; color: var(--micro);
   text-transform: uppercase; letter-spacing: 0.15em;
   cursor: pointer; transition: color 0.15s;
+  user-select: none;
 }
 .summary-ex-prog:hover { color: var(--muted); }
+.summary-prog-chain {
+  display: none; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+.summary-prog-chain.open { display: block; }
+.summary-prog-stage {
+  font-size: 7px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.15em;
+  margin-bottom: 6px; margin-top: 10px;
+}
+.summary-prog-stage:first-child { margin-top: 0; }
+.summary-prog-item {
+  font-size: 11px; color: var(--muted);
+  padding: 3px 0; display: flex; align-items: center; gap: 8px;
+}
+.summary-prog-item.current {
+  color: var(--text); font-weight: 500;
+}
+.summary-prog-item .prog-disc {
+  font-size: 8px; color: var(--micro);
+  font-weight: 300;
+}
 .summary-footer {
   text-align: center; margin-top: 48px;
   font-size: 8px; color: rgba(255,255,255,0.15);
@@ -4900,7 +4923,26 @@ function showSummary() {
       html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#22c55e">' + restStr + '</span> <span class="summary-param-label">rest</span></div>';
       html += '<div class="summary-ex-param"><span class="summary-param-val" style="color:#8b5cf6">' + tempoStr + '</span> <span class="summary-param-label">tempo</span></div>';
       html += '</div>';
-      html += '<div class="summary-ex-prog">Progressions &amp; Alternatives</div>';
+      // Build progression chain for this exercise's pattern
+      var chainId = 'prog-' + trackId + '-' + i;
+      html += '<div class="summary-ex-prog" onclick="toggleProgChain(\'' + chainId + '\')">Progressions &amp; Alternatives</div>';
+      html += '<div class="summary-prog-chain" id="' + chainId + '">';
+      var siblings = EXERCISES.filter(function(e) { return e.pattern === ex.pattern; });
+      var stages = [1, 2, 3];
+      var stageLabels = {0:'Foundation', 1:'Stage 1', 2:'Stage 2', 3:'Stage 3'};
+      stages.forEach(function(s) {
+        var stageExs = siblings.filter(function(e) { return e.stage === s; });
+        if (stageExs.length === 0) return;
+        html += '<div class="summary-prog-stage">' + (stageLabels[s] || 'Stage ' + s) + '</div>';
+        stageExs.forEach(function(se) {
+          var isCurrent = se.name === ex.name;
+          html += '<div class="summary-prog-item' + (isCurrent ? ' current' : '') + '">';
+          html += (isCurrent ? '> ' : '') + se.name;
+          if (se.discipline !== 'Calisthenics') html += ' <span class="prog-disc">' + se.discipline + '</span>';
+          html += '</div>';
+        });
+      });
+      html += '</div>';
       html += '</div>';
       html += '</div>';
     });
@@ -4915,6 +4957,11 @@ function showSummary() {
 
 function closeSummary() {
   document.getElementById('summary-overlay').classList.remove('open');
+}
+
+function toggleProgChain(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
 }
 
 // ESC to close summary
