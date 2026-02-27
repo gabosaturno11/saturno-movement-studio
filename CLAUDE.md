@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~19,679 lines). No build step. No framework.
+Single-file HTML app (index.html, ~22,375 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-400)
+### Features (Batches 1-450)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -435,7 +435,54 @@ saturno-movement-studio/
 - **Exercise favorites** (star/unstar for quick access)
 - **About modal** (app info, stats, credits)
 - **Workout DNA generator** (visual DNA strip, archetype, intensity class)
-- **Command palette** (Cmd+K, 340+ commands)
+- **Workout snapshot diff** (compare current vs saved snapshots)
+- **Exercise rotation scheduler** (never-used + least-used for variety)
+- **Training load calculator** (acute:chronic workload ratio with zones)
+- **Streak challenges** (7/14/30/100 day goals with progress bars)
+- **Exercise cluster builder** (group by training goal, apply to timeline)
+- **Volume wave planner** (6-week undulating periodization table)
+- **Readiness check** (pre-workout sleep/energy/stress/soreness assessment)
+- **Exercise pairing matrix** (family compatibility grid)
+- **Intensity curve** (SVG RPE graph across timeline position)
+- **Recovery tracker** (per-muscle fatigue decay from recent sessions)
+- **Set type labels** (straight/drop/rest-pause/cluster/giant/myo on clips)
+- **Training age** (days tracked, sessions/week, level classification)
+- **Workout archetype analyzer** (Skill Master, Volume Beast, Specialist, etc.)
+- **Exercise impact scores** (muscles + compound + RPE + volume + stage)
+- **Session RPE logger** (post-workout RPE with notes, history view)
+- **Tempo map** (tempo distribution by speed category)
+- **Smart warmup V2** (family-aware warmup suggestions)
+- **Completion tracker** (check off exercises during workout)
+- **Timeline export** (formatted text to clipboard)
+- **Progression log** (track stage advances over time)
+- **Work:rest ratio** (visual breakdown with training style classification)
+- **Workout similarity finder** (cosine similarity to saved workouts)
+- **Muscle heatmap** (per-muscle load by body region)
+- **Training consistency score** (8-week bars, 30-day score, S-D grading)
+- **Cooldown planner** (family-specific stretch suggestions)
+- **Training monotony index** (variety analysis from recent sessions)
+- **Quick stats dashboard** (single-screen all key metrics)
+- **Share card** (formatted workout summary to clipboard)
+- **Session bookmarks** (annotate specific moments)
+- **Auto-deload detector** (multi-signal fatigue detection)
+- **Note templates** (preset coaching cues: form, intensity, modifications)
+- **Workout calendar view** (month-view with workout day indicators)
+- **RPE distribution** (stacked bar + legend by RPE zone)
+- **Training density score** (sets-per-minute metric)
+- **Prerequisites map** (S1->S2->S3 progression paths per pattern)
+- **Comparison export** (tabular comparison to clipboard)
+- **Mood logger** (pre/post workout mood tracking)
+- **Difficulty progression** (perceived difficulty changes over time)
+- **Smart exercise suggestions** (identify gaps and suggest exercises)
+- **Energy expenditure** (MET-based calorie estimation)
+- **Training week overview** (7-day calendar with session totals)
+- **Exercise confidence rating** (1-5 self-rating per exercise)
+- **Workout report card** (5-metric grading with GPA)
+- **Exercise note export** (all coaching notes to clipboard)
+- **Timeline replay** (fullscreen step-through exercise viewer)
+- **Frequency optimizer** (MAV-based optimal days/week)
+- **Workout genome** (GEN-hex ID, SVG barcode, archetype, intensity class)
+- **Command palette** (Cmd+K, 390+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
