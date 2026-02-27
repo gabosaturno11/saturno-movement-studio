@@ -2407,6 +2407,12 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
               <div class="timeline-empty-step"><div class="timeline-empty-step-num">2</div><div class="timeline-empty-step-text">Drag to track or double-click</div></div>
               <div class="timeline-empty-step"><div class="timeline-empty-step-num">3</div><div class="timeline-empty-step-text">Press space to play</div></div>
             </div>
+            <div style="margin-top:12px;display:flex;gap:12px;justify-content:center;opacity:0.4">
+              <span style="font-size:7px;color:var(--micro)"><kbd style="padding:1px 4px;border:1px solid var(--border);border-radius:2px;font-size:7px;color:var(--muted)">P</kbd> Presets</span>
+              <span style="font-size:7px;color:var(--micro)"><kbd style="padding:1px 4px;border:1px solid var(--border);border-radius:2px;font-size:7px;color:var(--muted)">G</kbd> Random</span>
+              <span style="font-size:7px;color:var(--micro)"><kbd style="padding:1px 4px;border:1px solid var(--border);border-radius:2px;font-size:7px;color:var(--muted)">Cmd+K</kbd> Commands</span>
+              <span style="font-size:7px;color:var(--micro)"><kbd style="padding:1px 4px;border:1px solid var(--border);border-radius:2px;font-size:7px;color:var(--muted)">?</kbd> Shortcuts</span>
+            </div>
           </div>
           <div class="snap-indicator" id="snap-indicator"></div>
         </div>
@@ -7098,11 +7104,18 @@ document.addEventListener('keydown', function(e) {
       }
     }
   }
-  // Tab to cycle through clips
+  // Tab to cycle through clips (sorted by track then left position)
   if (e.code === 'Tab' && !e.metaKey && !e.ctrlKey) {
     e.preventDefault();
+    var trackOrder = ['push','pull','core','legs','skills'];
     var allClips = Array.from(document.querySelectorAll('.clip'));
     if (allClips.length === 0) return;
+    allClips.sort(function(a, b) {
+      var aT = trackOrder.indexOf(a.parentElement.dataset.track);
+      var bT = trackOrder.indexOf(b.parentElement.dataset.track);
+      if (aT !== bT) return aT - bT;
+      return (parseInt(a.style.left) || 0) - (parseInt(b.style.left) || 0);
+    });
     var currentIdx = selectedClip ? allClips.indexOf(selectedClip) : -1;
     var nextIdx = e.shiftKey ? (currentIdx - 1 + allClips.length) % allClips.length : (currentIdx + 1) % allClips.length;
     selectClipEl(allClips[nextIdx]);
