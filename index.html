@@ -8033,6 +8033,12 @@ var CMD_ACTIONS = [
   {label:'Streak Challenges', key:'', icon:'\ud83d\udd25', action: function() { showStreakChallenges(); }},
   {label:'Exercise Clusters', key:'', icon:'\ud83e\udde9', action: function() { showClusterBuilder(); }},
   {label:'Volume Wave Planner', key:'', icon:'\ud83c\udf0a', action: function() { showVolumeWavePlanner(); }},
+  {label:'Readiness Check', key:'', icon:'\ud83d\udcca', action: function() { showReadinessCheck(); }},
+  {label:'Exercise Pairing Matrix', key:'', icon:'\ud83e\uddf1', action: function() { showPairingMatrix(); }},
+  {label:'Intensity Curve', key:'', icon:'\ud83d\udcc9', action: function() { showIntensityCurve(); }},
+  {label:'Recovery Tracker', key:'', icon:'\u2764', action: function() { showRecoveryTracker(); }},
+  {label:'Set Type Label', key:'', icon:'\ud83c\udff7', action: function() { showSetTypeLabeler(); }},
+  {label:'Training Age', key:'', icon:'\ud83c\udf93', action: function() { showTrainingAge(); }},
 ];
 
 function openCmdPalette() {
@@ -19413,6 +19419,353 @@ function showVolumeWavePlanner() {
   html += '<div style="font-weight:600;color:#e2e8f0;margin-bottom:4px;">How it works</div>';
   html += 'High weeks push +20% volume, medium stays baseline, low drops -30%, deload at -50%. This wave pattern prevents plateaus while managing fatigue.</div>';
   html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 410: Readiness Check
+function showReadinessCheck() {
+  var today = new Date().toISOString().split('T')[0];
+  var stored = {};
+  try { stored = JSON.parse(localStorage.getItem('sms_readiness') || '{}'); } catch(e) {}
+  var todayData = stored[today] || {sleep: 3, energy: 3, stress: 3, soreness: 3};
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var factors = [
+    {key: 'sleep', label: 'Sleep Quality', low: 'Poor', high: 'Great'},
+    {key: 'energy', label: 'Energy Level', low: 'Low', high: 'High'},
+    {key: 'stress', label: 'Stress Level', low: 'High Stress', high: 'Calm'},
+    {key: 'soreness', label: 'Muscle Soreness', low: 'Very Sore', high: 'Fresh'}
+  ];
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:500px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Readiness Check</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Rate your state before training (' + today + ')</div>';
+  factors.forEach(function(f) {
+    html += '<div style="margin-bottom:16px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">';
+    html += '<span style="font-weight:600;">' + f.label + '</span>';
+    html += '<span id="readiness-val-' + f.key + '" style="color:#06b6d4;">' + todayData[f.key] + '/5</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-bottom:4px;"><span>' + f.low + '</span><span>' + f.high + '</span></div>';
+    html += '<input type="range" min="1" max="5" value="' + todayData[f.key] + '" oninput="document.getElementById(\'readiness-val-' + f.key + '\').textContent=this.value+\'/5\'" data-rkey="' + f.key + '" style="width:100%;accent-color:#06b6d4;">';
+    html += '</div>';
+  });
+  var avg = Math.round((todayData.sleep + todayData.energy + todayData.stress + todayData.soreness) / 4 * 20);
+  html += '<div id="readiness-score" style="text-align:center;padding:16px;background:rgba(6,182,212,0.08);border-radius:8px;margin:16px 0;">';
+  html += '<div style="font-size:36px;font-weight:700;color:' + (avg >= 70 ? '#4ade80' : avg >= 50 ? '#fbbf24' : '#f87171') + ';">' + avg + '%</div>';
+  html += '<div style="font-size:13px;color:#94a3b8;">Readiness Score</div></div>';
+  html += '<div style="display:flex;gap:8px;justify-content:center;">';
+  html += '<button onclick="saveReadiness()" style="background:#06b6d4;color:#050711;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-weight:600;">Save</button>';
+  html += '<button onclick="showReadinessHistory()" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;">History</button></div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function saveReadiness() {
+  var today = new Date().toISOString().split('T')[0];
+  var stored = {};
+  try { stored = JSON.parse(localStorage.getItem('sms_readiness') || '{}'); } catch(e) {}
+  var data = {};
+  document.querySelectorAll('[data-rkey]').forEach(function(inp) {
+    data[inp.dataset.rkey] = parseInt(inp.value);
+  });
+  stored[today] = data;
+  var keys = Object.keys(stored).sort();
+  if (keys.length > 90) { keys.slice(0, keys.length - 90).forEach(function(k) { delete stored[k]; }); }
+  try { localStorage.setItem('sms_readiness', JSON.stringify(stored)); } catch(e) {}
+  var avg = Math.round((data.sleep + data.energy + data.stress + data.soreness) / 4 * 20);
+  showToast('Readiness saved: ' + avg + '%');
+}
+
+function showReadinessHistory() {
+  var stored = {};
+  try { stored = JSON.parse(localStorage.getItem('sms_readiness') || '{}'); } catch(e) {}
+  var keys = Object.keys(stored).sort().reverse().slice(0, 14);
+  if (keys.length === 0) { showToast('No readiness data yet'); return; }
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Readiness History</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  keys.forEach(function(k) {
+    var d = stored[k];
+    var avg = Math.round((d.sleep + d.energy + d.stress + d.soreness) / 4 * 20);
+    var color = avg >= 70 ? '#4ade80' : avg >= 50 ? '#fbbf24' : '#f87171';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;margin-bottom:4px;background:rgba(6,182,212,0.05);border-radius:6px;">';
+    html += '<span style="font-size:13px;color:#94a3b8;">' + k + '</span>';
+    html += '<div style="display:flex;gap:12px;font-size:12px;">';
+    html += '<span>Sleep ' + d.sleep + '</span><span>Energy ' + d.energy + '</span>';
+    html += '<span>Stress ' + d.stress + '</span><span>Sore ' + d.soreness + '</span>';
+    html += '</div>';
+    html += '<span style="font-weight:600;color:' + color + ';">' + avg + '%</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 411: Exercise Pairing Matrix
+function showPairingMatrix() {
+  var pairings = {
+    'Push': {good: ['Pull', 'Core'], neutral: ['Legs'], avoid: []},
+    'Pull': {good: ['Push', 'Core'], neutral: ['Legs'], avoid: []},
+    'Core': {good: ['Push', 'Pull', 'Legs', 'Skills'], neutral: [], avoid: []},
+    'Legs': {good: ['Core', 'Skills'], neutral: ['Push', 'Pull'], avoid: []},
+    'Skills': {good: ['Core', 'Legs'], neutral: ['Push', 'Pull'], avoid: []}
+  };
+  var families = ['Push', 'Pull', 'Core', 'Legs', 'Skills'];
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Exercise Pairing Matrix</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">Which families pair well in supersets</div>';
+  html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;text-align:center;">';
+  html += '<tr><th style="padding:8px;"></th>';
+  families.forEach(function(f) { html += '<th style="padding:8px;color:' + getFamilyColor(f) + ';font-size:12px;">' + f + '</th>'; });
+  html += '</tr>';
+  families.forEach(function(row) {
+    html += '<tr><td style="padding:8px;text-align:left;color:' + getFamilyColor(row) + ';font-weight:600;font-size:12px;">' + row + '</td>';
+    families.forEach(function(col) {
+      if (row === col) { html += '<td style="padding:8px;color:#64748b;">-</td>'; return; }
+      var p = pairings[row];
+      var sym = '';
+      var color = '#94a3b8';
+      if (p.good.indexOf(col) > -1) { sym = '++'; color = '#4ade80'; }
+      else if (p.neutral.indexOf(col) > -1) { sym = '+'; color = '#fbbf24'; }
+      else if (p.avoid.indexOf(col) > -1) { sym = 'X'; color = '#f87171'; }
+      else { sym = '+'; color = '#fbbf24'; }
+      html += '<td style="padding:8px;color:' + color + ';font-weight:600;">' + sym + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</table></div>';
+  html += '<div style="margin-top:12px;display:flex;gap:16px;font-size:12px;color:#94a3b8;">';
+  html += '<span><span style="color:#4ade80;">++</span> Great pair</span>';
+  html += '<span><span style="color:#fbbf24;">+</span> OK pair</span>';
+  html += '<span><span style="color:#f87171;">X</span> Avoid</span></div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 412: Workout Intensity Curve (SVG)
+function showIntensityCurve() {
+  var clips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    clips.push({pos: parseInt(c.style.left) || 0, rpe: parseFloat(c.dataset.rpe || 7), exercise: c.dataset.exercise || '', family: c.dataset.family || ''});
+  });
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  clips.sort(function(a, b) { return a.pos - b.pos; });
+  var maxPos = clips[clips.length - 1].pos || 1;
+  var w = 600, h = 250, pad = 40;
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="max-width:100%;">';
+  svg += '<rect width="' + w + '" height="' + h + '" fill="#0a0e1a" rx="8"/>';
+  svg += '<line x1="' + pad + '" y1="' + (h - pad) + '" x2="' + (w - pad) + '" y2="' + (h - pad) + '" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>';
+  svg += '<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (h - pad) + '" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>';
+  for (var rpe = 4; rpe <= 10; rpe += 2) {
+    var yy = (h - pad) - ((rpe - 3) / 7) * (h - pad * 2);
+    svg += '<text x="' + (pad - 5) + '" y="' + (yy + 4) + '" text-anchor="end" fill="#64748b" font-size="10" font-family="Sora">' + rpe + '</text>';
+    svg += '<line x1="' + pad + '" y1="' + yy + '" x2="' + (w - pad) + '" y2="' + yy + '" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>';
+  }
+  var points = [];
+  clips.forEach(function(c, i) {
+    var x = pad + (c.pos / maxPos) * (w - pad * 2);
+    var y = (h - pad) - ((c.rpe - 3) / 7) * (h - pad * 2);
+    points.push(x + ',' + y);
+    var fColor = getFamilyColor(c.family);
+    svg += '<circle cx="' + x + '" cy="' + y + '" r="4" fill="' + fColor + '"/>';
+    if (clips.length <= 15) {
+      svg += '<text x="' + x + '" y="' + (y - 8) + '" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Sora">' + c.exercise.substring(0, 10) + '</text>';
+    }
+  });
+  if (points.length > 1) svg += '<polyline points="' + points.join(' ') + '" fill="none" stroke="#06b6d4" stroke-width="1.5" opacity="0.6"/>';
+  svg += '<text x="' + (w / 2) + '" y="' + (h - 5) + '" text-anchor="middle" fill="#64748b" font-size="10" font-family="Sora">Timeline Position</text>';
+  svg += '<text x="12" y="' + (h / 2) + '" text-anchor="middle" fill="#64748b" font-size="10" font-family="Sora" transform="rotate(-90,12,' + (h / 2) + ')">RPE</text>';
+  svg += '</svg>';
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;max-width:700px;width:90%;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Intensity Curve</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += svg;
+  var avgRPE = clips.reduce(function(s, c) { return s + c.rpe; }, 0) / clips.length;
+  html += '<div style="margin-top:12px;display:flex;gap:16px;font-size:12px;color:#94a3b8;">';
+  html += '<span>Avg RPE: <span style="color:#06b6d4;font-weight:600;">' + avgRPE.toFixed(1) + '</span></span>';
+  html += '<span>Peak: <span style="color:#f87171;font-weight:600;">' + Math.max.apply(null, clips.map(function(c) { return c.rpe; })).toFixed(1) + '</span></span>';
+  html += '<span>Low: <span style="color:#4ade80;font-weight:600;">' + Math.min.apply(null, clips.map(function(c) { return c.rpe; })).toFixed(1) + '</span></span>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 413: Recovery Tracker
+function showRecoveryTracker() {
+  var muscleMap = {
+    'Push': {primary: ['Chest', 'Triceps', 'Front Deltoid'], recovery: 48},
+    'Pull': {primary: ['Back', 'Biceps', 'Rear Deltoid'], recovery: 48},
+    'Core': {primary: ['Abs', 'Obliques'], recovery: 24},
+    'Legs': {primary: ['Quads', 'Hamstrings', 'Glutes', 'Calves'], recovery: 72},
+    'Skills': {primary: ['Shoulders', 'Wrists', 'Core'], recovery: 48}
+  };
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var muscleStress = {};
+  Object.keys(muscleMap).forEach(function(fam) {
+    muscleMap[fam].primary.forEach(function(m) { muscleStress[m] = {stress: 0, lastWorked: null, recoveryHrs: muscleMap[fam].recovery}; });
+  });
+  var now = Date.now();
+  saved.forEach(function(s) {
+    var dt = new Date(s.date || s.timestamp || now).getTime();
+    var hoursAgo = (now - dt) / 3600000;
+    if (hoursAgo > 168) return;
+    (s.clips || []).forEach(function(c) {
+      var fam = c.family || (c.dataset && c.dataset.family) || '';
+      var sets = parseInt(c.sets || c.dataset && c.dataset.sets || 3);
+      Object.keys(muscleMap).forEach(function(key) {
+        if (fam.toLowerCase().indexOf(key.toLowerCase()) > -1) {
+          muscleMap[key].primary.forEach(function(m) {
+            var decay = Math.max(0, 1 - (hoursAgo / muscleMap[key].recovery));
+            muscleStress[m].stress += sets * decay;
+            if (!muscleStress[m].lastWorked || dt > muscleStress[m].lastWorked) muscleStress[m].lastWorked = dt;
+          });
+        }
+      });
+    });
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Recovery Tracker</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Estimated muscle recovery based on recent training</div>';
+  var muscles = Object.keys(muscleStress).sort(function(a, b) { return muscleStress[b].stress - muscleStress[a].stress; });
+  var maxStress = Math.max.apply(null, muscles.map(function(m) { return muscleStress[m].stress; })) || 1;
+  muscles.forEach(function(m) {
+    var data = muscleStress[m];
+    var pct = Math.round((data.stress / maxStress) * 100);
+    var color = pct > 70 ? '#f87171' : pct > 40 ? '#fbbf24' : '#4ade80';
+    var status = pct > 70 ? 'Fatigued' : pct > 40 ? 'Moderate' : 'Recovered';
+    var ago = data.lastWorked ? Math.round((now - data.lastWorked) / 3600000) + 'h ago' : 'Never';
+    html += '<div style="margin-bottom:8px;">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;">';
+    html += '<span>' + m + '</span>';
+    html += '<span style="color:' + color + ';font-size:12px;">' + status + ' (' + ago + ')</span></div>';
+    html += '<div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 414: Set Type Labels
+function showSetTypeLabeler() {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) { showToast('Select a clip first'); return; }
+  var types = [
+    {key: 'straight', label: 'Straight Sets', desc: 'Standard sets with consistent load', color: '#06b6d4'},
+    {key: 'drop', label: 'Drop Set', desc: 'Reduce load each set, no rest', color: '#f87171'},
+    {key: 'rest-pause', label: 'Rest-Pause', desc: 'Brief 10-15s rests within a set', color: '#fbbf24'},
+    {key: 'cluster', label: 'Cluster Set', desc: 'Intra-set rest periods of 15-30s', color: '#a78bfa'},
+    {key: 'giant', label: 'Giant Set', desc: '4+ exercises back to back', color: '#f472b6'},
+    {key: 'myo', label: 'Myo Reps', desc: 'Activation set + mini sets to failure', color: '#34d399'}
+  ];
+  var current = sel.dataset.setType || 'straight';
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Set Type</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:12px;color:#94a3b8;font-size:13px;">' + (sel.dataset.exercise || 'Selected clip') + '</div>';
+  types.forEach(function(t) {
+    var active = current === t.key;
+    html += '<div onclick="applySetType(\'' + t.key + '\',\'' + t.label + '\',\'' + t.color + '\')" style="padding:12px;margin-bottom:8px;background:' + (active ? 'rgba(6,182,212,0.15)' : 'rgba(6,182,212,0.05)') + ';border:1px solid ' + (active ? t.color : 'transparent') + ';border-radius:8px;cursor:pointer;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+    html += '<span style="font-weight:600;font-size:14px;color:' + t.color + ';">' + t.label + '</span>';
+    if (active) html += '<span style="font-size:11px;color:#4ade80;">Active</span>';
+    html += '</div>';
+    html += '<div style="font-size:12px;color:#94a3b8;margin-top:4px;">' + t.desc + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function applySetType(key, label, color) {
+  var sel = document.querySelector('.clip.selected');
+  if (!sel) return;
+  sel.dataset.setType = key;
+  var badge = sel.querySelector('.set-type-badge');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.className = 'set-type-badge';
+    badge.style.cssText = 'position:absolute;top:2px;right:2px;font-size:8px;padding:1px 4px;border-radius:3px;pointer-events:none;';
+    sel.appendChild(badge);
+  }
+  badge.textContent = key === 'straight' ? '' : key.toUpperCase();
+  badge.style.background = key === 'straight' ? 'transparent' : color;
+  badge.style.color = '#050711';
+  if (key === 'straight') badge.remove();
+  saveState();
+  document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
+  showToast('Set type: ' + label);
+}
+
+// Batch 415: Training Age Calculator
+function showTrainingAge() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var allDates = [];
+  saved.forEach(function(s) { if (s.date || s.timestamp) allDates.push(new Date(s.date || s.timestamp)); });
+  ratings.forEach(function(r) { if (r.date || r.timestamp) allDates.push(new Date(r.date || r.timestamp)); });
+  allDates.sort(function(a, b) { return a - b; });
+  var uniqueDays = {};
+  allDates.forEach(function(d) { uniqueDays[d.toISOString().split('T')[0]] = true; });
+  var totalDays = Object.keys(uniqueDays).length;
+  var firstDate = allDates.length > 0 ? allDates[0] : null;
+  var spanDays = firstDate ? Math.floor((Date.now() - firstDate.getTime()) / 86400000) : 0;
+  var spanWeeks = Math.floor(spanDays / 7);
+  var frequency = spanDays > 0 ? (totalDays / (spanDays / 7)).toFixed(1) : 0;
+  var level = 'Beginner';
+  var levelColor = '#94a3b8';
+  if (totalDays >= 200) { level = 'Advanced'; levelColor = '#a78bfa'; }
+  else if (totalDays >= 100) { level = 'Intermediate'; levelColor = '#06b6d4'; }
+  else if (totalDays >= 30) { level = 'Novice'; levelColor = '#4ade80'; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Training Age</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:20px 0;">';
+  html += '<div style="font-size:48px;font-weight:700;color:' + levelColor + ';">' + totalDays + '</div>';
+  html += '<div style="font-size:14px;color:#94a3b8;">Training Days Logged</div>';
+  html += '<div style="font-size:16px;font-weight:600;color:' + levelColor + ';margin-top:8px;">' + level + '</div></div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#06b6d4;">' + spanWeeks + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Weeks Tracked</div></div>';
+  html += '<div style="text-align:center;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+  html += '<div style="font-size:20px;font-weight:600;color:#22d3ee;">' + frequency + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Sessions/Week</div></div>';
+  html += '</div>';
+  if (firstDate) {
+    html += '<div style="text-align:center;font-size:12px;color:#64748b;margin-top:8px;">First session: ' + firstDate.toLocaleDateString() + '</div>';
+  }
+  html += '<div style="margin-top:16px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;font-size:12px;color:#94a3b8;">';
+  html += '<div style="font-weight:600;color:#e2e8f0;margin-bottom:4px;">Training Levels</div>';
+  html += '<div style="margin-bottom:2px;"><span style="color:#94a3b8;">0-29 days</span> Beginner</div>';
+  html += '<div style="margin-bottom:2px;"><span style="color:#4ade80;">30-99 days</span> Novice</div>';
+  html += '<div style="margin-bottom:2px;"><span style="color:#06b6d4;">100-199 days</span> Intermediate</div>';
+  html += '<div><span style="color:#a78bfa;">200+ days</span> Advanced</div>';
+  html += '</div></div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
 }
