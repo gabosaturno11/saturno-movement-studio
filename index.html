@@ -4404,6 +4404,7 @@ function updateStats() {
   updateSummary();
   updateMinimap();
   updateEmptyState();
+  if (typeof updateTrackVolumeBars === 'function') updateTrackVolumeBars();
 }
 
 /* ===== MINI-MAP ===== */
@@ -7421,6 +7422,10 @@ var CMD_ACTIONS = [
   {label:'Workout Diff vs Saved', key:'', icon:'\u2260', action: function() { workoutDiff(); }},
   {label:'Generate Warmup', key:'', icon:'\u2600', action: function() { generateWarmup(); }},
   {label:'Generate Cooldown', key:'', icon:'\u2744', action: function() { generateCooldown(); }},
+  {label:'Split Clip in 2', key:'', icon:'\u2702', action: function() { splitClipEqual(2); }},
+  {label:'Split Clip in 3', key:'', icon:'\u2702', action: function() { splitClipEqual(3); }},
+  {label:'Split Clip in 4', key:'', icon:'\u2702', action: function() { splitClipEqual(4); }},
+  {label:'Start Workout Timer', key:'', icon:'\u23F1', action: function() { startWorkoutTimer(); }},
 ];
 
 function openCmdPalette() {
@@ -9353,6 +9358,189 @@ function generateCooldown() {
   toast(cooldownCount + ' cooldown stretches added after workout');
 }
 
+/* ===== BATCH 259: SPLIT CLIP INTO N EQUAL PARTS ===== */
+function splitClipEqual(n) {
+  if (!selectedClip) { toast('Select a clip'); return; }
+  if (selectedClip.classList.contains('clip-locked')) { toast('Clip is locked'); return; }
+  if (n < 2 || n > 8) { toast('Split into 2-8 parts'); return; }
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  pushUndo();
+  var origLeft = parseInt(selectedClip.style.left);
+  var origWidth = parseInt(selectedClip.style.width);
+  var partWidth = Math.floor(origWidth / n);
+  if (partWidth < 10) { toast('Clip too small to split ' + n + ' ways'); return; }
+  var track = selectedClip.parentElement;
+  var origSets = Math.max(1, Math.floor((parseInt(selectedClip.dataset.sets) || 3) / n));
+  var props = {
+    sets: String(origSets), reps: selectedClip.dataset.reps,
+    tempo: selectedClip.dataset.tempo, rest: selectedClip.dataset.rest,
+    rpe: selectedClip.dataset.rpe,
+    fadeIn: '0', fadeOut: '0'
+  };
+  if (selectedClip.dataset.notes) props.notes = selectedClip.dataset.notes;
+  selectedClip.remove();
+  selectedClip = null;
+  for (var i = 0; i < n; i++) {
+    var clip = createClipElement(ex, origLeft + i * partWidth, partWidth, props);
+    if (props.notes) clip.dataset.notes = props.notes;
+    track.appendChild(clip);
+  }
+  document.getElementById('inspector').style.display = 'none';
+  updateStats(); saveSession(); sfx('click');
+  toast('Clip split into ' + n + ' equal parts');
+}
+
+/* ===== BATCH 260: WORKOUT TIMER COUNTDOWN ===== */
+var _timerInterval = null;
+var _timerOverlay = null;
+function startWorkoutTimer() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('No clips for timer'); return; }
+  var trackOrder = ['push', 'pull', 'core', 'legs', 'skills'];
+  var exercises = [];
+  trackOrder.forEach(function(tid) {
+    var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+    if (!tc) return;
+    var tClips = Array.from(tc.querySelectorAll('.clip'));
+    tClips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+    tClips.forEach(function(c) {
+      var ex = getExercise(c.dataset.exerciseId);
+      if (!ex) return;
+      exercises.push({
+        name: ex.name, sets: parseInt(c.dataset.sets) || 3,
+        reps: parseInt(c.dataset.reps) || 8, tempo: parseFloat(c.dataset.tempo) || 3,
+        rest: parseInt(c.dataset.rest) || 60
+      });
+    });
+  });
+  if (exercises.length === 0) { toast('No exercises found'); return; }
+  var ov = document.createElement('div');
+  ov.id = 'timer-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(5,7,17,0.97);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Sora,system-ui,sans-serif;color:#e2e8f0';
+  var html = '<div style="text-align:center;max-width:500px;padding:20px">';
+  html += '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px">Workout Timer</div>';
+  html += '<div id="timer-exercise" style="font-size:28px;font-weight:700;margin-bottom:4px">Ready</div>';
+  html += '<div id="timer-detail" style="font-size:13px;color:#94a3b8;margin-bottom:24px"></div>';
+  html += '<div id="timer-countdown" style="font-size:72px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent-cyan,#22d3ee);margin-bottom:24px">0</div>';
+  html += '<div id="timer-progress" style="font-size:11px;color:#64748b;margin-bottom:32px"></div>';
+  html += '<button id="timer-close" style="padding:8px 24px;background:transparent;border:1px solid #334155;color:#94a3b8;border-radius:4px;cursor:pointer;font-family:Sora,system-ui,sans-serif;font-size:11px">ESC to close</button>';
+  html += '</div>';
+  ov.innerHTML = html;
+  document.body.appendChild(ov);
+  _timerOverlay = ov;
+  ov.querySelector('#timer-close').addEventListener('click', stopWorkoutTimer);
+  var exIdx = 0; var setIdx = 0; var phase = 'work'; var countdown = 0;
+  function showState() {
+    var exerciseEl = ov.querySelector('#timer-exercise');
+    var detailEl = ov.querySelector('#timer-detail');
+    var countEl = ov.querySelector('#timer-countdown');
+    var progEl = ov.querySelector('#timer-progress');
+    if (exIdx >= exercises.length) {
+      exerciseEl.textContent = 'Workout Complete!';
+      detailEl.textContent = '';
+      countEl.textContent = '';
+      countEl.style.color = '#22c55e';
+      progEl.textContent = exercises.length + '/' + exercises.length + ' exercises done';
+      clearInterval(_timerInterval); _timerInterval = null;
+      return;
+    }
+    var cur = exercises[exIdx];
+    exerciseEl.textContent = cur.name;
+    if (phase === 'work') {
+      detailEl.textContent = 'Set ' + (setIdx + 1) + '/' + cur.sets + ' | ' + cur.reps + ' reps @ ' + cur.tempo + 's';
+      countEl.textContent = countdown;
+      countEl.style.color = '#22d3ee';
+    } else {
+      detailEl.textContent = 'Rest';
+      countEl.textContent = countdown;
+      countEl.style.color = '#eab308';
+    }
+    progEl.textContent = (exIdx + 1) + '/' + exercises.length + ' exercises';
+  }
+  function nextPhase() {
+    var cur = exercises[exIdx];
+    if (phase === 'work') {
+      countdown = Math.round(cur.reps * cur.tempo);
+      phase = 'work';
+      showState();
+      _timerInterval = setInterval(function() {
+        countdown--;
+        showState();
+        if (countdown <= 0) {
+          clearInterval(_timerInterval);
+          setIdx++;
+          if (setIdx >= cur.sets) {
+            exIdx++; setIdx = 0;
+            if (exIdx >= exercises.length) { showState(); return; }
+            phase = 'rest'; countdown = exercises[exIdx - 1].rest;
+          } else {
+            phase = 'rest'; countdown = cur.rest;
+          }
+          nextPhase();
+        }
+      }, 1000);
+    } else {
+      showState();
+      _timerInterval = setInterval(function() {
+        countdown--;
+        showState();
+        if (countdown <= 0) {
+          clearInterval(_timerInterval);
+          phase = 'work';
+          nextPhase();
+        }
+      }, 1000);
+    }
+  }
+  phase = 'work';
+  countdown = Math.round(exercises[0].reps * exercises[0].tempo);
+  nextPhase();
+}
+function stopWorkoutTimer() {
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+  if (_timerOverlay) { _timerOverlay.remove(); _timerOverlay = null; }
+}
+
+/* ===== BATCH 261: TRACK VOLUME BARS ===== */
+function updateTrackVolumeBars() {
+  var trackOrder = ['push', 'pull', 'core', 'legs', 'skills'];
+  var maxSets = 0;
+  var trackSets = {};
+  trackOrder.forEach(function(tid) {
+    var total = 0;
+    var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+    if (tc) {
+      tc.querySelectorAll('.clip').forEach(function(c) {
+        total += parseInt(c.dataset.sets) || 3;
+      });
+    }
+    trackSets[tid] = total;
+    if (total > maxSets) maxSets = total;
+  });
+  trackOrder.forEach(function(tid) {
+    var bar = document.getElementById('track-vol-' + tid);
+    if (!bar) {
+      var header = document.querySelector('.track[data-track="' + tid + '"] .track-header');
+      if (!header) return;
+      bar = document.createElement('div');
+      bar.id = 'track-vol-' + tid;
+      bar.style.cssText = 'position:absolute;bottom:2px;left:4px;right:4px;height:2px;border-radius:1px;background:rgba(255,255,255,0.05);overflow:hidden';
+      var fill = document.createElement('div');
+      fill.className = 'track-vol-fill';
+      fill.style.cssText = 'height:100%;border-radius:1px;transition:width 0.3s';
+      bar.appendChild(fill);
+      header.style.position = 'relative';
+      header.appendChild(bar);
+    }
+    var fill = bar.querySelector('.track-vol-fill');
+    var pct = maxSets > 0 ? (trackSets[tid] / maxSets) * 100 : 0;
+    var familyColors = {push:'#ef4444', pull:'#3b82f6', core:'#eab308', legs:'#22c55e', skills:'#a855f7'};
+    fill.style.width = pct + '%';
+    fill.style.background = familyColors[tid] || '#06b6d4';
+  });
+}
+
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
   var count = 0;
@@ -9490,6 +9678,7 @@ document.addEventListener('keydown', function(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
   if (e.code === 'Escape') {
+    if (_timerOverlay) { stopWorkoutTimer(); return; }
     var sum = document.getElementById('summary-overlay');
     if (sum.classList.contains('open')) { closeSummary(); return; }
     var so = document.getElementById('shortcuts-overlay');
