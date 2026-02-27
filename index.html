@@ -7873,6 +7873,13 @@ var CMD_ACTIONS = [
   {label:'Rest Timer 90s', key:'', icon:'\u23F1', action: function() { startRestTimer(90); }},
   {label:'Rest Timer 120s', key:'', icon:'\u23F1', action: function() { startRestTimer(120); }},
   {label:'Stop Rest Timer', key:'', icon:'\u2716', action: function() { stopRestTimer(); }},
+  {label:'Coaching Notes (Selected Exercise)', key:'', icon:'\u270E', action: function() { var c=document.querySelector('.clip.selected'); if(c) showCoachingNotes(c.getAttribute('data-exercise')); else toast('Select a clip first'); }},
+  {label:'Set Reference URL (Selected Exercise)', key:'', icon:'\u2197', action: function() { var c=document.querySelector('.clip.selected'); if(c) setExerciseRef(c.getAttribute('data-exercise')); else toast('Select a clip first'); }},
+  {label:'Open Reference URL (Selected Exercise)', key:'', icon:'\u2197', action: function() { var c=document.querySelector('.clip.selected'); if(c) openExerciseRef(c.getAttribute('data-exercise')); else toast('Select a clip first'); }},
+  {label:'Theme: Dim', key:'', icon:'\u263E', action: function() { setDarkModeIntensity('dim'); }},
+  {label:'Theme: Standard', key:'', icon:'\u2600', action: function() { setDarkModeIntensity('standard'); }},
+  {label:'Theme: High Contrast', key:'', icon:'\u2B50', action: function() { setDarkModeIntensity('high'); }},
+  {label:'Cycle Theme Intensity', key:'', icon:'\u2B50', action: function() { cycleDarkMode(); }},
 ];
 
 function openCmdPalette() {
@@ -12797,6 +12804,204 @@ function stopRestTimer() {
     _restTimerWidget = null;
   }
 }
+
+/* ===== BATCH 310: PER-EXERCISE COACHING NOTES ===== */
+var _exerciseCoachingNotes = {};
+
+function loadCoachingNotes() {
+  try { _exerciseCoachingNotes = JSON.parse(localStorage.getItem('sms_coaching_notes') || '{}'); } catch(e) { _exerciseCoachingNotes = {}; }
+}
+
+function saveCoachingNotes() {
+  try { localStorage.setItem('sms_coaching_notes', JSON.stringify(_exerciseCoachingNotes)); } catch(e) {}
+}
+
+function showCoachingNotes(exerciseName) {
+  if (!exerciseName) { toast('Select a clip first'); return; }
+  loadCoachingNotes();
+  var currentNote = _exerciseCoachingNotes[exerciseName] || '';
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:350;background:rgba(3,5,9,0.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)';
+  overlay.onclick = function(e) { if (e.target === overlay) { save(); overlay.remove(); } };
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(10,14,26,0.98);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px;max-width:440px;width:92%;box-shadow:0 25px 80px rgba(0,0,0,0.6)';
+
+  card.innerHTML = '<div style="margin-bottom:12px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.15em;color:var(--accent-cyan);margin-bottom:4px">Coaching Notes</div><div style="font-size:14px;font-weight:600;color:#fff">' + exerciseName + '</div></div>';
+
+  var textarea = document.createElement('textarea');
+  textarea.value = currentNote;
+  textarea.placeholder = 'Add coaching cues, form tips, progressions, regressions...';
+  textarea.style.cssText = 'width:100%;min-height:150px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;color:var(--text);font-size:12px;font-family:Sora,sans-serif;resize:vertical;outline:none;line-height:1.6';
+  textarea.onfocus = function() { textarea.style.borderColor = 'rgba(6,182,212,0.3)'; };
+  textarea.onblur = function() { textarea.style.borderColor = 'rgba(255,255,255,0.06)'; };
+  card.appendChild(textarea);
+
+  var actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:12px';
+  actions.innerHTML = '<button onclick="this.closest(\'div[style*=fixed]\').querySelector(\'textarea\').value=\'\'" style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--error);background:none;border:1px solid rgba(239,68,68,0.2);border-radius:4px;padding:6px 12px;cursor:pointer;font-family:Sora,sans-serif">Clear</button>';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.style.cssText = 'font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent-cyan);background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:4px;padding:6px 16px;cursor:pointer;font-family:Sora,sans-serif';
+  saveBtn.onclick = function() { save(); overlay.remove(); };
+  actions.appendChild(saveBtn);
+  card.appendChild(actions);
+
+  function save() {
+    var val = textarea.value.trim();
+    if (val) {
+      _exerciseCoachingNotes[exerciseName] = val;
+    } else {
+      delete _exerciseCoachingNotes[exerciseName];
+    }
+    saveCoachingNotes();
+    toast(val ? 'Notes saved for ' + exerciseName : 'Notes cleared');
+  }
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  textarea.focus();
+}
+
+/* Show coaching notes indicator on clips that have notes */
+function updateCoachingNoteIndicators() {
+  loadCoachingNotes();
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var name = c.getAttribute('data-exercise');
+    var existing = c.querySelector('.coaching-note-dot');
+    if (_exerciseCoachingNotes[name]) {
+      if (!existing) {
+        var dot = document.createElement('div');
+        dot.className = 'coaching-note-dot';
+        dot.style.cssText = 'position:absolute;top:2px;left:4px;width:4px;height:4px;border-radius:50%;background:var(--accent-cyan);z-index:3;opacity:0.6';
+        dot.title = 'Has coaching notes';
+        c.appendChild(dot);
+      }
+    } else if (existing) {
+      existing.remove();
+    }
+  });
+}
+
+/* Load on init */
+(function() {
+  loadCoachingNotes();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(updateCoachingNoteIndicators, 1000); });
+  } else {
+    setTimeout(updateCoachingNoteIndicators, 1000);
+  }
+})();
+
+/* ===== BATCH 311: EXERCISE REFERENCE URLS ===== */
+var _exerciseRefs = {};
+
+function loadExerciseRefs() {
+  try { _exerciseRefs = JSON.parse(localStorage.getItem('sms_exercise_refs') || '{}'); } catch(e) { _exerciseRefs = {}; }
+}
+
+function saveExerciseRefs() {
+  try { localStorage.setItem('sms_exercise_refs', JSON.stringify(_exerciseRefs)); } catch(e) {}
+}
+
+function setExerciseRef(exerciseName) {
+  if (!exerciseName) { toast('Select a clip first'); return; }
+  loadExerciseRefs();
+  var current = _exerciseRefs[exerciseName] || '';
+  var url = prompt('Video/photo reference URL for ' + exerciseName + ':', current);
+  if (url === null) return;
+  url = url.trim();
+  if (url) {
+    _exerciseRefs[exerciseName] = url;
+    toast('Reference saved');
+  } else {
+    delete _exerciseRefs[exerciseName];
+    toast('Reference cleared');
+  }
+  saveExerciseRefs();
+}
+
+function openExerciseRef(exerciseName) {
+  loadExerciseRefs();
+  var url = _exerciseRefs[exerciseName];
+  if (!url) { toast('No reference URL set. Use "Set Reference URL" command.'); return; }
+  window.open(url, '_blank');
+  toast('Opening reference');
+}
+
+/* Load on init */
+(function() { loadExerciseRefs(); })();
+
+/* ===== BATCH 312: DARK MODE INTENSITY ===== */
+var _darkModeLevel = 'standard'; /* dim, standard, high */
+
+function loadDarkModeLevel() {
+  try { _darkModeLevel = localStorage.getItem('sms_dark_mode') || 'standard'; } catch(e) {}
+}
+
+function saveDarkModeLevel() {
+  try { localStorage.setItem('sms_dark_mode', _darkModeLevel); } catch(e) {}
+}
+
+function setDarkModeIntensity(level) {
+  _darkModeLevel = level;
+  saveDarkModeLevel();
+  applyDarkMode();
+  toast('Theme: ' + level);
+}
+
+function cycleDarkMode() {
+  var levels = ['dim', 'standard', 'high'];
+  var idx = levels.indexOf(_darkModeLevel);
+  idx = (idx + 1) % levels.length;
+  setDarkModeIntensity(levels[idx]);
+}
+
+function applyDarkMode() {
+  var root = document.documentElement;
+  if (_darkModeLevel === 'dim') {
+    root.style.setProperty('--bg', '#020408');
+    root.style.setProperty('--bg-deep', '#010204');
+    root.style.setProperty('--surface', '#060a12');
+    root.style.setProperty('--surface2', '#080c14');
+    root.style.setProperty('--text', '#b0b8c8');
+    root.style.setProperty('--text-bright', '#d0d8e8');
+    root.style.setProperty('--text-secondary', '#6b7585');
+  } else if (_darkModeLevel === 'high') {
+    root.style.setProperty('--bg', '#080c18');
+    root.style.setProperty('--bg-deep', '#050911');
+    root.style.setProperty('--surface', '#0e1424');
+    root.style.setProperty('--surface2', '#121a2c');
+    root.style.setProperty('--text', '#f0f4fa');
+    root.style.setProperty('--text-bright', '#ffffff');
+    root.style.setProperty('--text-secondary', '#a0aab8');
+    root.style.setProperty('--border', 'rgba(255,255,255,0.1)');
+  } else {
+    /* Standard — reset to defaults */
+    root.style.setProperty('--bg', '#050711');
+    root.style.setProperty('--bg-deep', '#030509');
+    root.style.setProperty('--surface', '#0a0e1a');
+    root.style.setProperty('--surface2', '#0d1117');
+    root.style.setProperty('--text', '#e2e8f0');
+    root.style.setProperty('--text-bright', '#ffffff');
+    root.style.setProperty('--text-secondary', '#8b94a5');
+    root.style.setProperty('--border', 'rgba(255,255,255,0.06)');
+  }
+}
+
+/* Apply on load */
+(function() {
+  loadDarkModeLevel();
+  if (_darkModeLevel !== 'standard') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyDarkMode);
+    } else {
+      applyDarkMode();
+    }
+  }
+})();
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
