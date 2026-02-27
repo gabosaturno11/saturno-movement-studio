@@ -2660,6 +2660,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span id="footer-difficulty" data-tip="Avg exercise difficulty" style="font-size:7px;font-weight:600;letter-spacing:0.04em"></span>
       <span id="footer-selection" data-tip="Selected clips" style="color:var(--accent-cyan);font-size:8px;font-weight:500"></span>
       <span id="footer-locked" data-tip="Locked clips" style="color:rgba(239,68,68,0.7);font-size:7px;font-weight:500"></span>
+      <span id="footer-clipboard" data-tip="Clipboard contents" style="color:rgba(234,179,8,0.7);font-size:7px;font-weight:500"></span>
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums" onclick="toggleFooterMode()" data-tip="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
@@ -2819,6 +2820,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
 <div class="cmd-palette" id="cmd-palette">
   <div class="cmd-palette-box">
     <input type="text" class="cmd-palette-input" id="cmd-input" placeholder="Type a command..." oninput="filterCommands()">
+    <div id="cmd-count" style="font-size:7px;color:var(--micro);padding:2px 16px 4px;letter-spacing:0.06em"></div>
     <div class="cmd-palette-results" id="cmd-results"></div>
   </div>
 </div>
@@ -7217,6 +7219,12 @@ var CMD_ACTIONS = [
   {label:'Select Core Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Core'); }},
   {label:'Select Legs Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Legs'); }},
   {label:'Select Skills Clips', key:'', icon:'\u25C9', action: function() { selectClipsByFamily('Skills'); }},
+  {label:'Set BPM 60', key:'', icon:'\u266A', action: function() { bpm=60; document.getElementById('bpm-input').value=60; updateBPM(); toast('BPM: 60'); }},
+  {label:'Set BPM 80', key:'', icon:'\u266A', action: function() { bpm=80; document.getElementById('bpm-input').value=80; updateBPM(); toast('BPM: 80'); }},
+  {label:'Set BPM 100', key:'', icon:'\u266A', action: function() { bpm=100; document.getElementById('bpm-input').value=100; updateBPM(); toast('BPM: 100'); }},
+  {label:'Set BPM 120', key:'', icon:'\u266A', action: function() { bpm=120; document.getElementById('bpm-input').value=120; updateBPM(); toast('BPM: 120'); }},
+  {label:'Set BPM 140', key:'', icon:'\u266A', action: function() { bpm=140; document.getElementById('bpm-input').value=140; updateBPM(); toast('BPM: 140'); }},
+  {label:'Set BPM 160', key:'', icon:'\u266A', action: function() { bpm=160; document.getElementById('bpm-input').value=160; updateBPM(); toast('BPM: 160'); }},
 ];
 
 function openCmdPalette() {
@@ -7249,6 +7257,8 @@ function renderCommands(q) {
     if (a.key) html += '<span class="cmd-result-key">' + a.key + '</span>';
     html += '</div>';
   });
+  var countEl = document.getElementById('cmd-count');
+  if (countEl) countEl.textContent = filtered.length + ' / ' + CMD_ACTIONS.length + ' commands';
   results.innerHTML = html || '<div style="padding:12px 16px;font-size:10px;color:var(--micro)">No commands found</div>';
   // Click handlers
   results.querySelectorAll('.cmd-result').forEach(function(el) {
@@ -7619,6 +7629,12 @@ function quantizeClips() {
 /* ===== CLIPBOARD — Copy/Paste Clips ===== */
 var clipboardData = [];
 
+function updateClipboardIndicator() {
+  var el = document.getElementById('footer-clipboard');
+  if (!el) return;
+  el.textContent = clipboardData.length > 0 ? 'CLIP: ' + clipboardData.length : '';
+}
+
 function copyClips() {
   var selected = document.querySelectorAll('.clip.selected');
   if (selected.length === 0) { toast('No clips selected'); return; }
@@ -7641,6 +7657,7 @@ function copyClips() {
     });
   });
   sfx('click');
+  updateClipboardIndicator();
   toast(clipboardData.length + ' clip' + (clipboardData.length > 1 ? 's' : '') + ' copied');
 }
 
