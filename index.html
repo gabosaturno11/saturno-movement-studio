@@ -7443,6 +7443,10 @@ var CMD_ACTIONS = [
   {label:'Muscle Group Coverage', key:'', icon:'\u2694', action: function() { showMuscleGroupCoverage(); }},
   {label:'Workout Calendar', key:'', icon:'\u2610', action: function() { showWorkoutCalendar(); }},
   {label:'Add Crossfades', key:'', icon:'\u223C', action: function() { addCrossfadeBetweenClips(); }},
+  {label:'Intensity Zones', key:'', icon:'\u2601', action: function() { showIntensityZones(); }},
+  {label:'Swap Push <-> Pull', key:'', icon:'\u21C4', action: function() { swapTracks('push', 'pull'); }},
+  {label:'Swap Core <-> Legs', key:'', icon:'\u21C4', action: function() { swapTracks('core', 'legs'); }},
+  {label:'Export Timeline Image', key:'', icon:'\u2B1A', action: function() { exportTimelineImage(); }},
 ];
 
 function openCmdPalette() {
@@ -10052,6 +10056,120 @@ function addCrossfadeBetweenClips() {
   }
   updateStats(); saveSession(); sfx('click');
   toast(count + ' crossfade' + (count !== 1 ? 's' : '') + ' applied');
+}
+
+/* ===== BATCH 277: INTENSITY ZONES ===== */
+function showIntensityZones() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('No clips'); return; }
+  var zones = {
+    'Recovery (RPE 1-3)': {count: 0, sets: 0, color: '#22c55e'},
+    'Moderate (RPE 4-6)': {count: 0, sets: 0, color: '#eab308'},
+    'Hard (RPE 7-8)': {count: 0, sets: 0, color: '#f97316'},
+    'Max Effort (RPE 9-10)': {count: 0, sets: 0, color: '#ef4444'}
+  };
+  clips.forEach(function(c) {
+    var rpe = parseInt(c.dataset.rpe) || 7;
+    var sets = parseInt(c.dataset.sets) || 3;
+    if (rpe <= 3) { zones['Recovery (RPE 1-3)'].count++; zones['Recovery (RPE 1-3)'].sets += sets; }
+    else if (rpe <= 6) { zones['Moderate (RPE 4-6)'].count++; zones['Moderate (RPE 4-6)'].sets += sets; }
+    else if (rpe <= 8) { zones['Hard (RPE 7-8)'].count++; zones['Hard (RPE 7-8)'].sets += sets; }
+    else { zones['Max Effort (RPE 9-10)'].count++; zones['Max Effort (RPE 9-10)'].sets += sets; }
+  });
+  var msg = 'Intensity Zones\n\n';
+  Object.keys(zones).forEach(function(z) {
+    var pct = Math.round((zones[z].count / clips.length) * 100);
+    msg += z + ': ' + zones[z].count + ' clips (' + pct + '%), ' + zones[z].sets + ' sets\n';
+  });
+  toast(msg);
+}
+
+/* ===== BATCH 278: TRACK SWAP ===== */
+function swapTracks(trackA, trackB) {
+  var tcA = document.querySelector('.track-content[data-track="' + trackA + '"]');
+  var tcB = document.querySelector('.track-content[data-track="' + trackB + '"]');
+  if (!tcA || !tcB) { toast('Invalid tracks'); return; }
+  pushUndo();
+  var clipsA = Array.from(tcA.querySelectorAll('.clip'));
+  var clipsB = Array.from(tcB.querySelectorAll('.clip'));
+  clipsA.forEach(function(c) { tcB.appendChild(c); });
+  clipsB.forEach(function(c) { tcA.appendChild(c); });
+  updateStats(); saveSession(); sfx('click');
+  toast('Swapped ' + trackA + ' <-> ' + trackB + ' (' + clipsA.length + '/' + clipsB.length + ' clips)');
+}
+
+/* ===== BATCH 279: EXPORT TIMELINE IMAGE ===== */
+function exportTimelineImage() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to export'); return; }
+  var trackOrder = ['push', 'pull', 'core', 'legs', 'skills'];
+  var familyColors = {push:'#ef4444', pull:'#3b82f6', core:'#eab308', legs:'#22c55e', skills:'#a855f7'};
+  var trackLabels = {push:'PUSH', pull:'PULL', core:'CORE', legs:'LEGS', skills:'SKILLS'};
+  var maxRight = 0;
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var ho = 100;
+  var canvasW = Math.max(800, maxRight + 40);
+  var trackH = 40;
+  var headerH = 30;
+  var canvasH = headerH + trackOrder.length * (trackH + 4) + 30;
+  var canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#050711';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+  ctx.font = '14px Sora, system-ui, sans-serif';
+  ctx.fillStyle = '#e2e8f0';
+  ctx.textAlign = 'center';
+  ctx.fillText((workoutName || 'Untitled') + ' | ' + bpm + ' BPM', canvasW / 2, 18);
+  trackOrder.forEach(function(tid, ti) {
+    var y = headerH + ti * (trackH + 4);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, y, canvasW, trackH);
+    ctx.fillStyle = familyColors[tid] + '66';
+    ctx.font = '9px Sora, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(trackLabels[tid], 4, y + 24);
+    var tc = document.querySelector('.track-content[data-track="' + tid + '"]');
+    if (!tc) return;
+    tc.querySelectorAll('.clip').forEach(function(c) {
+      var left = parseInt(c.style.left) - ho + 60;
+      var width = parseInt(c.style.width);
+      var color = familyColors[tid];
+      ctx.fillStyle = color + '44';
+      ctx.fillRect(left, y + 2, width, trackH - 4);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left, y + 2, width, trackH - 4);
+      var ex = getExercise(c.dataset.exerciseId);
+      if (ex && width > 30) {
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '8px Sora, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        var name = ex.name;
+        if (ctx.measureText(name).width > width - 6) name = name.substring(0, Math.floor(width / 6)) + '..';
+        ctx.fillText(name, left + 3, y + 14);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '7px Sora, system-ui, sans-serif';
+        ctx.fillText(c.dataset.sets + 'x' + c.dataset.reps, left + 3, y + 24);
+      }
+    });
+  });
+  ctx.fillStyle = '#475569';
+  ctx.font = '8px Sora, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Saturno Movement Studio', canvasW / 2, canvasH - 8);
+  canvas.toBlob(function(blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    var safeName = (workoutName || 'workout').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/,'');
+    a.download = safeName + '-timeline.png';
+    a.click();
+    toast('Timeline image exported');
+  });
 }
 
 function selectClipsByStage(stage) {
