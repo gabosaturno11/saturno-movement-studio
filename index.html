@@ -7858,6 +7858,9 @@ var CMD_ACTIONS = [
   {label:'Quick Workout Templates', key:'', icon:'\u2B50', action: function() { showQuickTemplates(); }},
   {label:'Workout Heat Calendar', key:'', icon:'\u2593', action: function() { showWorkoutHeatCalendar(); }},
   {label:'Motivational Quote', key:'', icon:'\u275D', action: function() { toast(getMotivationalQuote()); }},
+  {label:'Generate Share Card', key:'', icon:'\u2B06', action: function() { generateShareCard(); }},
+  {label:'Show Favorites', key:'', icon:'\u2605', action: function() { updateFavoritePanel(); toast('Favorites updated'); }},
+  {label:'Workout History Timeline', key:'', icon:'\u2195', action: function() { showWorkoutHistory(); }},
 ];
 
 function openCmdPalette() {
@@ -11963,6 +11966,396 @@ function showMilestoneToast(minutes) {
     setTimeout(rotateQuotes, 10000);
   }
 })();
+
+/* ===== BATCH 301: WORKOUT SHARE CARD ===== */
+function generateShareCard() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('Add exercises first'); return; }
+
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Untitled';
+  var bpm = document.getElementById('bpm-input') ? document.getElementById('bpm-input').value : '120';
+  var mode = document.getElementById('bpm-mode') ? document.getElementById('bpm-mode').textContent : 'Standard';
+  var families = {};
+  var totalSets = 0;
+  var totalReps = 0;
+  clips.forEach(function(c) {
+    var fam = c.getAttribute('data-family') || 'Unknown';
+    families[fam] = (families[fam] || 0) + 1;
+    totalSets += parseInt(c.getAttribute('data-sets')) || 3;
+    totalReps += (parseInt(c.getAttribute('data-sets')) || 3) * (parseInt(c.getAttribute('data-reps')) || 8);
+  });
+
+  var canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 630;
+  var ctx = canvas.getContext('2d');
+
+  /* Background */
+  var bg = ctx.createLinearGradient(0, 0, 1200, 630);
+  bg.addColorStop(0, '#050711');
+  bg.addColorStop(0.5, '#0a0e1a');
+  bg.addColorStop(1, '#050711');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  /* Cosmic glow */
+  var glow = ctx.createRadialGradient(600, 0, 0, 600, 0, 600);
+  glow.addColorStop(0, 'rgba(6,182,212,0.08)');
+  glow.addColorStop(0.5, 'rgba(59,130,246,0.04)');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 1200, 630);
+
+  /* Grid lines */
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (var gx = 0; gx < 1200; gx += 60) {
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 630); ctx.stroke();
+  }
+  for (var gy = 0; gy < 630; gy += 60) {
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(1200, gy); ctx.stroke();
+  }
+
+  /* Brand header */
+  ctx.font = '600 11px Sora, sans-serif';
+  ctx.fillStyle = '#06b6d4';
+  ctx.letterSpacing = '4px';
+  ctx.textAlign = 'center';
+  ctx.fillText('SATURNO MOVEMENT STUDIO', 600, 60);
+
+  /* Workout name */
+  ctx.font = '800 48px Sora, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(workoutName, 600, 130);
+
+  /* Subtitle */
+  ctx.font = '400 16px Sora, sans-serif';
+  ctx.fillStyle = '#8b94a5';
+  ctx.fillText(bpm + ' BPM | ' + mode + ' | ' + clips.length + ' Exercises', 600, 165);
+
+  /* Divider */
+  var divGrad = ctx.createLinearGradient(300, 0, 900, 0);
+  divGrad.addColorStop(0, 'transparent');
+  divGrad.addColorStop(0.5, 'rgba(6,182,212,0.4)');
+  divGrad.addColorStop(1, 'transparent');
+  ctx.strokeStyle = divGrad;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(300, 190); ctx.lineTo(900, 190); ctx.stroke();
+
+  /* Stats boxes */
+  var stats = [
+    {label:'EXERCISES', value: '' + clips.length, color:'#06b6d4'},
+    {label:'TOTAL SETS', value: '' + totalSets, color:'#3b82f6'},
+    {label:'TOTAL REPS', value: '' + totalReps, color:'#8b5cf6'},
+    {label:'FAMILIES', value: Object.keys(families).length + '/5', color:'#22c55e'}
+  ];
+  var sx = 150;
+  stats.forEach(function(s) {
+    ctx.font = '800 36px Sora, sans-serif';
+    ctx.fillStyle = s.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(s.value, sx + 112, 260);
+    ctx.font = '600 9px Sora, sans-serif';
+    ctx.fillStyle = '#475569';
+    ctx.fillText(s.label, sx + 112, 285);
+    sx += 225;
+  });
+
+  /* Family breakdown bars */
+  var famColors = {Push:'#3b82f6',Pull:'#22c55e',Core:'#f97316',Legs:'#ef4444',Skills:'#8b5cf6',Flow:'#ec4899'};
+  var barY = 330;
+  var allFams = ['Push','Pull','Core','Legs','Skills'];
+  allFams.forEach(function(fam) {
+    var count = families[fam] || 0;
+    var pct = clips.length > 0 ? count / clips.length : 0;
+    /* Label */
+    ctx.font = '600 10px Sora, sans-serif';
+    ctx.fillStyle = famColors[fam] || '#06b6d4';
+    ctx.textAlign = 'left';
+    ctx.fillText(fam.toUpperCase(), 200, barY + 10);
+    /* Bar background */
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    roundRect(ctx, 280, barY - 2, 640, 16, 4);
+    ctx.fill();
+    /* Bar fill */
+    if (pct > 0) {
+      ctx.fillStyle = famColors[fam] || '#06b6d4';
+      ctx.globalAlpha = 0.6;
+      roundRect(ctx, 280, barY - 2, Math.max(640 * pct, 8), 16, 4);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    /* Count */
+    ctx.font = '500 10px Sora, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'right';
+    ctx.fillText(count + ' (' + Math.round(pct * 100) + '%)', 960, barY + 10);
+    barY += 32;
+  });
+
+  /* Footer */
+  ctx.font = '400 10px Sora, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.textAlign = 'center';
+  ctx.fillText('The Ableton of Movement | saturnomovement.com', 600, 590);
+
+  /* Date */
+  ctx.font = '400 9px Sora, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillText(new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}), 600, 610);
+
+  /* Download */
+  try {
+    var link = document.createElement('a');
+    link.download = (workoutName || 'workout') + '-share-card.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    toast('Share card downloaded');
+  } catch(e) {
+    toast('Error generating card');
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/* ===== BATCH 302: EXERCISE FAVORITES ===== */
+function getFavorites() {
+  try { return JSON.parse(localStorage.getItem('sms_favorites') || '[]'); } catch(e) { return []; }
+}
+
+function saveFavorites(favs) {
+  try { localStorage.setItem('sms_favorites', JSON.stringify(favs)); } catch(e) {}
+}
+
+function toggleFavorite(exerciseName) {
+  var favs = getFavorites();
+  var idx = favs.indexOf(exerciseName);
+  if (idx >= 0) {
+    favs.splice(idx, 1);
+    toast(exerciseName + ' unfavorited');
+  } else {
+    favs.push(exerciseName);
+    toast(exerciseName + ' favorited');
+  }
+  saveFavorites(favs);
+  haptic('light');
+  updateFavoriteIndicators();
+  updateFavoritePanel();
+}
+
+function isFavorite(exerciseName) {
+  return getFavorites().indexOf(exerciseName) >= 0;
+}
+
+function updateFavoriteIndicators() {
+  document.querySelectorAll('.movement-item').forEach(function(item) {
+    var name = item.getAttribute('data-exercise');
+    var star = item.querySelector('.fav-star');
+    if (star) {
+      star.style.color = isFavorite(name) ? 'var(--accent-orange)' : 'var(--micro)';
+      star.style.opacity = isFavorite(name) ? '1' : '0.3';
+    }
+  });
+}
+
+function updateFavoritePanel() {
+  var favs = getFavorites();
+  var container = document.getElementById('favorites-panel');
+  if (!container) return;
+  var parent = container.closest('.movement-category');
+  if (favs.length === 0) {
+    if (parent) parent.style.display = 'none';
+    return;
+  }
+  if (parent) parent.style.display = '';
+  container.innerHTML = '';
+  favs.forEach(function(name) {
+    var ex = null;
+    if (typeof EXERCISES !== 'undefined') {
+      for (var i = 0; i < EXERCISES.length; i++) {
+        if (EXERCISES[i].name === name) { ex = EXERCISES[i]; break; }
+      }
+    }
+    if (!ex) return;
+    var item = document.createElement('div');
+    item.className = 'movement-item';
+    item.setAttribute('draggable', 'true');
+    item.setAttribute('data-exercise', ex.name);
+    item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:10px;cursor:grab;border-left:2px solid ' + (ex.color || 'var(--accent-cyan)');
+    item.innerHTML = '<div class="mv-icon" style="background:' + (ex.color || 'var(--accent-cyan)') + ';color:#fff;font-size:7px">' + (ex.family || '?').charAt(0) + '</div><span class="mv-name">' + ex.name + '</span><span class="mv-stage" style="margin-left:auto">S' + (ex.stage || 1) + '</span>';
+    item.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', ex.name);
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+    item.addEventListener('dblclick', function() {
+      if (typeof quickAddExercise === 'function') quickAddExercise(ex.name);
+    });
+    container.appendChild(item);
+  });
+}
+
+/* Add favorites panel to library */
+(function() {
+  function addFavoritesPanel() {
+    var libContainer = document.getElementById('library-container');
+    if (!libContainer) return;
+    var cat = document.createElement('div');
+    cat.className = 'movement-category';
+    cat.style.display = 'none';
+    cat.innerHTML = '<div class="category-header" style="font-size:8px;color:var(--accent-orange);padding:5px 12px"><span>Favorites</span></div><div class="movement-list" id="favorites-panel"></div>';
+    libContainer.parentNode.insertBefore(cat, libContainer);
+    updateFavoritePanel();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addFavoritesPanel);
+  } else {
+    addFavoritesPanel();
+  }
+})();
+
+/* Add star buttons to library items after they're rendered */
+(function() {
+  function addStarsToLibrary() {
+    /* Observe library container for changes */
+    var lib = document.getElementById('library-container');
+    if (!lib) return;
+    var observer = new MutationObserver(function() {
+      lib.querySelectorAll('.movement-item:not([data-fav-init])').forEach(function(item) {
+        item.setAttribute('data-fav-init', '1');
+        var name = item.getAttribute('data-exercise');
+        if (!name) return;
+        var star = document.createElement('span');
+        star.className = 'fav-star';
+        star.style.cssText = 'cursor:pointer;font-size:10px;margin-left:4px;transition:color 0.15s,opacity 0.15s;-webkit-tap-highlight-color:transparent';
+        star.style.color = isFavorite(name) ? 'var(--accent-orange)' : 'var(--micro)';
+        star.style.opacity = isFavorite(name) ? '1' : '0.3';
+        star.textContent = '\u2605';
+        star.onclick = function(e) { e.stopPropagation(); toggleFavorite(name); };
+        item.appendChild(star);
+      });
+    });
+    observer.observe(lib, { childList: true, subtree: true });
+    /* Also run once now */
+    lib.querySelectorAll('.movement-item').forEach(function(item) {
+      if (item.getAttribute('data-fav-init')) return;
+      item.setAttribute('data-fav-init', '1');
+      var name = item.getAttribute('data-exercise');
+      if (!name) return;
+      var star = document.createElement('span');
+      star.className = 'fav-star';
+      star.style.cssText = 'cursor:pointer;font-size:10px;margin-left:4px;transition:color 0.15s,opacity 0.15s;-webkit-tap-highlight-color:transparent';
+      star.style.color = isFavorite(name) ? 'var(--accent-orange)' : 'var(--micro)';
+      star.style.opacity = isFavorite(name) ? '1' : '0.3';
+      star.textContent = '\u2605';
+      star.onclick = function(e) { e.stopPropagation(); toggleFavorite(name); };
+      item.appendChild(star);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(addStarsToLibrary, 500); });
+  } else {
+    setTimeout(addStarsToLibrary, 500);
+  }
+})();
+
+/* ===== BATCH 303: WORKOUT HISTORY TIMELINE ===== */
+function showWorkoutHistory() {
+  var entries = [];
+
+  /* Gather from saved workouts */
+  try {
+    var saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]');
+    saved.forEach(function(s) {
+      entries.push({
+        type: 'save',
+        name: s.name || 'Untitled',
+        date: s.created || s.date || null,
+        clips: s.clips ? s.clips.length : (s.clipCount || 0),
+        bpm: s.bpm || 120
+      });
+    });
+  } catch(e) {}
+
+  /* Gather from ratings */
+  try {
+    var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+    ratings.forEach(function(r) {
+      entries.push({
+        type: 'rating',
+        name: r.name || 'Untitled',
+        date: r.date || null,
+        rating: r.rating || 0,
+        clips: r.clips || 0
+      });
+    });
+  } catch(e) {}
+
+  /* Sort by date (newest first) */
+  entries.sort(function(a, b) {
+    var da = a.date ? new Date(a.date).getTime() : 0;
+    var db = b.date ? new Date(b.date).getTime() : 0;
+    return db - da;
+  });
+
+  if (entries.length === 0) {
+    toast('No workout history yet. Save or rate workouts to build history.');
+    return;
+  }
+
+  /* Build vertical timeline */
+  var html = '<div style="max-width:440px;margin:0 auto;padding:24px">';
+  html += '<div style="text-align:center;margin-bottom:24px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:4px">History</div><div style="font-size:20px;font-weight:700;color:#fff">Your Journey</div><div style="font-size:11px;color:var(--text-secondary);margin-top:4px">' + entries.length + ' recorded sessions</div></div>';
+
+  html += '<div style="position:relative;padding-left:24px">';
+  /* Vertical line */
+  html += '<div style="position:absolute;left:8px;top:0;bottom:0;width:1px;background:linear-gradient(180deg,rgba(6,182,212,0.3),rgba(6,182,212,0.05))"></div>';
+
+  entries.forEach(function(e, i) {
+    var dateStr = e.date ? new Date(e.date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : 'Unknown date';
+    var dotColor = e.type === 'save' ? '#3b82f6' : '#f97316';
+    var stars = '';
+    if (e.rating) {
+      for (var s = 0; s < 5; s++) {
+        stars += '<span style="color:' + (s < e.rating ? '#f97316' : 'rgba(255,255,255,0.1)') + '">\u2605</span>';
+      }
+    }
+
+    html += '<div style="position:relative;margin-bottom:16px;padding:12px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04)">';
+    /* Dot */
+    html += '<div style="position:absolute;left:-20px;top:16px;width:8px;height:8px;border-radius:50%;background:' + dotColor + ';box-shadow:0 0 8px ' + dotColor + '40"></div>';
+    /* Date */
+    html += '<div style="font-size:8px;color:var(--micro);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">' + dateStr + '</div>';
+    /* Name */
+    html += '<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">' + e.name + '</div>';
+    /* Details */
+    html += '<div style="display:flex;gap:10px;font-size:9px;color:var(--text-secondary)">';
+    if (e.clips) html += '<span>' + e.clips + ' exercises</span>';
+    if (e.bpm) html += '<span>' + e.bpm + ' BPM</span>';
+    if (e.type === 'save') html += '<span style="color:#3b82f6">Saved</span>';
+    if (stars) html += '<span>' + stars + '</span>';
+    html += '</div></div>';
+  });
+
+  html += '</div></div>';
+
+  var w = window.open('', '_blank');
+  if (!w) { toast('Enable popups'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>Workout History - Saturno Movement Studio</title><link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#050711;color:#e2e8f0;font-family:Sora,sans-serif;padding:40px 20px}</style></head><body>' + html + '</body></html>');
+  w.document.close();
+  toast('History opened');
+}
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
