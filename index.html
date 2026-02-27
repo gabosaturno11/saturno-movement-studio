@@ -8005,6 +8005,10 @@ var CMD_ACTIONS = [
   {label:'Muscle Fatigue Tracker', key:'', icon:'\u2620', action: function() { showFatigueTracker(); }},
   {label:'Substitution Wizard', key:'', icon:'\u21c6', action: function() { showSubstitutionWizard(); }},
   {label:'Time Estimator', key:'', icon:'\u23f0', action: function() { showTimeEstimator(); }},
+  {label:'Create Workout Blueprint', key:'', icon:'\u2692', action: function() { createBlueprint(); }},
+  {label:'Show Blueprints', key:'', icon:'\u2692', action: function() { showBlueprintList(); }},
+  {label:'Auto-Suggest RPE', key:'', icon:'\u2195', action: function() { autoSuggestRPE(); }},
+  {label:'Analyze Movement Patterns', key:'', icon:'\u2690', action: function() { analyzeMovementPatterns(); }},
 ];
 
 function openCmdPalette() {
@@ -17841,6 +17845,250 @@ function showTimeEstimator() {
   html += '</div>';
   overlay.innerHTML = html;
   document.body.appendChild(overlay);
+}
+
+// Batch 385: Workout Blueprint System
+var _blueprints = [];
+function loadBlueprints() {
+  try { _blueprints = JSON.parse(localStorage.getItem('sms_blueprints') || '[]'); } catch(e) { _blueprints = []; }
+}
+function saveBlueprints() {
+  try { localStorage.setItem('sms_blueprints', JSON.stringify(_blueprints)); } catch(e) {}
+}
+function createBlueprint() {
+  var clips = document.querySelectorAll('.clip');
+  var slots = [];
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    slots.push({
+      family: c.dataset.family || '',
+      pattern: c.dataset.pattern || '',
+      sets: parseInt(c.dataset.sets) || 3,
+      reps: parseInt(c.dataset.reps) || 10,
+      rpe: parseFloat(c.dataset.rpe) || 7,
+      rest: parseInt(c.dataset.rest) || 60,
+      track: c.closest('.track') ? c.closest('.track').dataset.family : 'push',
+      left: parseInt(c.style.left) || 0,
+      width: parseInt(c.style.width) || 120
+    });
+  });
+  if (slots.length === 0) { showToast('Build a workout to create a blueprint'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:400px">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Create Blueprint</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">' + slots.length + ' slots (exercises stripped, structure kept)</div>';
+  html += '<input id="sms-bp-name" placeholder="Blueprint name..." style="width:100%;padding:10px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:8px;font-family:Sora,sans-serif;font-size:14px;margin-bottom:12px;box-sizing:border-box">';
+  slots.forEach(function(s, i) {
+    html += '<div style="padding:6px 10px;background:rgba(34,211,238,0.03);border-radius:4px;margin-bottom:3px;color:#94a3b8;font-size:12px;display:flex;justify-content:space-between">';
+    html += '<span>' + (i+1) + '. ' + s.family + ' (' + s.pattern + ')</span>';
+    html += '<span>' + s.sets + 'x' + s.reps + ' @ RPE ' + s.rpe + '</span>';
+    html += '</div>';
+  });
+  html += '<button onclick="saveBlueprintNow()" style="width:100%;padding:10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600;margin-top:12px">Save Blueprint</button>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  overlay.dataset.slots = JSON.stringify(slots);
+  document.body.appendChild(overlay);
+  document.getElementById('sms-bp-name').focus();
+}
+function saveBlueprintNow() {
+  var nameInput = document.getElementById('sms-bp-name');
+  var name = nameInput ? nameInput.value.trim() : '';
+  if (!name) { showToast('Enter a blueprint name'); return; }
+  var overlay = nameInput.closest('div[style*="fixed"]');
+  var slots = JSON.parse(overlay.dataset.slots || '[]');
+  loadBlueprints();
+  _blueprints.push({ name: name, slots: slots, created: new Date().toISOString() });
+  if (_blueprints.length > 15) _blueprints = _blueprints.slice(-15);
+  saveBlueprints();
+  overlay.remove();
+  showToast('Blueprint "' + name + '" saved');
+}
+function showBlueprintList() {
+  loadBlueprints();
+  if (_blueprints.length === 0) { showToast('No blueprints saved'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:450px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Blueprints (' + _blueprints.length + ')</div>';
+  _blueprints.forEach(function(bp, i) {
+    var families = {};
+    bp.slots.forEach(function(s) { families[s.family] = (families[s.family]||0)+1; });
+    html += '<div style="padding:12px;background:rgba(34,211,238,0.05);border-radius:8px;margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<span style="color:#22d3ee;font-weight:600;font-size:14px">' + bp.name + '</span>';
+    html += '<div style="display:flex;gap:4px">';
+    html += '<button onclick="applyBlueprint(' + i + ')" style="padding:4px 10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:4px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Apply</button>';
+    html += '<button onclick="_blueprints.splice(' + i + ',1);saveBlueprints();this.closest(\'div[style*=fixed]\').remove();showBlueprintList();" style="padding:4px 8px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:4px;cursor:pointer;font-family:Sora,sans-serif;font-size:11px">Del</button>';
+    html += '</div></div>';
+    html += '<div style="color:#94a3b8;font-size:11px">' + bp.slots.length + ' slots | ' + Object.keys(families).map(function(f) { return f + ':' + families[f]; }).join(', ') + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function applyBlueprint(idx) {
+  loadBlueprints();
+  var bp = _blueprints[idx];
+  if (!bp) return;
+  captureUndo();
+  bp.slots.forEach(function(slot) {
+    var pool = [];
+    EXERCISES.forEach(function(e) {
+      if (e.family === slot.family || e.pattern === slot.pattern) pool.push(e);
+    });
+    if (pool.length === 0) return;
+    var ex = pool[Math.floor(Math.random() * pool.length)];
+    var trackId = slot.track || 'push';
+    var track = document.querySelector('.track[data-family="' + trackId + '"] .track-clips');
+    if (!track) return;
+    var clip = document.createElement('div');
+    clip.className = 'clip';
+    clip.dataset.exercise = ex.name;
+    clip.dataset.family = ex.family;
+    clip.dataset.pattern = ex.pattern || '';
+    clip.dataset.stage = ex.stage || 'S1';
+    clip.dataset.discipline = ex.discipline || '';
+    clip.dataset.sets = slot.sets;
+    clip.dataset.reps = slot.reps;
+    clip.dataset.tempo = ex.tempo || 3;
+    clip.dataset.rest = slot.rest;
+    clip.dataset.rpe = slot.rpe;
+    clip.style.width = slot.width + 'px';
+    clip.style.left = slot.left + 'px';
+    clip.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--' + trackId + '-color') || '#22d3ee';
+    clip.innerHTML = '<div class="clip-name">' + ex.name + '</div><div class="clip-params">' + slot.sets + 'x' + slot.reps + '</div>';
+    track.appendChild(clip);
+    initClipDrag(clip);
+  });
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showToast('Blueprint "' + bp.name + '" applied with random exercises');
+}
+loadBlueprints();
+
+// Batch 386: RPE Auto-Suggest
+function autoSuggestRPE() {
+  var clips = Array.from(document.querySelectorAll('.clip'));
+  clips = clips.filter(function(c) { return !c.closest('.track[data-family="music"]') && !c.classList.contains('clip-locked'); });
+  if (clips.length === 0) { showToast('No clips to adjust'); return; }
+  captureUndo();
+  // Sort by position (timeline order)
+  clips.sort(function(a, b) { return (parseInt(a.style.left)||0) - (parseInt(b.style.left)||0); });
+  var total = clips.length;
+  clips.forEach(function(c, i) {
+    var stage = c.dataset.stage || 'S1';
+    var baseDifficulty = stage === 'S3' ? 8.5 : stage === 'S2' ? 7 : 5.5;
+    // Position ramp: start lower, peak at 60-80%, drop for last 15%
+    var position = i / total;
+    var positionMod = 0;
+    if (position < 0.15) positionMod = -1; // warmup
+    else if (position < 0.6) positionMod = 0; // main work
+    else if (position < 0.85) positionMod = 0.5; // peak
+    else positionMod = -1.5; // cooldown
+    var suggested = Math.min(10, Math.max(1, Math.round((baseDifficulty + positionMod) * 10) / 10));
+    c.dataset.rpe = suggested;
+    if (typeof updateClipInfo === 'function') updateClipInfo(c);
+    // Update RPE badge if exists
+    var badge = c.querySelector('.clip-rpe-badge');
+    if (badge) badge.textContent = suggested;
+  });
+  showToast('RPE auto-suggested for ' + clips.length + ' clips');
+}
+
+// Batch 387: Movement Pattern Analyzer
+function analyzeMovementPatterns() {
+  var allPatterns = {};
+  EXERCISES.forEach(function(e) {
+    if (e.pattern && !allPatterns[e.pattern]) {
+      allPatterns[e.pattern] = { family: e.family, count: 0, exercises: [] };
+    }
+  });
+  var clips = document.querySelectorAll('.clip');
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    var pat = c.dataset.pattern || '';
+    if (allPatterns[pat]) {
+      allPatterns[pat].count++;
+      var name = c.dataset.exercise || '';
+      if (allPatterns[pat].exercises.indexOf(name) < 0) allPatterns[pat].exercises.push(name);
+    }
+  });
+  var present = [];
+  var missing = [];
+  Object.keys(allPatterns).forEach(function(pat) {
+    if (allPatterns[pat].count > 0) present.push({ pattern: pat, data: allPatterns[pat] });
+    else missing.push({ pattern: pat, data: allPatterns[pat] });
+  });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa',Mobility:'#818cf8'};
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Movement Pattern Analysis</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">' + present.length + ' patterns used, ' + missing.length + ' missing</div>';
+  if (present.length > 0) {
+    html += '<div style="color:#4ade80;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Present Patterns</div>';
+    present.forEach(function(p) {
+      html += '<div style="padding:8px 12px;background:rgba(74,222,128,0.05);border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">';
+      html += '<div><span style="color:#e2e8f0;font-size:12px">' + p.pattern + '</span> <span style="color:' + (famColors[p.data.family]||'#22d3ee') + ';font-size:10px">' + p.data.family + '</span></div>';
+      html += '<span style="color:#4ade80;font-size:12px;font-weight:600">' + p.data.count + ' clips</span>';
+      html += '</div>';
+    });
+  }
+  if (missing.length > 0) {
+    html += '<div style="color:#f87171;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px">Missing Patterns</div>';
+    missing.forEach(function(p) {
+      var suggestions = [];
+      EXERCISES.forEach(function(e) { if(e.pattern === p.pattern) suggestions.push(e.name); });
+      html += '<div style="padding:8px 12px;background:rgba(248,113,113,0.05);border-radius:6px;margin-bottom:4px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      html += '<div><span style="color:#e2e8f0;font-size:12px">' + p.pattern + '</span> <span style="color:' + (famColors[p.data.family]||'#22d3ee') + ';font-size:10px">' + p.data.family + '</span></div>';
+      html += '<button onclick="addPatternExercise(\'' + p.pattern.replace(/'/g,"\\'") + '\')" style="padding:3px 8px;background:rgba(34,211,238,0.1);color:#22d3ee;border:1px solid rgba(34,211,238,0.2);border-radius:4px;cursor:pointer;font-family:Sora,sans-serif;font-size:10px">Add</button>';
+      html += '</div>';
+      if (suggestions.length > 0) {
+        html += '<div style="color:#64748b;font-size:10px;margin-top:4px">Suggestions: ' + suggestions.slice(0,3).join(', ') + '</div>';
+      }
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function addPatternExercise(pattern) {
+  var pool = [];
+  EXERCISES.forEach(function(e) { if(e.pattern === pattern) pool.push(e); });
+  if (pool.length === 0) return;
+  var ex = pool[Math.floor(Math.random() * pool.length)];
+  var trackMap = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills'};
+  var trackId = trackMap[ex.family] || 'push';
+  var track = document.querySelector('.track[data-family="' + trackId + '"] .track-clips');
+  if (!track) return;
+  captureUndo();
+  var clip = document.createElement('div');
+  clip.className = 'clip';
+  clip.dataset.exercise = ex.name;
+  clip.dataset.family = ex.family;
+  clip.dataset.pattern = ex.pattern || '';
+  clip.dataset.stage = ex.stage || 'S1';
+  clip.dataset.discipline = ex.discipline || '';
+  clip.dataset.sets = 3;
+  clip.dataset.reps = 10;
+  clip.dataset.tempo = ex.tempo || 3;
+  clip.dataset.rest = 60;
+  clip.dataset.rpe = 7;
+  clip.style.width = '120px';
+  clip.style.left = (playheadX || 10) + 'px';
+  clip.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--' + trackId + '-color') || '#22d3ee';
+  clip.innerHTML = '<div class="clip-name">' + ex.name + '</div><div class="clip-params">3x10</div>';
+  track.appendChild(clip);
+  initClipDrag(clip);
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showToast('Added: ' + ex.name + ' (' + pattern + ')');
 }
 
 function selectClipsByStage(stage) {
