@@ -778,6 +778,9 @@ body {
 .track.track-active .track-header {
   border-right-color: rgba(59, 130, 246, 0.3);
 }
+.track.track-active .track-header::before {
+  box-shadow: 0 0 8px currentColor;
+}
 
 /* Empty Timeline State */
 .timeline-empty {
@@ -1807,6 +1810,9 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Shift+Click</kbd><span>Multi-Select</span></div>
       <div class="shortcut-item"><kbd>Tab</kbd><span>Cycle Clips</span></div>
       <div class="shortcut-item"><kbd>Enter</kbd><span>Add from Search</span></div>
+      <div class="shortcut-item"><kbd>R</kbd><span>Record Toggle</span></div>
+      <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
+      <div class="shortcut-item"><kbd>Cmd+K</kbd><span>Command Palette</span></div>
       <div class="shortcut-item"><kbd>1-6</kbd><span>Select Track</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
@@ -2812,7 +2818,11 @@ function updateStats() {
   TRACKS.forEach(function(t) {
     if (t.isMusic) return;
     var el = document.getElementById('track-count-' + t.id);
-    if (el) el.textContent = (trackCounts[t.id] || 0) + ' clips';
+    var count = trackCounts[t.id] || 0;
+    if (el) {
+      el.textContent = count + ' clip' + (count !== 1 ? 's' : '');
+      el.style.color = count === 0 ? 'var(--micro)' : count >= 3 ? 'var(--text-secondary)' : 'var(--muted)';
+    }
   });
   updateSummary();
   updateMinimap();
@@ -4197,7 +4207,8 @@ var CMD_ACTIONS = [
   {label:'Zoom Out', key:'Cmd+-', icon:'-', action: function() { zoomOut(); }},
   {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
   {label:'Clear All Clips', key:'', icon:'\u2716', action: function() { clearAllClips(); }},
-  {label:'Save Workout', key:'', icon:'\u2913', action: function() { saveNamedWorkout(); }},
+  {label:'Save Session', key:'Cmd+S', icon:'\u2913', action: function() { saveSession(); sfx('click'); toast('Session saved'); }},
+  {label:'Save as Named Workout', key:'', icon:'\u2913', action: function() { saveNamedWorkout(); }},
   {label:'Load Workout', key:'', icon:'\u2912', action: function() { showSavedWorkouts(); }},
   {label:'Export JSON', key:'', icon:'\u21A6', action: function() { exportWorkout(); }},
   {label:'Import Workout', key:'', icon:'\u21A4', action: function() { importWorkout(); }},
@@ -4522,6 +4533,13 @@ document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
     e.preventDefault();
     if (e.shiftKey) { redo(); } else { undo(); }
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') {
+    e.preventDefault();
+    saveSession();
+    sfx('click');
+    toast('Session saved');
     return;
   }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyK') {
