@@ -5032,7 +5032,10 @@ function exportWorkout() {
       tempo: parseFloat(clip.dataset.tempo) || 3,
       rest: parseInt(clip.dataset.rest) || 60,
       rpe: parseInt(clip.dataset.rpe) || 7,
-      notes: clip.dataset.notes || ''
+      notes: clip.dataset.notes || '',
+      fadeIn: parseInt(clip.dataset.fadeIn) || 0,
+      fadeOut: parseInt(clip.dataset.fadeOut) || 0,
+      customColor: clip.dataset.customColor || ''
     });
   });
   workout.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
@@ -5081,9 +5084,16 @@ function importWorkout() {
             var width = (item.duration || 15) * pps;
             var clip = createClipElement(ex, left, width, {
               sets: item.sets, reps: item.reps, tempo: item.tempo,
-              rest: item.rest, rpe: item.rpe
+              rest: item.rest, rpe: item.rpe,
+              fadeIn: (item.fadeIn || 0).toString(),
+              fadeOut: (item.fadeOut || 0).toString()
             });
             if (item.notes) clip.dataset.notes = item.notes;
+            if (item.customColor) {
+              clip.dataset.customColor = item.customColor;
+              clip.style.background = 'linear-gradient(180deg, ' + item.customColor + '44 0%, ' + item.customColor + '22 100%)';
+              clip.style.borderTopColor = item.customColor;
+            }
             track.appendChild(clip);
           });
         });
