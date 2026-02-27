@@ -2600,12 +2600,12 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span style="color:var(--border)">|</span>
       <span id="footer-pos" style="color:var(--muted);cursor:pointer" onclick="toggleFooterMode()" title="Click to switch format">1.1.1</span>
       <span style="color:var(--border)">|</span>
-      <span title="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
+      <span data-tip="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <div id="footer-balance" style="display:flex;gap:1px;height:4px;width:60px;border-radius:2px;overflow:hidden" title="Family balance"></div>
       <span id="save-indicator" style="color:var(--accent-green);opacity:0;transition:opacity 0.3s;font-size:7px;text-transform:uppercase;letter-spacing:0.1em">Saved</span>
-      <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" title="Click to rename">Untitled</span>
+      <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" data-tip="Click to rename">Untitled</span>
       <span style="color:var(--border)">|</span>
       <div class="footer-quote" id="footer-hint">Saturno Movement Studio</div>
       <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
@@ -4818,6 +4818,8 @@ function _doSaveSession() {
     session.markerCounter = markerCounter;
     // Workout name
     session.workoutName = workoutName || '';
+    // Recently used exercises
+    if (typeof recentExercises !== 'undefined') session.recentExercises = recentExercises.slice(0);
     localStorage.setItem('sms_session', JSON.stringify(session));
     // Flash save indicator
     var si = document.getElementById('save-indicator');
@@ -4872,6 +4874,13 @@ function loadSession() {
       workoutName = s.workoutName;
       var wn = document.getElementById('workout-name');
       if (wn) wn.textContent = workoutName;
+      var hn = document.getElementById('header-workout-name');
+      if (hn) hn.textContent = workoutName;
+    }
+    // Restore recently used exercises
+    if (s.recentExercises && s.recentExercises.length) {
+      recentExercises = s.recentExercises;
+      if (typeof updateRecentSection === 'function') updateRecentSection();
     }
     updateStats();
   } catch(e) {}
@@ -6571,13 +6580,25 @@ var HINT_LIST = [
   'Cmd+A = Select all clips'
 ];
 var hintIndex = 0;
+var _hintOrder = [];
+function shuffleHints() {
+  _hintOrder = [];
+  for (var i = 0; i < HINT_LIST.length; i++) _hintOrder.push(i);
+  for (var j = _hintOrder.length - 1; j > 0; j--) {
+    var k = Math.floor(Math.random() * (j + 1));
+    var tmp = _hintOrder[j]; _hintOrder[j] = _hintOrder[k]; _hintOrder[k] = tmp;
+  }
+  hintIndex = 0;
+}
+shuffleHints();
 function rotateHint() {
   var el = document.getElementById('footer-hint');
   if (!el) return;
   el.classList.add('fade');
   setTimeout(function() {
-    hintIndex = (hintIndex + 1) % HINT_LIST.length;
-    el.textContent = HINT_LIST[hintIndex];
+    hintIndex++;
+    if (hintIndex >= _hintOrder.length) shuffleHints();
+    el.textContent = HINT_LIST[_hintOrder[hintIndex]];
     el.classList.remove('fade');
   }, 300);
 }
