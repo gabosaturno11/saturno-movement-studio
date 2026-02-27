@@ -71,6 +71,13 @@ body {
   height: 40px;
   border-bottom: 1px solid var(--border);
   background: var(--gradient-header);
+  position: relative;
+}
+.header::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59,130,246,0.3), rgba(139,92,246,0.3), transparent);
 }
 .logo { display: flex; align-items: center; gap: 8px; }
 .logo-icon {
@@ -194,7 +201,7 @@ body {
 .transport {
   display: flex; align-items: center; gap: 6px;
   padding: 6px 12px;
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
   border-bottom: 1px solid var(--border);
   height: 44px;
 }
@@ -1034,8 +1041,17 @@ body {
   border-bottom: 1px solid var(--border);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
   z-index: 50; padding: 12px 16px;
+  opacity: 0; transform: translateY(-8px);
 }
-.presets-drawer.open { display: flex; gap: 8px; flex-wrap: wrap; }
+.presets-drawer.open {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  opacity: 1; transform: translateY(0);
+  animation: drawerSlide 0.15s ease-out;
+}
+@keyframes drawerSlide {
+  0% { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
 .preset-card {
   flex: 1; min-width: 140px; max-width: 200px;
   padding: 10px;
@@ -1189,10 +1205,25 @@ body {
 .loop-region::after { right: -3px; }
 
 /* ===== SCROLLBAR ===== */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+}
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-corner { background: var(--bg-deep); }
+.timeline-container::-webkit-scrollbar { height: 8px; }
+.timeline-container::-webkit-scrollbar-track { background: var(--surface); }
+.timeline-container::-webkit-scrollbar-thumb {
+  background: rgba(59,130,246,0.2);
+  border-radius: 4px;
+}
+.timeline-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(59,130,246,0.35);
+}
+.panel-left::-webkit-scrollbar-track { background: var(--surface); }
+.panel-right::-webkit-scrollbar-track { background: var(--surface); }
 
 /* ===== FOCUS / SELECTION ===== */
 a:focus-visible, button:focus-visible, input:focus-visible {
@@ -1311,6 +1342,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <button class="transport-btn" onclick="forward()" title="Forward 15s">&#9197;</button>
           <button class="transport-btn rec" id="rec-btn" onclick="toggleRec()" title="Record" style="border-radius:0 3px 3px 0">&#9679;</button>
         </div>
+        <span id="playback-state" style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:var(--micro);min-width:30px;text-align:center">STOP</span>
         <div class="transport-sep"></div>
         <div class="transport-buttons">
           <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
@@ -2253,9 +2285,15 @@ function createClipElement(exercise, left, width, dna) {
   var fm = FAMILY_MAP[exercise.family] || {color:'#666'};
   var clip = document.createElement('div');
   clip.className = 'clip';
+  // Subtle color variation per exercise within same family
   var baseColor = fm.color;
+  var hash = 0;
+  for (var ci = 0; ci < exercise.id.length; ci++) hash = ((hash << 5) - hash) + exercise.id.charCodeAt(ci);
+  var hueShift = (hash % 20) - 10; // -10 to +10 degrees
+  var lightShift = (hash % 10) - 5; // -5% to +5%
   clip.style.background = 'linear-gradient(180deg, ' + baseColor + ' 0%, ' + baseColor + 'cc 100%)';
   clip.style.borderTopColor = baseColor;
+  clip.style.filter = 'hue-rotate(' + hueShift + 'deg) brightness(' + (1 + lightShift/100) + ')';
   clip.style.left = (typeof left === 'string' ? left : Math.max(0, left) + 'px');
   clip.style.width = (typeof width === 'string' ? width : (width || 80) + 'px');
   clip.style.color = 'rgba(255,255,255,0.9)';
@@ -2628,6 +2666,8 @@ function togglePlay() {
     playInterval = setInterval(updatePlayhead, 50);
     startMeters();
     document.getElementById('status-text').textContent = 'Playing';
+    document.getElementById('playback-state').textContent = 'PLAY';
+    document.getElementById('playback-state').style.color = 'var(--accent-green)';
     updatePlayheadClass();
     sfx('play');
   } else {
@@ -2636,6 +2676,8 @@ function togglePlay() {
     clearInterval(playInterval);
     stopMeters();
     document.getElementById('status-text').textContent = 'Paused';
+    document.getElementById('playback-state').textContent = 'PAUSE';
+    document.getElementById('playback-state').style.color = 'var(--accent-orange)';
     updatePlayheadClass();
     sfx('click');
   }
@@ -2659,6 +2701,8 @@ function stopPlayback() {
     if (p) p.style.width = '0';
   });
   document.getElementById('status-text').textContent = 'Ready';
+  document.getElementById('playback-state').textContent = 'STOP';
+  document.getElementById('playback-state').style.color = 'var(--micro)';
   sfx('stop');
 }
 
@@ -2743,6 +2787,13 @@ function toggleRec() {
   var btn = document.getElementById('rec-btn');
   btn.classList.toggle('active', isRecording);
   document.getElementById('status-text').textContent = isRecording ? 'Recording' : 'Ready';
+  if (isRecording) {
+    document.getElementById('playback-state').textContent = 'REC';
+    document.getElementById('playback-state').style.color = 'var(--error)';
+  } else {
+    document.getElementById('playback-state').textContent = isPlaying ? 'PLAY' : 'STOP';
+    document.getElementById('playback-state').style.color = isPlaying ? 'var(--accent-green)' : 'var(--micro)';
+  }
   sfx(isRecording ? 'rec' : 'click');
 }
 
