@@ -2078,16 +2078,27 @@ button:focus-visible, .transport-btn:focus-visible {
   z-index: 5; pointer-events: none;
   display: none;
 }
-.loop-region.active { display: block; }
-.loop-region::before, .loop-region::after {
+.loop-region.active { display: block; pointer-events: auto; }
+.loop-region .loop-handle {
+  position: absolute; top: 0; bottom: 0; width: 6px;
+  cursor: ew-resize; z-index: 6;
+}
+.loop-handle-left { left: -3px; }
+.loop-handle-right { right: -3px; }
+.loop-handle::after {
   content: '';
-  position: absolute; top: 0;
-  width: 6px; height: 6px;
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 6px; height: 8px;
   background: rgba(59, 130, 246, 0.6);
   border-radius: 0 0 2px 2px;
+  transition: background 0.15s;
 }
-.loop-region::before { left: -3px; }
-.loop-region::after { right: -3px; }
+.loop-handle:hover::after { background: rgba(59, 130, 246, 0.9); }
+.loop-region .loop-body {
+  position: absolute; top: 0; bottom: 0; left: 6px; right: 6px;
+  cursor: grab;
+}
+.loop-region .loop-body:active { cursor: grabbing; }
 
 /* ===== INLINE PROMPT — Craft-style modal input ===== */
 .inline-prompt {
@@ -2376,7 +2387,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <div class="timeline-ruler" id="timeline-ruler"></div>
         <div class="timeline-minimap" id="timeline-minimap"><div class="minimap-viewport" id="minimap-viewport"></div></div>
         <div class="timeline-tracks" id="timeline-tracks">
-          <div class="loop-region" id="loop-region"></div>
+          <div class="loop-region" id="loop-region"><div class="loop-handle loop-handle-left" data-side="left"></div><div class="loop-body"></div><div class="loop-handle loop-handle-right" data-side="right"></div></div>
           <div class="playhead" id="playhead"></div>
           <div class="timeline-empty" id="timeline-empty">
             <div class="timeline-empty-icon">&#9835;</div>
@@ -4436,9 +4447,125 @@ function toggleLoop() {
 
 function updateLoopRegion() {
   var pps = 80 / 15;
+  var scale = zoomLevel / 100;
   var region = document.getElementById('loop-region');
-  region.style.left = (100 + loopStart * pps) + 'px';
-  region.style.width = ((loopEnd - loopStart) * pps) + 'px';
+  region.style.left = (100 * scale + loopStart * pps * scale) + 'px';
+  region.style.width = ((loopEnd - loopStart) * pps * scale) + 'px';
+}
+
+/* ===== LOOP REGION INTERACTION ===== */
+function initLoopDrag() {
+  var region = document.getElementById('loop-region');
+  var pps = function() { return (80 / 15) * (zoomLevel / 100); };
+  var headerOffset = function() { return 100 * (zoomLevel / 100); };
+  /* Handle drag (resize loop start/end) */
+  region.querySelectorAll('.loop-handle').forEach(function(handle) {
+    handle.addEventListener('mousedown', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      var side = handle.dataset.side;
+      var container = document.getElementById('timeline-container');
+      function onMove(e) {
+        var rect = document.getElementById('timeline-tracks').getBoundingClientRect();
+        var x = e.clientX - rect.left + container.scrollLeft;
+        var timeSec = Math.max(0, (x - headerOffset()) / pps());
+        if (snapEnabled) {
+          var snapSz = getSnapSize();
+          var snapPx = Math.round((timeSec * pps()) / snapSz) * snapSz;
+          timeSec = snapPx / pps();
+        }
+        if (side === 'left') {
+          loopStart = Math.max(0, Math.min(timeSec, loopEnd - 1));
+        } else {
+          loopEnd = Math.max(loopStart + 1, timeSec);
+        }
+        updateLoopRegion();
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        toast('Loop: ' + formatTime(loopStart) + ' - ' + formatTime(loopEnd));
+        saveSession();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+  /* Body drag (move entire loop region) */
+  region.querySelector('.loop-body').addEventListener('mousedown', function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    var container = document.getElementById('timeline-container');
+    var startX = e.clientX;
+    var origStart = loopStart;
+    var origEnd = loopEnd;
+    var duration = loopEnd - loopStart;
+    function onMove(e) {
+      var deltaPx = e.clientX - startX;
+      var deltaSec = deltaPx / pps();
+      var newStart = Math.max(0, origStart + deltaSec);
+      loopStart = newStart;
+      loopEnd = newStart + duration;
+      updateLoopRegion();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      toast('Loop: ' + formatTime(loopStart) + ' - ' + formatTime(loopEnd));
+      saveSession();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+/* Option+drag on ruler to create loop region */
+function initRulerLoopDrag() {
+  var ruler = document.getElementById('timeline-ruler');
+  ruler.addEventListener('mousedown', function(e) {
+    if (!e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var container = document.getElementById('timeline-container');
+    var pps = (80 / 15) * (zoomLevel / 100);
+    var ho = 100 * (zoomLevel / 100);
+    var rect = ruler.getBoundingClientRect();
+    var startX = e.clientX - rect.left + container.scrollLeft;
+    var startSec = Math.max(0, (startX - ho) / pps);
+    loopStart = startSec;
+    loopEnd = startSec;
+    loopEnabled = true;
+    var btn = document.getElementById('loop-btn');
+    if (btn) btn.classList.add('active');
+    var region = document.getElementById('loop-region');
+    region.classList.add('active');
+    updateLoopRegion();
+    function onMove(e) {
+      var curX = e.clientX - rect.left + container.scrollLeft;
+      var curSec = Math.max(0, (curX - ho) / pps);
+      if (curSec >= startSec) {
+        loopStart = startSec;
+        loopEnd = Math.max(startSec + 1, curSec);
+      } else {
+        loopStart = curSec;
+        loopEnd = startSec;
+      }
+      updateLoopRegion();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (loopEnd - loopStart < 1) {
+        loopEnd = loopStart + 15;
+      }
+      updateLoopRegion();
+      sfx('click');
+      toast('Loop set: ' + formatTime(loopStart) + ' - ' + formatTime(loopEnd));
+      saveSession();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }
 
 function formatTime(sec) {
@@ -4936,6 +5063,10 @@ function _doSaveSession() {
     session.workoutName = workoutName || '';
     // Recently used exercises
     if (typeof recentExercises !== 'undefined') session.recentExercises = recentExercises.slice(0);
+    // Loop region
+    session.loopEnabled = loopEnabled;
+    session.loopStart = loopStart;
+    session.loopEnd = loopEnd;
     localStorage.setItem('sms_session', JSON.stringify(session));
     // Flash save indicator
     var si = document.getElementById('save-indicator');
@@ -4998,6 +5129,17 @@ function loadSession() {
     if (s.recentExercises && s.recentExercises.length) {
       recentExercises = s.recentExercises;
       if (typeof updateRecentSection === 'function') updateRecentSection();
+    }
+    // Restore loop region
+    if (typeof s.loopEnabled !== 'undefined') {
+      loopEnabled = s.loopEnabled;
+      loopStart = s.loopStart || 0;
+      loopEnd = s.loopEnd || 60;
+      var btn = document.getElementById('loop-btn');
+      if (btn) btn.classList.toggle('active', loopEnabled);
+      var region = document.getElementById('loop-region');
+      region.classList.toggle('active', loopEnabled);
+      if (loopEnabled) updateLoopRegion();
     }
     updateStats();
   } catch(e) {}
@@ -5870,10 +6012,12 @@ document.addEventListener('DOMContentLoaded', function() {
   var ruler = document.getElementById('timeline-ruler');
   ruler.style.cursor = 'pointer';
   ruler.addEventListener('click', function(e) {
+    if (e.altKey) return; /* Alt+click handled by loop drag */
     var rect = ruler.getBoundingClientRect();
     var x = e.clientX - rect.left + document.getElementById('timeline-container').scrollLeft;
-    var pps = 80 / 15;
-    currentTime = Math.max(0, (x - 100) / pps);
+    var pps = (80 / 15) * (zoomLevel / 100);
+    var ho = 100 * (zoomLevel / 100);
+    currentTime = Math.max(0, (x - ho) / pps);
     updateTimeDisplay();
     updatePlayheadPosition();
     sfx('click');
@@ -5971,6 +6115,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
+  /* Init loop region drag interaction */
+  initLoopDrag();
+  initRulerLoopDrag();
 });
 
 /* ===== MOUSE WHEEL ZOOM on Timeline ===== */
