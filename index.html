@@ -935,6 +935,51 @@ body {
 .status-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent-green); }
 .footer-quote { font-style: italic; opacity: 0.3; letter-spacing: 0.05em; font-size: 8px; }
 
+/* ===== COMMAND PALETTE ===== */
+.cmd-palette {
+  display: none; position: fixed; inset: 0; z-index: 250;
+  background: rgba(3, 5, 9, 0.8); align-items: flex-start;
+  justify-content: center; padding-top: 20vh;
+  backdrop-filter: blur(4px);
+}
+.cmd-palette.open { display: flex; }
+.cmd-palette-box {
+  background: var(--surface); border: 1px solid var(--border);
+  width: 90%; max-width: 420px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+  border-radius: 6px; overflow: hidden;
+}
+.cmd-palette-input {
+  width: 100%; padding: 12px 16px;
+  background: transparent; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text); font-family: 'Sora', sans-serif;
+  font-size: 13px; outline: none;
+}
+.cmd-palette-input::placeholder { color: var(--micro); }
+.cmd-palette-results {
+  max-height: 280px; overflow-y: auto;
+  padding: 4px 0;
+}
+.cmd-result {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; cursor: pointer;
+  transition: background 0.08s;
+}
+.cmd-result:hover, .cmd-result.active {
+  background: rgba(59, 130, 246, 0.08);
+}
+.cmd-result-icon {
+  width: 20px; text-align: center;
+  font-size: 10px; color: var(--muted);
+}
+.cmd-result-text {
+  font-size: 11px; color: var(--text);
+}
+.cmd-result-key {
+  margin-left: auto; font-size: 8px;
+  color: var(--micro); letter-spacing: 0.08em;
+}
+
 /* ===== TOAST — Notification ===== */
 .toast {
   position: fixed; bottom: 36px; right: 16px;
@@ -1650,6 +1695,12 @@ a:focus-visible, button:focus-visible, input:focus-visible {
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
   </div>
 </div>
+<div class="cmd-palette" id="cmd-palette">
+  <div class="cmd-palette-box">
+    <input type="text" class="cmd-palette-input" id="cmd-input" placeholder="Type a command..." oninput="filterCommands()">
+    <div class="cmd-palette-results" id="cmd-results"></div>
+  </div>
+</div>
 <div class="clip-tip" id="clip-tip">
   <div class="clip-tip-name" id="tip-name"></div>
   <div class="clip-tip-detail">
@@ -2311,15 +2362,11 @@ function createClipElement(exercise, left, width, dna) {
   var fm = FAMILY_MAP[exercise.family] || {color:'#666'};
   var clip = document.createElement('div');
   clip.className = 'clip';
-  // Subtle color variation per exercise within same family
   var baseColor = fm.color;
-  var hash = 0;
-  for (var ci = 0; ci < exercise.id.length; ci++) hash = ((hash << 5) - hash) + exercise.id.charCodeAt(ci);
-  var hueShift = (hash % 20) - 10; // -10 to +10 degrees
-  var lightShift = (hash % 10) - 5; // -5% to +5%
-  clip.style.background = 'linear-gradient(180deg, ' + baseColor + ' 0%, ' + baseColor + 'cc 100%)';
+  // Stage-based opacity variation for visual differentiation
+  var stageAlpha = exercise.stage === 1 ? 'bb' : exercise.stage === 2 ? 'dd' : 'ff';
+  clip.style.background = 'linear-gradient(180deg, ' + baseColor + stageAlpha + ' 0%, ' + baseColor + '99 100%)';
   clip.style.borderTopColor = baseColor;
-  clip.style.filter = 'hue-rotate(' + hueShift + 'deg) brightness(' + (1 + lightShift/100) + ')';
   clip.style.left = (typeof left === 'string' ? left : Math.max(0, left) + 'px');
   clip.style.width = (typeof width === 'string' ? width : (width || 80) + 'px');
   clip.style.color = 'rgba(255,255,255,0.9)';
@@ -3917,6 +3964,101 @@ function renderAllMarkers() {
   markers.forEach(function(m) { renderMarker(m); });
 }
 
+/* ===== COMMAND PALETTE ===== */
+var CMD_ACTIONS = [
+  {label:'Play / Pause', key:'Space', icon:'\u25B6', action: function() { togglePlay(); }},
+  {label:'Stop', key:'Esc', icon:'\u25A0', action: function() { stopPlayback(); }},
+  {label:'Toggle Snap', key:'S', icon:'\u2593', action: function() { toggleSnap(); }},
+  {label:'Toggle Loop', key:'L', icon:'\u21BB', action: function() { toggleLoop(); }},
+  {label:'Toggle Metronome', key:'', icon:'\u266A', action: function() { toggleMetronome(); }},
+  {label:'Add Marker', key:'M', icon:'\u2691', action: function() { addMarker(); }},
+  {label:'Split Clip', key:'B', icon:'\u2702', action: function() { splitClipAtPlayhead(); }},
+  {label:'Duplicate Clip', key:'Cmd+D', icon:'\u2398', action: function() { duplicateClip(); }},
+  {label:'Duplicate Track', key:'Cmd+Shift+D', icon:'\u2398', action: function() { duplicateTrackClips(); }},
+  {label:'Zoom to Fit', key:'', icon:'\u2922', action: function() { zoomToFit(); }},
+  {label:'Zoom In', key:'Cmd++', icon:'+', action: function() { zoomIn(); }},
+  {label:'Zoom Out', key:'Cmd+-', icon:'-', action: function() { zoomOut(); }},
+  {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
+  {label:'Clear All Clips', key:'', icon:'\u2716', action: function() { clearAllClips(); }},
+  {label:'Save Workout', key:'', icon:'\u2913', action: function() { saveNamedWorkout(); }},
+  {label:'Load Workout', key:'', icon:'\u2912', action: function() { showSavedWorkouts(); }},
+  {label:'Export JSON', key:'', icon:'\u21A6', action: function() { exportWorkout(); }},
+  {label:'Import Workout', key:'', icon:'\u21A4', action: function() { importWorkout(); }},
+  {label:'Print Sheet', key:'', icon:'\u2399', action: function() { printWorkout(); }},
+  {label:'Generate Random', key:'', icon:'\u2684', action: function() { generateRandom(); }},
+  {label:'Rename Workout', key:'', icon:'\u270E', action: function() { renameWorkout(); }},
+  {label:'Toggle Presets', key:'', icon:'\u2630', action: function() { togglePresets(); }},
+  {label:'Keyboard Shortcuts', key:'?', icon:'\u2328', action: function() { toggleShortcuts(); }},
+  {label:'Reset Session', key:'', icon:'\u21BA', action: function() { resetSession(); }},
+];
+
+function openCmdPalette() {
+  var pal = document.getElementById('cmd-palette');
+  pal.classList.add('open');
+  var input = document.getElementById('cmd-input');
+  input.value = '';
+  input.focus();
+  renderCommands('');
+}
+
+function closeCmdPalette() {
+  document.getElementById('cmd-palette').classList.remove('open');
+}
+
+function filterCommands() {
+  renderCommands(document.getElementById('cmd-input').value.toLowerCase());
+}
+
+function renderCommands(q) {
+  var results = document.getElementById('cmd-results');
+  var filtered = CMD_ACTIONS.filter(function(a) {
+    return !q || a.label.toLowerCase().indexOf(q) !== -1;
+  });
+  var html = '';
+  filtered.forEach(function(a, i) {
+    html += '<div class="cmd-result' + (i === 0 ? ' active' : '') + '" data-idx="' + CMD_ACTIONS.indexOf(a) + '">';
+    html += '<span class="cmd-result-icon">' + a.icon + '</span>';
+    html += '<span class="cmd-result-text">' + a.label + '</span>';
+    if (a.key) html += '<span class="cmd-result-key">' + a.key + '</span>';
+    html += '</div>';
+  });
+  results.innerHTML = html || '<div style="padding:12px 16px;font-size:10px;color:var(--micro)">No commands found</div>';
+  // Click handlers
+  results.querySelectorAll('.cmd-result').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var idx = parseInt(el.dataset.idx);
+      closeCmdPalette();
+      CMD_ACTIONS[idx].action();
+    });
+  });
+}
+
+// Cmd+K to open, Escape to close
+document.getElementById('cmd-palette').addEventListener('click', function(e) {
+  if (e.target === document.getElementById('cmd-palette')) closeCmdPalette();
+});
+document.getElementById('cmd-input').addEventListener('keydown', function(e) {
+  if (e.code === 'Escape') { closeCmdPalette(); e.stopPropagation(); return; }
+  if (e.code === 'Enter') {
+    var active = document.querySelector('.cmd-result.active');
+    if (active) {
+      closeCmdPalette();
+      var idx = parseInt(active.dataset.idx);
+      CMD_ACTIONS[idx].action();
+    }
+    return;
+  }
+  if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    var items = Array.from(document.querySelectorAll('.cmd-result'));
+    var cur = items.findIndex(function(el) { return el.classList.contains('active'); });
+    items.forEach(function(el) { el.classList.remove('active'); });
+    if (e.code === 'ArrowDown') cur = (cur + 1) % items.length;
+    else cur = (cur - 1 + items.length) % items.length;
+    if (items[cur]) { items[cur].classList.add('active'); items[cur].scrollIntoView({block:'nearest'}); }
+  }
+});
+
 /* ===== WORKOUT NAME ===== */
 var workoutName = 'Untitled';
 function setWorkoutName(name) {
@@ -4163,6 +4305,11 @@ document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
     e.preventDefault();
     if (e.shiftKey) { redo(); } else { undo(); }
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyK') {
+    e.preventDefault();
+    openCmdPalette();
     return;
   }
   if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyD') {
