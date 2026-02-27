@@ -1601,14 +1601,15 @@ button:focus-visible, .transport-btn:focus-visible {
   color: var(--text-secondary); padding: 8px 14px;
   font-size: 10px; z-index: 200;
   text-transform: uppercase; letter-spacing: 0.08em;
-  opacity: 0; transition: opacity 0.2s;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
   pointer-events: none; font-family: 'Sora', sans-serif;
   box-shadow: var(--shadow-deep);
   border-radius: var(--radius-md);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
-.toast.show { opacity: 1; }
+.toast.show { opacity: 1; transform: translateY(0); }
 @media(prefers-reduced-motion:reduce) {
   .music-now-playing .eq span { animation: none; height: 6px; }
   .preset-card:hover { transform: none; }
@@ -2114,6 +2115,33 @@ button:focus-visible, .transport-btn:focus-visible {
 }
 .inline-prompt-ok:hover { background: rgba(59,130,246,0.25); }
 
+/* ===== TOOLTIP — Craft-style hover tip ===== */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(13,17,23,0.95);
+  color: var(--text-secondary);
+  font-size: 9px; font-weight: 400;
+  padding: 4px 8px;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  z-index: 400;
+  letter-spacing: 0.02em;
+  font-family: 'Sora', sans-serif;
+}
+[data-tip]:hover::after {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
+@media(prefers-reduced-motion:reduce) {
+  [data-tip]::after { transition: none; }
+}
+
 /* ===== SCROLLBAR — Craft Style (barely visible) ===== */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -2168,7 +2196,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
     </div>
     <div style="display:flex;align-items:center;gap:4px;margin-left:8px">
       <span style="font-size:8px;color:var(--micro)">/</span>
-      <span id="header-workout-name" style="font-size:9px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="renameWorkout()" title="Click to rename">Untitled</span>
+      <span id="header-workout-name" style="font-size:9px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="renameWorkout()" data-tip="Click to rename">Untitled</span>
     </div>
     <nav class="header-nav">
       <button class="nav-btn" id="btn-presets" onclick="togglePresets()">PRESETS</button>
@@ -2183,10 +2211,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <button class="nav-btn" id="btn-video" onclick="toggleVideo()">VID</button>
       <button class="nav-btn" onclick="toggleMusic()">MUS</button>
       <div class="nav-sep"></div>
-      <button class="nav-btn" onclick="undo()" title="Undo (Cmd+Z)" style="font-size:11px">&#8617;</button>
-      <button class="nav-btn" onclick="redo()" title="Redo (Cmd+Shift+Z)" style="font-size:11px">&#8618;</button>
+      <button class="nav-btn" onclick="undo()" data-tip="Undo (Cmd+Z)" style="font-size:11px">&#8617;</button>
+      <button class="nav-btn" onclick="redo()" data-tip="Redo (Cmd+Shift+Z)" style="font-size:11px">&#8618;</button>
       <div class="nav-sep"></div>
-      <button class="nav-btn" onclick="toggleShortcuts()" title="Keyboard shortcuts (?)" style="font-size:10px;font-weight:700">?</button>
+      <button class="nav-btn" onclick="toggleShortcuts()" data-tip="Shortcuts (?)" style="font-size:10px;font-weight:700">?</button>
     </nav>
   </header>
 
@@ -2269,14 +2297,14 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <!-- Transport -->
       <div class="transport">
         <div class="transport-buttons">
-          <button class="transport-btn" onclick="rewind()" title="Rewind 15s">&#9198;</button>
-          <button class="transport-btn" id="play-btn" onclick="togglePlay()" title="Play / Pause">&#9654;</button>
-          <button class="transport-btn" onclick="stopPlayback()" title="Stop">&#9632;</button>
-          <button class="transport-btn" onclick="forward()" title="Forward 15s">&#9197;</button>
-          <button class="transport-btn rec" id="rec-btn" onclick="toggleRec()" title="Record" style="border-radius:0 3px 3px 0">&#9679;</button>
+          <button class="transport-btn" onclick="rewind()" data-tip="Rewind 15s">&#9198;</button>
+          <button class="transport-btn" id="play-btn" onclick="togglePlay()" data-tip="Play / Pause (Space)">&#9654;</button>
+          <button class="transport-btn" onclick="stopPlayback()" data-tip="Stop">&#9632;</button>
+          <button class="transport-btn" onclick="forward()" data-tip="Forward 15s">&#9197;</button>
+          <button class="transport-btn rec" id="rec-btn" onclick="toggleRec()" data-tip="Record (R)" style="border-radius:0 3px 3px 0">&#9679;</button>
         </div>
         <span id="playback-state" class="transport-state state-stop">STOP</span>
-        <span class="snap-badge" id="snap-badge" onclick="toggleSnap()" title="Snap to grid (S)">SNAP</span>
+        <span class="snap-badge" id="snap-badge" onclick="toggleSnap()" data-tip="Snap to grid (S)">SNAP</span>
         <div class="transport-sep"></div>
         <div class="transport-buttons">
           <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
