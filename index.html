@@ -282,6 +282,26 @@ body {
 }
 .video-toggle:hover { color: var(--text); }
 
+/* Mini-map overview */
+.timeline-minimap {
+  height: 16px;
+  background: var(--bg-deep);
+  border-bottom: 1px solid rgba(30,41,59,0.4);
+  position: sticky; top: 22px; z-index: 9;
+  overflow: hidden; cursor: pointer;
+}
+.minimap-viewport {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  pointer-events: none;
+  min-width: 20px;
+}
+.minimap-clip {
+  position: absolute; height: 3px;
+  border-radius: 1px; opacity: 0.7;
+}
+
 /* Timeline — Logic Pro Grid */
 .timeline-container { flex: 1; overflow: auto; background: var(--bg-deep); }
 .timeline-ruler {
@@ -404,6 +424,40 @@ body {
 .clip .beat-markers span {
   position: absolute; top: 0; bottom: 0; width: 1px;
   background: rgba(255,255,255,0.06);
+}
+/* Clip fade handles */
+.clip .clip-fade {
+  position: absolute; top: 0; width: 0; height: 100%;
+  cursor: ew-resize; z-index: 2;
+}
+.clip .clip-fade-in { left: 0; }
+.clip .clip-fade-out { right: 0; }
+.clip .clip-fade::after {
+  content: '';
+  position: absolute; top: 0;
+  width: 0; height: 0;
+  border-style: solid;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.clip:hover .clip-fade-in::after {
+  opacity: 0.4;
+  border-width: 44px 12px 0 0;
+  border-color: rgba(0,0,0,0.5) transparent transparent transparent;
+  left: 0; top: 0;
+}
+.clip:hover .clip-fade-out::after {
+  opacity: 0.4;
+  border-width: 0 0 44px 12px;
+  border-color: transparent transparent rgba(0,0,0,0.5) transparent;
+  right: 0; bottom: 0; top: auto;
+  position: absolute;
+}
+.clip .clip-fade-in.has-fade::after {
+  opacity: 0.5 !important;
+}
+.clip .clip-fade-out.has-fade::after {
+  opacity: 0.5 !important;
 }
 /* Muted track clips */
 .track.track-muted .clip { opacity: 0.3; filter: grayscale(0.6); }
@@ -1066,6 +1120,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <!-- Timeline -->
       <div class="timeline-container" id="timeline-container">
         <div class="timeline-ruler" id="timeline-ruler"></div>
+        <div class="timeline-minimap" id="timeline-minimap"><div class="minimap-viewport" id="minimap-viewport"></div></div>
         <div class="timeline-tracks" id="timeline-tracks">
           <div class="loop-region" id="loop-region"></div>
           <div class="playhead" id="playhead"></div>
@@ -1169,9 +1224,14 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   <!-- FOOTER -->
   <footer class="footer">
     <div class="status-item"><div class="status-dot"></div><span id="status-text">Ready</span></div>
-    <div style="display:flex;gap:16px;font-size:9px">
+    <div style="display:flex;gap:12px;font-size:9px">
       <span>Clips: <span id="clip-count" style="color:var(--text-secondary)">0</span></span>
+      <span style="color:var(--border)">|</span>
       <span>Duration: <span id="total-duration" style="color:var(--text-secondary)">0:00</span></span>
+      <span style="color:var(--border)">|</span>
+      <span id="footer-bars" style="color:var(--muted)">0 bars</span>
+      <span style="color:var(--border)">|</span>
+      <span id="footer-pos" style="color:var(--muted)">1.1.1</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <div class="footer-quote">Saturno Movement Studio</div>
@@ -1862,6 +1922,31 @@ function createClipElement(exercise, left, width, dna) {
   // Tooltip with exercise details
   clip.title = exercise.name + ' | ' + exercise.pattern + ' | S' + exercise.stage + ' | ' + exercise.discipline + ' | ' + clip.dataset.sets + 'x' + clip.dataset.reps;
 
+  var fadeIn = document.createElement('div');
+  fadeIn.className = 'clip-fade clip-fade-in';
+  clip.appendChild(fadeIn);
+  var fadeOut = document.createElement('div');
+  fadeOut.className = 'clip-fade clip-fade-out';
+  clip.appendChild(fadeOut);
+
+  // Fade handle drag (visual only — shows fade triangle)
+  function setupFadeDrag(fadeEl, isIn) {
+    fadeEl.addEventListener('mousedown', function(e) {
+      e.stopPropagation();
+      var startX = e.clientX;
+      function onMove(e) {
+        var delta = Math.abs(e.clientX - startX);
+        fadeEl.style.width = Math.min(delta, parseInt(clip.style.width) / 2) + 'px';
+        fadeEl.classList.add('has-fade');
+      }
+      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+  setupFadeDrag(fadeIn, true);
+  setupFadeDrag(fadeOut, false);
+
   var resize = document.createElement('div');
   resize.className = 'clip-resize';
   clip.appendChild(resize);
@@ -2080,6 +2165,10 @@ function updateStats() {
   var m = Math.floor(secs / 60);
   var s = secs % 60;
   document.getElementById('total-duration').textContent = m + ':' + s.toString().padStart(2, '0');
+  // Update total bars in footer
+  var totalBars = Math.ceil(secs / (60 / bpm * 4));
+  var barsEl = document.getElementById('footer-bars');
+  if (barsEl) barsEl.textContent = totalBars + ' bar' + (totalBars !== 1 ? 's' : '');
   // Update per-track clip counts
   TRACKS.forEach(function(t) {
     if (t.isMusic) return;
@@ -2087,7 +2176,71 @@ function updateStats() {
     if (el) el.textContent = (trackCounts[t.id] || 0) + ' clips';
   });
   updateSummary();
+  updateMinimap();
 }
+
+/* ===== MINI-MAP ===== */
+function updateMinimap() {
+  var minimap = document.getElementById('timeline-minimap');
+  var mapW = minimap.clientWidth;
+  if (mapW === 0) return;
+  // Calculate total timeline width from clips
+  var maxRight = 600; // minimum extent
+  var clips = document.querySelectorAll('.clip');
+  clips.forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var totalW = maxRight + 200; // padding
+  var scale = mapW / totalW;
+  // Draw mini clips
+  var trackOffsets = {push:0,pull:1,core:2,legs:3,skills:4};
+  var trackH = 3;
+  var html = '';
+  clips.forEach(function(c) {
+    var tid = c.parentElement.dataset.track;
+    var row = trackOffsets[tid];
+    if (row === undefined) return;
+    var x = parseInt(c.style.left) * scale;
+    var w = Math.max(2, parseInt(c.style.width) * scale);
+    var top = 1 + row * (trackH + 1);
+    var ex = getExercise(c.dataset.exerciseId);
+    var color = ex ? (FAMILY_MAP[ex.family] || {color:'#666'}).color : '#666';
+    html += '<div class="minimap-clip" style="left:'+x+'px;width:'+w+'px;top:'+top+'px;background:'+color+'"></div>';
+  });
+  // Keep viewport indicator
+  var container = document.getElementById('timeline-container');
+  var vpLeft = container.scrollLeft * scale;
+  var vpW = container.clientWidth * scale;
+  html += '<div class="minimap-viewport" style="left:'+vpLeft+'px;width:'+vpW+'px"></div>';
+  // Remove old viewport element since we're regenerating
+  var oldVp = document.getElementById('minimap-viewport');
+  if (oldVp) oldVp.remove();
+  minimap.innerHTML = html;
+}
+
+/* Click on minimap to scroll */
+document.addEventListener('DOMContentLoaded', function() {
+  var minimap = document.getElementById('timeline-minimap');
+  minimap.addEventListener('click', function(e) {
+    var rect = minimap.getBoundingClientRect();
+    var clickX = e.clientX - rect.left;
+    var ratio = clickX / rect.width;
+    var maxRight = 600;
+    document.querySelectorAll('.clip').forEach(function(c) {
+      var r = parseInt(c.style.left) + parseInt(c.style.width);
+      if (r > maxRight) maxRight = r;
+    });
+    var totalW = maxRight + 200;
+    var container = document.getElementById('timeline-container');
+    container.scrollLeft = ratio * totalW - container.clientWidth / 2;
+    updateMinimap();
+  });
+  /* Update minimap on scroll */
+  document.getElementById('timeline-container').addEventListener('scroll', function() {
+    updateMinimap();
+  });
+});
 
 /* ===== TRANSPORT ===== */
 function togglePlay() {
@@ -2157,6 +2310,14 @@ function updateTimeDisplay() {
   document.getElementById('td-min').textContent = mins.toString().padStart(2, '0');
   document.getElementById('td-sec').textContent = secs.toString().padStart(2, '0');
   document.getElementById('td-ms').textContent = ms.toString().padStart(2, '0');
+  // Update bars:beats:ticks in footer
+  var beatDuration = 60 / bpm;
+  var totalBeats = currentTime / beatDuration;
+  var bar = Math.floor(totalBeats / 4) + 1;
+  var beat = Math.floor(totalBeats % 4) + 1;
+  var tick = Math.floor((totalBeats % 1) * 4) + 1;
+  var posEl = document.getElementById('footer-pos');
+  if (posEl) posEl.textContent = bar + '.' + beat + '.' + tick;
 }
 
 function updatePlayheadPosition() {
