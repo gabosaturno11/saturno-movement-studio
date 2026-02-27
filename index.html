@@ -2804,6 +2804,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>End</kbd><span>Jump to End</span></div>
       <div class="shortcut-item"><kbd>PgUp</kbd><span>Stage Up</span></div>
       <div class="shortcut-item"><kbd>PgDn</kbd><span>Stage Down</span></div>
+      <div class="shortcut-item"><kbd>Cmd+Shift+V</kbd><span>Paste @ Head</span></div>
       <div class="shortcut-item"><kbd>Cmd+I</kbd><span>Invert Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+A</kbd><span>Track Clips</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
@@ -7137,6 +7138,7 @@ var CMD_ACTIONS = [
   {label:'Stage Up', key:'PgUp', icon:'\u25B2', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage+1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage+1)+': '+sib.name);}else{toast('Max stage');} }},
   {label:'Stage Down', key:'PgDn', icon:'\u25BC', action: function() { if(!selectedClip)return; var ex=getExercise(selectedClip.dataset.exerciseId); if(!ex)return; var sib=EXERCISES.filter(function(e){return e.pattern===ex.pattern&&e.stage===ex.stage-1;})[0]; if(sib){pushUndo();swapClipExercise(sib.id);toast('Stage '+(ex.stage-1)+': '+sib.name);}else{toast('Min stage');} }},
   {label:'Auto-Name Workout', key:'', icon:'\u270E', action: function() { autoNameWorkout(); }},
+  {label:'Paste at Playhead', key:'Cmd+Shift+V', icon:'\u2398', action: function() { pasteAtPlayhead(); }},
 ];
 
 function openCmdPalette() {
@@ -7584,6 +7586,35 @@ function pasteClips() {
   toast(clipboardData.length + ' clip' + (clipboardData.length > 1 ? 's' : '') + ' pasted');
 }
 
+function pasteAtPlayhead() {
+  if (clipboardData.length === 0) { toast('Nothing to paste'); return; }
+  pushUndo();
+  var pps = 80 / 15;
+  var targetLeft = 100 + currentTime * pps;
+  var minLeft = Infinity;
+  clipboardData.forEach(function(cd) { if (cd.left < minLeft) minLeft = cd.left; });
+  var offsetAmt = targetLeft - minLeft;
+  clipboardData.forEach(function(cd) {
+    var track = document.querySelector('.track-content[data-track="'+cd.track+'"]');
+    var ex = getExercise(cd.exerciseId);
+    if (!track || !ex) return;
+    var clip = createClipElement(ex, cd.left + offsetAmt, cd.width, {
+      sets: cd.sets, reps: cd.reps, tempo: cd.tempo, rest: cd.rest, rpe: cd.rpe,
+      fadeIn: cd.fadeIn || '0', fadeOut: cd.fadeOut || '0'
+    });
+    if (cd.notes) clip.dataset.notes = cd.notes;
+    if (cd.customColor) {
+      clip.dataset.customColor = cd.customColor;
+      clip.style.background = 'linear-gradient(180deg, ' + cd.customColor + '44 0%, ' + cd.customColor + '22 100%)';
+      clip.style.borderTopColor = cd.customColor;
+    }
+    track.appendChild(clip);
+  });
+  updateStats(); saveSession();
+  sfx('drop');
+  toast(clipboardData.length + ' clip' + (clipboardData.length > 1 ? 's' : '') + ' pasted at playhead');
+}
+
 /* ===== AUTO-ARRANGE — Lay Out Clips Sequentially ===== */
 function autoArrange() {
   var tracks = document.querySelectorAll('.track-content');
@@ -7822,6 +7853,11 @@ document.addEventListener('keydown', function(e) {
     copyClips();
     return;
   }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'KeyV') {
+    e.preventDefault();
+    pasteAtPlayhead();
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyV') {
     e.preventDefault();
     pasteClips();
@@ -7859,6 +7895,14 @@ document.addEventListener('keydown', function(e) {
       selectedClip.style.left = Math.round(curLeft) + 'px';
     }
     saveSession(); updateStats();
+  }
+  // Left/Right without selected clip: scrub playhead
+  if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && !selectedClip && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    var scrubSec = e.shiftKey ? (60 / bpm * 4) : (60 / bpm);
+    if (e.code === 'ArrowLeft') currentTime = Math.max(0, currentTime - scrubSec);
+    else currentTime = currentTime + scrubSec;
+    updateTimeDisplay(); updatePlayheadPosition();
   }
   // Up/Down arrow: move clip between tracks
   // Shift+Up/Down: adjust RPE of selected clip
