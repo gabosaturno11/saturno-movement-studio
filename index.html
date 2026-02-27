@@ -7378,6 +7378,8 @@ var CMD_ACTIONS = [
   {label:'Distribute Across Tracks', key:'', icon:'\u21F6', action: function() { distributeAcrossTracks(); }},
   {label:'Cycle Exercise in Pattern', key:'', icon:'\u21BB', action: function() { cycleExerciseInPattern(); }},
   {label:'Compact All Tracks', key:'', icon:'\u25A0', action: function() { compactAllTracks(); }},
+  {label:'Select Overlapping Clips', key:'', icon:'\u25C9', action: function() { selectOverlappingClips(); }},
+  {label:'Select Superset Clips', key:'', icon:'\u25C9', action: function() { selectSupersetClips(); }},
 ];
 
 function openCmdPalette() {
@@ -8651,6 +8653,28 @@ function compactAllTracks() {
   toast('All tracks compacted (' + total + ' clips moved)');
 }
 
+function selectOverlappingClips() {
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip.clip-overlap').forEach(function(c) {
+    c.classList.add('selected');
+    count++;
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' overlapping clip' + (count !== 1 ? 's' : '') + ' selected');
+}
+
+function selectSupersetClips() {
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip.clip-superset').forEach(function(c) {
+    c.classList.add('selected');
+    count++;
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' superset clip' + (count !== 1 ? 's' : '') + ' selected');
+}
+
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
   var count = 0;
@@ -9183,9 +9207,18 @@ document.addEventListener('keydown', function(e) {
         var recTrack = document.querySelector('.track-content[data-track="'+trackIds[idx]+'"]');
         var recTrackDef = TRACKS.find(function(t) { return t.id === trackIds[idx]; });
         if (recTrack && recTrackDef) {
-          var recExercises = EXERCISES.filter(function(ex) { return ex.family === recTrackDef.family; });
-          if (recExercises.length > 0) {
-            var recEx = recExercises[Math.floor(Math.random() * recExercises.length)];
+          var recEx = null;
+          var recentForTrack = recentExercises.filter(function(rid) {
+            var re = getExercise(rid);
+            return re && re.family === recTrackDef.family;
+          });
+          if (recentForTrack.length > 0) {
+            recEx = getExercise(recentForTrack[0]);
+          } else {
+            var recExercises = EXERCISES.filter(function(ex) { return ex.family === recTrackDef.family; });
+            if (recExercises.length > 0) recEx = recExercises[Math.floor(Math.random() * recExercises.length)];
+          }
+          if (recEx) {
             var pps = 80 / 15;
             var recLeft = currentTime * pps;
             addClip(recTrack, recEx, recLeft);
