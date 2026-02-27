@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>SATURNO MOVEMENT STUDIO - The Ableton of Movement</title>
+<meta name="description" content="The Ableton of Movement. DAW-style workout composition with drag-drop exercises, BPM training modes, and music sync.">
+<meta property="og:title" content="Saturno Movement Studio">
+<meta property="og:description" content="The Ableton of Movement. Compose workouts like music.">
+<meta property="og:type" content="website">
 <link rel="icon" href="assets/planet-logo.png" type="image/png">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -31,7 +35,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
 .logo-text{font-size:13px;font-weight:700;letter-spacing:-0.02em;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .logo-sub{font-size:9px;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase}
 .header-nav{display:flex;gap:6px;align-items:center}
-.nav-btn{padding:6px 12px;font-size:10px;font-family:'Sora',sans-serif;background:transparent;border:1px solid var(--border);color:var(--text-secondary);cursor:pointer;transition:all 0.15s;letter-spacing:0.02em}
+.nav-btn{padding:6px 12px;font-size:10px;font-family:'Sora',sans-serif;background:transparent;border:1px solid var(--border);color:var(--text-secondary);cursor:pointer;transition:border-color 0.15s,color 0.15s,background 0.15s;letter-spacing:0.02em}
 .nav-btn:hover{border-color:var(--accent-cyan);color:var(--accent-cyan)}
 .nav-btn.active{background:rgba(6,182,212,0.15);border-color:var(--accent-cyan);color:var(--accent-cyan)}
 .preset-select{padding:6px 10px;font-size:10px;font-family:'Sora',sans-serif;background:var(--bg-card);border:1px solid var(--border);color:var(--text);cursor:pointer}
@@ -52,7 +56,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
 .category-color{width:8px;height:8px;border-radius:2px}
 .movement-list{padding:2px 6px 6px}
 .movement-list.hidden{display:none}
-.movement-item{padding:6px 8px;margin:1px 0;font-size:10px;background:var(--bg-card);border:1px solid var(--border);cursor:grab;transition:all 0.15s;display:flex;align-items:center;gap:6px}
+.movement-item{padding:6px 8px;margin:1px 0;font-size:10px;background:var(--bg-card);border:1px solid var(--border);cursor:grab;transition:border-color 0.15s,background 0.15s;display:flex;align-items:center;gap:6px}
 .movement-item:hover{border-color:var(--accent-cyan);background:var(--bg-hover)}
 .movement-item:active{cursor:grabbing}
 .movement-item .mv-icon{width:20px;height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0}
@@ -64,7 +68,7 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
 /* Transport Bar */
 .transport{background:var(--bg-panel);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px}
 .transport-buttons{display:flex;gap:3px}
-.transport-btn{width:30px;height:30px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;font-family:'Sora',sans-serif}
+.transport-btn{width:30px;height:30px;background:var(--bg-card);border:1px solid var(--border);color:var(--text);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color 0.15s,background 0.15s,color 0.15s;font-family:'Sora',sans-serif}
 .transport-btn:hover{border-color:var(--accent-cyan)}
 .transport-btn.active{background:var(--accent-green);border-color:var(--accent-green);color:#000}
 .transport-btn.rec.active{background:var(--accent-red);border-color:var(--accent-red);color:#fff}
@@ -180,11 +184,12 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
 /* ===== TOAST ===== */
 .toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--accent-cyan);color:var(--text);padding:8px 16px;font-size:11px;z-index:100;opacity:0;transition:opacity 0.3s;pointer-events:none;font-family:'Sora',sans-serif}
 .toast.show{opacity:1}
+@media(prefers-reduced-motion:reduce){.music-now-playing .eq span{animation:none;height:6px}.preset-card:hover{transform:none}}
 
 /* ===== PRESETS DRAWER ===== */
 .presets-drawer{display:none;position:absolute;top:52px;left:0;right:0;background:var(--bg-panel);border-bottom:2px solid var(--accent-cyan);z-index:50;padding:12px 20px}
 .presets-drawer.open{display:flex;gap:12px;flex-wrap:wrap}
-.preset-card{flex:1;min-width:180px;max-width:250px;padding:12px;background:var(--bg-card);border:1px solid var(--border);cursor:pointer;transition:all 0.15s}
+.preset-card{flex:1;min-width:180px;max-width:250px;padding:12px;background:var(--bg-card);border:1px solid var(--border);cursor:pointer;transition:border-color 0.15s,transform 0.15s}
 .preset-card:hover{border-color:var(--accent-cyan);transform:translateY(-2px)}
 .preset-card .pc-name{font-size:12px;font-weight:600;margin-bottom:4px}
 .preset-card .pc-bpm{font-size:10px;color:var(--accent-cyan)}
@@ -874,7 +879,7 @@ function updateBPM() {
   bpm = parseInt(document.getElementById('bpm-input').value) || 120;
   updateBPMMode();
   saveSession();
-  // If tempo-linked, adjust exercise tempos
+  // If tempo-linked, adjust exercise tempos AND music playback rate
   if (tempoLinked) {
     var repTempo = 60 / bpm;
     document.getElementById('insp-tempo').value = repTempo.toFixed(1);
@@ -882,7 +887,15 @@ function updateBPM() {
       selectedClip.dataset.tempo = repTempo.toFixed(1);
       updateClipDNA();
     }
-    toast('Tempo linked: ' + repTempo.toFixed(1) + 's per rep');
+    // Adjust music playback rate: 120 BPM = 1.0x, scale proportionally
+    if (audioEl) {
+      var rate = Math.max(0.5, Math.min(2.0, bpm / 120));
+      audioEl.playbackRate = rate;
+    }
+    toast('Tempo linked: ' + repTempo.toFixed(1) + 's/rep, music ' + (bpm / 120).toFixed(2) + 'x');
+  } else {
+    // Reset music to normal speed when unlinked
+    if (audioEl) audioEl.playbackRate = 1.0;
   }
 }
 
@@ -906,6 +919,7 @@ function toggleTempoLink() {
     toast('BPM linked to exercise tempo');
     updateBPM();
   } else {
+    if (audioEl) audioEl.playbackRate = 1.0;
     toast('Tempo unlinked');
   }
 }
