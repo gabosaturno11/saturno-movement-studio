@@ -4766,7 +4766,23 @@ function clearTimeline() {
 }
 
 /* ===== SAVE / LOAD ===== */
-function saveSession() {
+/* Debounced auto-save — coalesces rapid saveSession() calls into one write */
+var _saveTimer = null;
+var _saveImmediate = false;
+function saveSession(immediate) {
+  if (immediate) {
+    _saveImmediate = true;
+  }
+  if (_saveTimer) clearTimeout(_saveTimer);
+  if (_saveImmediate) {
+    _saveImmediate = false;
+    _doSaveSession();
+  } else {
+    _saveTimer = setTimeout(_doSaveSession, 300);
+  }
+}
+function _doSaveSession() {
+  _saveTimer = null;
   try {
     var session = {bpm: bpm, clips: [], faders: {}, knobs: {}};
     document.querySelectorAll('.clip').forEach(function(clip) {
@@ -5422,7 +5438,13 @@ function duplicateClip() {
 
 /* ===== SNAP TO GRID ===== */
 var snapEnabled = false;
-var SNAP_SIZE = 80; // pixels per grid unit (15 seconds)
+
+function getSnapSize() {
+  // gridRes = beats per snap unit, pps = 80px / 15sec, beatSec = 60/bpm
+  var pps = 80 / 15;
+  var beatSec = 60 / bpm;
+  return Math.round(gridRes * beatSec * pps);
+}
 
 function toggleSnap() {
   snapEnabled = !snapEnabled;
@@ -5433,12 +5455,14 @@ function toggleSnap() {
   var snapBadge = document.getElementById('snap-badge');
   if (snapBadge) snapBadge.classList.toggle('active', snapEnabled);
   sfx('snap');
-  toast(snapEnabled ? 'Snap ON' : 'Snap OFF');
+  toast(snapEnabled ? 'Snap ON (' + gridRes + ' beat' + (gridRes > 1 ? 's' : '') + ')' : 'Snap OFF');
 }
 
 function snapValue(val) {
   if (!snapEnabled) return val;
-  var snapped = Math.round(val / SNAP_SIZE) * SNAP_SIZE;
+  var sz = getSnapSize();
+  if (sz < 4) sz = 4; // minimum 4px snap to avoid 0-division
+  var snapped = Math.round(val / sz) * sz;
   if (snapped !== val) showSnapLine(snapped);
   return snapped;
 }
@@ -6232,7 +6256,7 @@ var metroVolume = 0.5;
 
 function setGridRes(val) {
   gridRes = parseInt(val);
-  toast('Grid: ' + gridRes + ' beat' + (gridRes > 1 ? 's' : ''));
+  toast('Grid: ' + gridRes + ' beat' + (gridRes > 1 ? 's' : '') + (snapEnabled ? ' (snap active)' : ''));
 }
 
 function toggleAutoScrollFromSettings() {
@@ -6367,10 +6391,19 @@ document.addEventListener('keydown', function(e) {
   if (e.code === 'Escape') {
     var sum = document.getElementById('summary-overlay');
     if (sum.classList.contains('open')) { closeSummary(); return; }
+    var so = document.getElementById('shortcuts-overlay');
+    if (so.classList.contains('open')) { so.classList.remove('open'); return; }
+    // Deselect all clips first, then stop playback
+    var hadSelection = document.querySelectorAll('.clip.selected').length > 0;
+    if (hadSelection) {
+      document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+      selectedClip = null;
+      document.getElementById('inspector').style.display = 'none';
+      if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+      return;
+    }
     stopPlayback();
     closeSavedWorkouts();
-    var so = document.getElementById('shortcuts-overlay');
-    if (so.classList.contains('open')) so.classList.remove('open');
   }
   if (e.key === '?' || e.code === 'Slash') {
     toggleShortcuts();
@@ -6383,7 +6416,7 @@ document.addEventListener('keydown', function(e) {
   }
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') {
     e.preventDefault();
-    saveSession();
+    saveSession(true);
     sfx('click');
     toast('Session saved');
     return;
