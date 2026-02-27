@@ -7855,6 +7855,9 @@ var CMD_ACTIONS = [
   {label:'Cinematic Workout Intro', key:'', icon:'\u2728', action: function() { showWorkoutIntro(); }},
   {label:'View Achievements', key:'', icon:'\u2605', action: function() { showAllAchievements(); }},
   {label:'Smart Workout Suggestions', key:'', icon:'\u2139', action: function() { suggestWorkoutImprovements(); }},
+  {label:'Quick Workout Templates', key:'', icon:'\u2B50', action: function() { showQuickTemplates(); }},
+  {label:'Workout Heat Calendar', key:'', icon:'\u2593', action: function() { showWorkoutHeatCalendar(); }},
+  {label:'Motivational Quote', key:'', icon:'\u275D', action: function() { toast(getMotivationalQuote()); }},
 ];
 
 function openCmdPalette() {
@@ -11708,6 +11711,258 @@ function suggestWorkoutImprovements() {
   overlay.appendChild(card);
   document.body.appendChild(overlay);
 }
+
+/* ===== BATCH 298: QUICK WORKOUT TEMPLATES ===== */
+var QUICK_TEMPLATES = [
+  {name:'PPL Push Day',families:['Push','Core'],exercises:['Push-Up','Dip','Pike Push-Up','Pseudo Planche Push-Up','Hollow Body Hold','Plank'],bpm:110},
+  {name:'PPL Pull Day',families:['Pull','Core'],exercises:['Pull-Up','Inverted Row','Tuck Front Lever Row','L-Sit','Dead Hang','Scapular CARs'],bpm:100},
+  {name:'PPL Leg Day',families:['Legs','Core'],exercises:['Pistol Squat','Nordic Curl','Shrimp Squat','Step Up','L-Sit','Hip CARs'],bpm:95},
+  {name:'Upper Body',families:['Push','Pull'],exercises:['Push-Up','Pull-Up','Dip','Inverted Row','Pike Push-Up','Tuck Front Lever Row'],bpm:105},
+  {name:'Core Blitz',families:['Core'],exercises:['Hollow Body Hold','L-Sit','Plank','Dragon Flag','Ab Wheel','Hanging Leg Raise'],bpm:120},
+  {name:'Mobility Flow',families:['Flow'],exercises:['Pancake Stretch','German Hang','Hip CARs','Scapular CARs','Pike Stretch','Bridge'],bpm:60},
+  {name:'EMOM 10',families:['Push','Pull','Legs'],exercises:['Push-Up','Pull-Up','Pistol Squat','Dip','Inverted Row'],bpm:140},
+  {name:'Skill Work',families:['Skills'],exercises:['Handstand','Muscle-Up','Back Lever','Front Lever','Planche Lean','L-Sit'],bpm:75}
+];
+
+function showQuickTemplates() {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(3,5,9,0.8);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer';
+  overlay.onclick = function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); };
+
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(10,14,26,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px;max-width:440px;width:92%;max-height:80vh;overflow-y:auto;cursor:default;box-shadow:0 25px 80px rgba(0,0,0,0.6)';
+  card.onclick = function(e) { e.stopPropagation(); };
+
+  var html = '<div style="text-align:center;margin-bottom:16px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:4px">Quick Start</div><div style="font-size:16px;font-weight:700;color:#fff">Workout Templates</div><div style="font-size:9px;color:var(--micro);margin-top:4px">Tap to generate a pre-built workout</div></div>';
+
+  QUICK_TEMPLATES.forEach(function(t, i) {
+    var famColors = {Push:'#3b82f6',Pull:'#22c55e',Core:'#f97316',Legs:'#ef4444',Skills:'#8b5cf6',Flow:'#ec4899'};
+    var dots = '';
+    t.families.forEach(function(f) {
+      dots += '<span style="width:8px;height:8px;border-radius:50%;background:' + (famColors[f]||'#06b6d4') + ';display:inline-block"></span>';
+    });
+    html += '<div onclick="applyQuickTemplate(' + i + ');this.closest(\'div[style*=fixed]\').remove()" style="display:flex;align-items:center;gap:12px;padding:12px;margin-bottom:4px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:background 0.15s;-webkit-tap-highlight-color:transparent" onmouseenter="this.style.background=\'rgba(6,182,212,0.06)\'" onmouseleave="this.style.background=\'rgba(255,255,255,0.02)\'">';
+    html += '<div style="display:flex;gap:3px;min-width:28px">' + dots + '</div>';
+    html += '<div style="flex:1"><div style="font-size:12px;font-weight:600;color:#fff">' + t.name + '</div><div style="font-size:9px;color:var(--text-secondary)">' + t.exercises.length + ' exercises | ' + t.bpm + ' BPM</div></div>';
+    html += '<div style="font-size:8px;color:var(--micro);text-transform:uppercase;letter-spacing:0.06em">' + t.families.join(' ') + '</div>';
+    html += '</div>';
+  });
+
+  html += '<div style="text-align:center;margin-top:12px"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--micro);background:none;border:1px solid var(--border);border-radius:4px;padding:8px 20px;cursor:pointer;font-family:Sora,sans-serif">Cancel</button></div>';
+
+  card.innerHTML = html;
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+function applyQuickTemplate(index) {
+  var t = QUICK_TEMPLATES[index];
+  if (!t) return;
+  if (typeof captureUndo === 'function') captureUndo();
+  /* Clear existing clips */
+  document.querySelectorAll('.clip').forEach(function(c) { if (c.parentNode) c.parentNode.removeChild(c); });
+  /* Set BPM */
+  var bpmInput = document.getElementById('bpm-input');
+  if (bpmInput) { bpmInput.value = t.bpm; if (typeof updateBPM === 'function') updateBPM(); }
+  /* Add exercises */
+  var trackMap = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills',Flow:'skills'};
+  var beatWidth = typeof getSnapSize === 'function' ? getSnapSize() : 40;
+  var trackPositions = {};
+
+  t.exercises.forEach(function(exName) {
+    /* Find the exercise in EXERCISES */
+    var ex = null;
+    if (typeof EXERCISES !== 'undefined') {
+      for (var i = 0; i < EXERCISES.length; i++) {
+        if (EXERCISES[i].name === exName) { ex = EXERCISES[i]; break; }
+      }
+    }
+    if (!ex) return;
+    var trackId = trackMap[ex.family] || 'core';
+    var track = document.querySelector('.track[data-track="' + trackId + '"] .track-clips');
+    if (!track) return;
+    if (!trackPositions[trackId]) trackPositions[trackId] = 0;
+
+    var clipWidth = beatWidth * 4; /* 1 bar per exercise */
+    if (typeof createClipElement === 'function') {
+      var clip = createClipElement(ex, trackPositions[trackId], clipWidth);
+      track.appendChild(clip);
+    }
+    trackPositions[trackId] += clipWidth + beatWidth;
+  });
+
+  if (typeof updateStats === 'function') updateStats();
+  if (typeof _doSaveSession === 'function') _doSaveSession();
+  /* Set workout name */
+  var nameEl = document.getElementById('workout-name');
+  var headerName = document.getElementById('header-workout-name');
+  if (nameEl) nameEl.textContent = t.name;
+  if (headerName) headerName.textContent = t.name;
+  document.title = t.name + ' - Saturno Movement Studio';
+  toast('Template: ' + t.name);
+  haptic('medium');
+}
+
+/* ===== BATCH 299: WORKOUT HEAT CALENDAR ===== */
+function showWorkoutHeatCalendar() {
+  /* Gather all workout dates from ratings + saved workouts */
+  var dates = {};
+  try {
+    var ratings = JSON.parse(localStorage.getItem('sms_ratings') || '[]');
+    ratings.forEach(function(r) {
+      if (r.date) {
+        var d = new Date(r.date).toISOString().split('T')[0];
+        dates[d] = (dates[d] || 0) + 1;
+      }
+    });
+  } catch(e) {}
+  try {
+    var saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]');
+    saved.forEach(function(s) {
+      if (s.created) {
+        var d = new Date(s.created).toISOString().split('T')[0];
+        dates[d] = (dates[d] || 0) + 1;
+      }
+    });
+  } catch(e) {}
+
+  /* Build 12-week calendar */
+  var today = new Date();
+  var startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - 83); /* 12 weeks back */
+  startDate.setDate(startDate.getDate() - startDate.getDay()); /* Align to Sunday */
+
+  var html = '<div style="max-width:500px;margin:0 auto;padding:24px">';
+  html += '<div style="text-align:center;margin-bottom:20px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:4px">Activity</div><div style="font-size:20px;font-weight:700;color:#fff">Workout Calendar</div>';
+  var totalDays = Object.keys(dates).length;
+  html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px">' + totalDays + ' active days</div></div>';
+
+  /* Grid */
+  html += '<div style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap">';
+  var dayNames = ['S','M','T','W','T','F','S'];
+
+  /* Week columns */
+  for (var w = 0; w < 12; w++) {
+    html += '<div style="display:flex;flex-direction:column;gap:2px">';
+    for (var d = 0; d < 7; d++) {
+      var cellDate = new Date(startDate);
+      cellDate.setDate(cellDate.getDate() + (w * 7) + d);
+      var key = cellDate.toISOString().split('T')[0];
+      var count = dates[key] || 0;
+      var isToday = key === today.toISOString().split('T')[0];
+      var intensity = count === 0 ? 'rgba(255,255,255,0.03)' : count === 1 ? 'rgba(6,182,212,0.3)' : count === 2 ? 'rgba(6,182,212,0.5)' : 'rgba(6,182,212,0.8)';
+      var border = isToday ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent';
+      var title = cellDate.toLocaleDateString('en-US', {month:'short',day:'numeric'}) + (count > 0 ? ' (' + count + ' workouts)' : '');
+      html += '<div title="' + title + '" style="width:12px;height:12px;border-radius:2px;background:' + intensity + ';border:' + border + '"></div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  /* Legend */
+  html += '<div style="display:flex;gap:4px;align-items:center;justify-content:center;margin-top:12px">';
+  html += '<span style="font-size:8px;color:var(--micro)">Less</span>';
+  ['rgba(255,255,255,0.03)','rgba(6,182,212,0.3)','rgba(6,182,212,0.5)','rgba(6,182,212,0.8)'].forEach(function(c) {
+    html += '<div style="width:10px;height:10px;border-radius:2px;background:' + c + '"></div>';
+  });
+  html += '<span style="font-size:8px;color:var(--micro)">More</span>';
+  html += '</div></div>';
+
+  var w = window.open('', '_blank');
+  if (!w) { toast('Enable popups'); return; }
+  w.document.write('<!DOCTYPE html><html><head><title>Workout Calendar - Saturno Movement Studio</title><link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#050711;color:#e2e8f0;font-family:Sora,sans-serif;padding:40px 20px}</style></head><body>' + html + '</body></html>');
+  w.document.close();
+  toast('Calendar opened');
+}
+
+/* ===== BATCH 300: MOTIVATIONAL QUOTES + SESSION MILESTONES ===== */
+var MOTIVATIONAL_QUOTES = [
+  'The body achieves what the mind believes.',
+  'Discipline is choosing between what you want now and what you want most.',
+  'Every rep is a vote for who you want to become.',
+  'You don\'t have to be extreme, just consistent.',
+  'The only bad workout is the one that didn\'t happen.',
+  'Strength does not come from physical capacity. It comes from an indomitable will.',
+  'The pain you feel today will be the strength you feel tomorrow.',
+  'Progress, not perfection.',
+  'Your body can stand almost anything. It\'s your mind you have to convince.',
+  'Fall seven times, stand up eight.',
+  'The resistance you fight physically strengthens you mentally.',
+  'Compose your movement. Master your craft.',
+  'Movement is medicine. Consistency is the prescription.',
+  'Train like an artist. Perform like a warrior.',
+  'Every exercise is a brushstroke on the canvas of your body.'
+];
+
+function getMotivationalQuote() {
+  return MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+}
+
+/* Session milestone checker */
+var _lastMilestone = 0;
+var SESSION_MILESTONES = [5, 15, 30, 45, 60, 90, 120];
+
+function checkSessionMilestones() {
+  var el = document.getElementById('session-timer');
+  if (!el) return;
+  var text = el.textContent || '';
+  var parts = text.split(':');
+  var minutes = parseInt(parts[0]) || 0;
+
+  for (var i = 0; i < SESSION_MILESTONES.length; i++) {
+    var m = SESSION_MILESTONES[i];
+    if (minutes >= m && _lastMilestone < m) {
+      _lastMilestone = m;
+      showMilestoneToast(m);
+      break;
+    }
+  }
+}
+
+function showMilestoneToast(minutes) {
+  haptic('heavy');
+  var quote = getMotivationalQuote();
+  var el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);z-index:600;background:rgba(5,7,17,0.95);border:1px solid rgba(6,182,212,0.2);padding:24px 32px;border-radius:12px;text-align:center;opacity:0;transition:opacity 0.5s,transform 0.5s;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);pointer-events:none;max-width:340px';
+
+  var label = minutes >= 60 ? Math.floor(minutes/60) + 'h' + (minutes%60>0?' '+minutes%60+'m':'') : minutes + ' min';
+  el.innerHTML = '<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.2em;color:var(--accent-cyan);margin-bottom:8px">Session Milestone</div><div style="font-size:32px;font-weight:800;color:#fff;margin-bottom:8px">' + label + '</div><div style="font-size:11px;color:var(--text-secondary);line-height:1.5;font-style:italic">"' + quote + '"</div>';
+
+  document.body.appendChild(el);
+  requestAnimationFrame(function() {
+    el.style.opacity = '1';
+    el.style.transform = 'translate(-50%,-50%) scale(1)';
+  });
+  setTimeout(function() {
+    el.style.opacity = '0';
+    el.style.transform = 'translate(-50%,-50%) scale(0.95)';
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 500);
+  }, 4000);
+}
+
+/* Check milestones every 30s */
+(function() {
+  setInterval(function() { try { checkSessionMilestones(); } catch(e) {} }, 30000);
+})();
+
+/* Update footer hint with motivational quotes periodically */
+(function() {
+  function rotateQuotes() {
+    var hint = document.getElementById('footer-hint');
+    if (!hint) return;
+    setInterval(function() {
+      if (Math.random() < 0.3) {
+        hint.textContent = getMotivationalQuote();
+        setTimeout(function() { hint.textContent = 'Saturno Movement Studio'; }, 8000);
+      }
+    }, 60000);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(rotateQuotes, 10000); });
+  } else {
+    setTimeout(rotateQuotes, 10000);
+  }
+})();
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
