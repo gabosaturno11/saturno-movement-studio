@@ -198,6 +198,26 @@ body {
   font-size: 7px; color: var(--micro); margin-left: auto;
   text-transform: uppercase; letter-spacing: 0.08em;
 }
+.movement-item .mv-detail {
+  display: none; position: absolute; left: 100%; top: 0;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 6px 10px; white-space: nowrap; z-index: 100;
+  font-size: 8px; color: var(--text-secondary);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  border-radius: 2px; pointer-events: none;
+}
+.movement-item { position: relative; }
+.movement-item:hover .mv-detail { display: block; }
+/* Clip stage dots */
+.clip-stage-dots {
+  position: absolute; top: 3px; right: 6px;
+  display: flex; gap: 2px; z-index: 2;
+}
+.clip-stage-dot {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+}
+.clip-stage-dot.filled { background: rgba(255,255,255,0.9); }
 
 /* ===== CENTER PANEL ===== */
 .panel-center { display: flex; flex-direction: column; overflow: hidden; }
@@ -1665,7 +1685,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <span style="color:var(--border)">|</span>
       <span id="footer-bars" style="color:var(--muted)">0 bars</span>
       <span style="color:var(--border)">|</span>
-      <span id="footer-pos" style="color:var(--muted)">1.1.1</span>
+      <span id="footer-pos" style="color:var(--muted);cursor:pointer" onclick="toggleFooterMode()" title="Click to switch format">1.1.1</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <span id="save-indicator" style="color:var(--accent-green);opacity:0;transition:opacity 0.3s;font-size:7px;text-transform:uppercase;letter-spacing:0.1em">Saved</span>
@@ -2185,6 +2205,7 @@ function buildLibrary() {
       html += '<div class="mv-icon" style="background:'+fm.color+'">'+ex.name.charAt(0)+'</div>';
       html += '<span>'+ex.name+'</span>';
       html += '<span class="mv-stage">S'+ex.stage+'</span>';
+      html += '<div class="mv-detail">'+ex.discipline+' | '+ex.family+' | Stage '+ex.stage+'</div>';
       html += '</div>';
     });
     html += '</div></div>';
@@ -2423,6 +2444,16 @@ function createClipElement(exercise, left, width, dna) {
   info.style.position = 'relative';
   info.style.zIndex = '1';
   clip.appendChild(info);
+
+  // Stage dots (S1=1dot, S2=2dots, S3=3dots)
+  var dotsEl = document.createElement('div');
+  dotsEl.className = 'clip-stage-dots';
+  for (var di = 0; di < 3; di++) {
+    var dot = document.createElement('div');
+    dot.className = 'clip-stage-dot' + (di < exercise.stage ? ' filled' : '');
+    dotsEl.appendChild(dot);
+  }
+  clip.appendChild(dotsEl);
 
   var canvas = document.createElement('canvas');
   canvas.className = 'clip-waveform';
@@ -2851,7 +2882,16 @@ function updateTimeDisplay() {
   var tick = Math.floor((totalBeats % 1) * 4) + 1;
   var bbStr = bar + '.' + beat + '.' + tick;
   var posEl = document.getElementById('footer-pos');
-  if (posEl) posEl.textContent = bbStr;
+  if (posEl) {
+    if (typeof footerMode !== 'undefined' && footerMode === 'time') {
+      var tm = Math.floor(currentTime / 60);
+      var ts = Math.floor(currentTime % 60);
+      var tms = Math.floor((currentTime % 1) * 100);
+      posEl.textContent = tm + ':' + ts.toString().padStart(2,'0') + '.' + tms.toString().padStart(2,'0');
+    } else {
+      posEl.textContent = bbStr;
+    }
+  }
   var barsDisp = document.getElementById('bars-display');
   if (barsDisp) barsDisp.textContent = bbStr;
 }
@@ -4010,6 +4050,14 @@ function renderMarker(marker) {
 function renderAllMarkers() {
   document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
   markers.forEach(function(m) { renderMarker(m); });
+}
+
+/* ===== FOOTER MODE TOGGLE ===== */
+var footerMode = 'bars'; // 'bars' or 'time'
+function toggleFooterMode() {
+  footerMode = footerMode === 'bars' ? 'time' : 'bars';
+  updateTimeDisplay();
+  toast('Position: ' + (footerMode === 'bars' ? 'Bars.Beats.Ticks' : 'Time'));
 }
 
 /* ===== COMMAND PALETTE ===== */
