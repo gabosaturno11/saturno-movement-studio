@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~14,020 lines). No build step. No framework.
+Single-file HTML app (index.html, ~15,641 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-315)
+### Features (Batches 1-339)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -350,7 +350,31 @@ saturno-movement-studio/
 - **Workout comparison overlay** (split-screen current vs saved, diff summary)
 - **Exercise progression tree** (S1->S2->S3 visual tree per pattern, new tab)
 - **Training volume breakdown** (sets/reps/TUT per family, volume guidelines)
-- **Command palette** (Cmd+K, 230+ commands)
+- **Warm-up/cooldown auto-detection** (phase tags W/M/C based on position)
+- **Comprehensive session notes export** (standalone HTML with coaching notes)
+- **Playlist mode** (fullscreen exercise-by-exercise with rest timer auto-advance)
+- **Workout flow visualizer** (SVG graph of exercise transitions)
+- **Smart rest suggestions** (RPE/family/sets-based optimal rest calc)
+- **Workout snapshot history** (take/restore up to 20 snapshots)
+- **Superset builder** (group selected clips, visual badge labels)
+- **Workout intent tags** (Strength/Hypertrophy/Endurance/Power/Mobility/Skill)
+- **Personal records tracker** (log/view PRs per exercise, localStorage history)
+- **Periodization planner** (4-week grid, click-to-cycle focus types)
+- **Timer presets** (Tabata/EMOM/AMRAP/30-30/45-15/Pyramid, fullscreen)
+- **Calendar export** (.ics file download with workout exercises)
+- **Movement journal** (text entries + mood tags, localStorage, history view)
+- **Workout streak gamification** (current/best streak, fire badges)
+- **Quick exercise swap** (browse same-pattern alternatives, one-click)
+- **Zen mode** (Z key hides panels/header for minimal UI)
+- **Exercise GIF/image preview** (set URL per exercise, localStorage)
+- **Micro-recovery prompts** (timed reminders: hydration, breathing, posture)
+- **UI sound effects** (place/delete/snap/undo/success audio cues)
+- **Training log export** (journal + PRs + ratings as markdown to clipboard)
+- **Exercise difficulty stars** (rate 1-5, overview sorted by difficulty)
+- **Clone & modify workout** (load saved + progressive overload: +set/+rep/+RPE/-rest/stage up)
+- **Exercise tags system** (preset + custom tags per exercise, localStorage)
+- **Session goal setting** (sets/exercises/RPE/time/families targets with progress bars)
+- **Command palette** (Cmd+K, 260+ commands)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
