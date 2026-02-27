@@ -131,17 +131,15 @@ body {
 .nav-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 5px 10px; font-size: 9px; font-family: 'Sora', sans-serif;
-  background: transparent; border: 1px solid transparent;
+  background: transparent; border: none;
   color: var(--muted); cursor: pointer;
   text-transform: uppercase; letter-spacing: 0.08em;
-  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  transition: color 0.2s;
   height: 26px;
-  border-radius: var(--radius-sm);
 }
-.nav-btn:hover { background: var(--glass); color: var(--text); }
+.nav-btn:hover { color: var(--text); }
 .nav-btn.active {
-  background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.15);
-  color: var(--blue); font-weight: 600;
+  color: var(--text); font-weight: 600;
 }
 .header-nav .nav-sep {
   width: 1px; height: 16px; background: var(--border); margin: 0 4px;
@@ -527,15 +525,15 @@ body {
 .track-controls { display: flex; gap: 1px; margin-top: 4px; padding-left: 6px; }
 .track-btn {
   width: 18px; height: 14px; font-size: 7px; font-weight: 700;
-  background: rgba(3,5,9,0.4); border: 1px solid var(--glass-border);
+  background: transparent; border: none;
   color: var(--micro); cursor: pointer; font-family: 'Sora', sans-serif;
   display: flex; align-items: center; justify-content: center;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
-  border-radius: 2px;
+  transition: color 0.15s;
+  border-radius: 0;
 }
-.track-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-.track-btn.muted { background: var(--accent-orange); color: var(--bg); border-color: var(--accent-orange); }
-.track-btn.soloed { background: var(--accent-cyan); color: var(--bg); border-color: var(--accent-cyan); }
+.track-btn:hover { color: var(--text); }
+.track-btn.muted { color: var(--accent-orange); }
+.track-btn.soloed { color: var(--accent-cyan); }
 .track-content {
   flex: 1; position: relative; min-width: 800px;
   background:
@@ -1954,7 +1952,7 @@ button:focus-visible, .transport-btn:focus-visible {
   border-radius: var(--radius-sm);
   margin: 0 4px;
 }
-.ctx-item:hover { background: rgba(59,130,246,0.08); color: var(--text); }
+.ctx-item:hover { background: rgba(255,255,255,0.03); color: var(--text); }
 .ctx-item .ctx-key {
   font-size: 8px; color: var(--micro);
   margin-left: 16px;
