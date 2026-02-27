@@ -2504,7 +2504,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <!-- Inspector -->
       <div class="inspector-section" id="inspector" style="display:none">
         <div class="inspector-title">Exercise DNA</div>
-        <div class="inspector-field"><label>Movement</label><div class="value" id="insp-name">-</div></div>
+        <div class="inspector-field"><label>Movement</label><div class="value" id="insp-name" style="cursor:pointer" onclick="searchLibraryForInspected()" data-tip="Click to find in library">-</div></div>
         <div class="inspector-field"><label>Pattern</label><div class="value" id="insp-pattern">-</div></div>
         <div class="inspector-field"><label>Stage</label><div class="value" id="insp-stage">-</div></div>
         <div class="inspector-field"><label>Discipline</label><div class="value" id="insp-discipline">-</div></div>
@@ -7296,6 +7296,13 @@ var CMD_ACTIONS = [
   {label:'Select Stage 1 Clips', key:'', icon:'S1', action: function() { selectClipsByStage(1); }},
   {label:'Select Stage 2 Clips', key:'', icon:'S2', action: function() { selectClipsByStage(2); }},
   {label:'Select Stage 3 Clips', key:'', icon:'S3', action: function() { selectClipsByStage(3); }},
+  {label:'Set All to Stage 1', key:'', icon:'S1', action: function() { setAllStage(1); }},
+  {label:'Set All to Stage 2', key:'', icon:'S2', action: function() { setAllStage(2); }},
+  {label:'Set All to Stage 3', key:'', icon:'S3', action: function() { setAllStage(3); }},
+  {label:'Set All Rest 30s', key:'', icon:'\u23F1', action: function() { setAllRest(30); }},
+  {label:'Set All Rest 60s', key:'', icon:'\u23F1', action: function() { setAllRest(60); }},
+  {label:'Set All Rest 90s', key:'', icon:'\u23F1', action: function() { setAllRest(90); }},
+  {label:'Set All Rest 120s', key:'', icon:'\u23F1', action: function() { setAllRest(120); }},
 ];
 
 function openCmdPalette() {
@@ -7884,6 +7891,65 @@ function clearTrackClips() {
   updateStats(); saveSession();
   sfx('delete');
   toast(count + ' track clips cleared');
+}
+
+function setAllRest(seconds) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    c.dataset.rest = seconds;
+    count++;
+  });
+  if (selectedClip) {
+    document.getElementById('insp-rest').value = seconds;
+    updateInspectorTime();
+  }
+  saveSession(); updateStats();
+  toast(count + ' clips rest set to ' + seconds + 's');
+}
+
+function searchLibraryForInspected() {
+  if (!selectedClip) return;
+  var ex = getExercise(selectedClip.dataset.exerciseId);
+  if (!ex) return;
+  var searchInput = document.getElementById('lib-search');
+  if (searchInput) {
+    searchInput.value = ex.name;
+    filterLibrary();
+    searchInput.focus();
+    toast('Searching: ' + ex.name);
+  }
+}
+
+function setAllStage(targetStage) {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  pushUndo();
+  var swapped = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var curEx = getExercise(c.dataset.exerciseId);
+    if (!curEx || curEx.stage === targetStage) return;
+    var sibling = EXERCISES.filter(function(ex) { return ex.pattern === curEx.pattern && ex.stage === targetStage; })[0];
+    if (sibling) {
+      c.dataset.exerciseId = sibling.id;
+      var nameEl = c.querySelector('.clip-name');
+      if (nameEl) nameEl.textContent = sibling.name;
+      var dotsEl = c.querySelector('.clip-stage-dots');
+      if (dotsEl) {
+        var dots = dotsEl.querySelectorAll('.clip-stage-dot');
+        dots.forEach(function(d, i) {
+          d.className = 'clip-stage-dot' + (i < targetStage ? ' filled' : '');
+        });
+      }
+      swapped++;
+    }
+  });
+  saveSession(); updateStats();
+  toast(swapped + ' clips set to Stage ' + targetStage);
 }
 
 function selectClipsByStage(stage) {
