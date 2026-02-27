@@ -2794,6 +2794,9 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Shift+&#8593;&#8595;</kbd><span>Adjust RPE</span></div>
       <div class="shortcut-item"><kbd>[ ]</kbd><span>Nudge Sets</span></div>
       <div class="shortcut-item"><kbd>Shift+[ ]</kbd><span>Nudge Reps</span></div>
+      <div class="shortcut-item"><kbd>, .</kbd><span>Nudge Tempo</span></div>
+      <div class="shortcut-item"><kbd>Shift+, .</kbd><span>Nudge Rest</span></div>
+      <div class="shortcut-item"><kbd>Alt+&#8593;&#8595;</kbd><span>Dup to Track</span></div>
       <div class="shortcut-item"><kbd>Cmd+I</kbd><span>Invert Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+A</kbd><span>Track Clips</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
@@ -4168,6 +4171,16 @@ function updateSummary() {
     });
     footerBar.innerHTML = fbHtml || '<div style="flex:1;background:var(--border)"></div>';
   }
+}
+
+function updateClipInfo(clip) {
+  if (!clip) return;
+  var infoEl = clip.querySelector('.clip-info');
+  if (!infoEl) return;
+  var sets = clip.dataset.sets || 3;
+  var reps = clip.dataset.reps || 8;
+  var clipSec = Math.round(parseInt(clip.style.width) / 80 * 15);
+  infoEl.textContent = sets + 'x' + reps + ' ' + clipSec + 's';
 }
 
 function updateStats() {
@@ -7779,6 +7792,39 @@ document.addEventListener('keydown', function(e) {
       toast('Moved to ' + trackIds[newIdx].charAt(0).toUpperCase() + trackIds[newIdx].slice(1));
     }
   }
+  // Alt+Up/Down: duplicate clip to adjacent track
+  if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && selectedClip && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+    e.preventDefault();
+    var trackIds = ['push','pull','core','legs','skills'];
+    var curTrackId = selectedClip.parentElement.dataset.track;
+    var idx = trackIds.indexOf(curTrackId);
+    if (idx === -1) return;
+    var newIdx = e.code === 'ArrowUp' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= trackIds.length) return;
+    var ex = getExercise(selectedClip.dataset.exerciseId);
+    if (!ex) return;
+    pushUndo();
+    var destTrack = document.querySelector('.track-content[data-track="'+trackIds[newIdx]+'"]');
+    if (destTrack) {
+      var dna = {
+        sets: selectedClip.dataset.sets, reps: selectedClip.dataset.reps,
+        tempo: selectedClip.dataset.tempo, rest: selectedClip.dataset.rest,
+        rpe: selectedClip.dataset.rpe,
+        fadeIn: selectedClip.dataset.fadeIn || '0', fadeOut: selectedClip.dataset.fadeOut || '0'
+      };
+      var dup = createClipElement(ex, parseInt(selectedClip.style.left), parseInt(selectedClip.style.width), dna);
+      if (selectedClip.dataset.notes) dup.dataset.notes = selectedClip.dataset.notes;
+      if (selectedClip.dataset.customColor) {
+        dup.dataset.customColor = selectedClip.dataset.customColor;
+        dup.style.background = selectedClip.style.background;
+        dup.style.borderTopColor = selectedClip.style.borderTopColor;
+      }
+      destTrack.appendChild(dup);
+      saveSession(); updateStats();
+      toast('Duplicated to ' + trackIds[newIdx].charAt(0).toUpperCase() + trackIds[newIdx].slice(1));
+    }
+    return;
+  }
   // [ and ] to nudge sets (Shift+[ ] for reps)
   if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && selectedClip && !e.metaKey && !e.ctrlKey && !e.altKey) {
     e.preventDefault();
@@ -7797,6 +7843,29 @@ document.addEventListener('keydown', function(e) {
       if (setsInput) setsInput.value = newSets;
       toast('Sets: ' + newSets);
     }
+    updateClipInfo(selectedClip);
+    updateStats(); saveSession();
+    return;
+  }
+  // , and . to nudge tempo (Shift+, . for rest)
+  if ((e.code === 'Comma' || e.code === 'Period') && selectedClip && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    if (e.shiftKey) {
+      var curRest = parseInt(selectedClip.dataset.rest) || 60;
+      var newRest = e.code === 'Period' ? Math.min(300, curRest + 5) : Math.max(0, curRest - 5);
+      selectedClip.dataset.rest = newRest;
+      var restInput = document.getElementById('insp-rest');
+      if (restInput) restInput.value = newRest;
+      toast('Rest: ' + newRest + 's');
+    } else {
+      var curTempo = parseFloat(selectedClip.dataset.tempo) || 3;
+      var newTempo = e.code === 'Period' ? Math.min(10, +(curTempo + 0.5).toFixed(1)) : Math.max(0.5, +(curTempo - 0.5).toFixed(1));
+      selectedClip.dataset.tempo = newTempo;
+      var tempoInput = document.getElementById('insp-tempo');
+      if (tempoInput) tempoInput.value = newTempo;
+      toast('Tempo: ' + newTempo + 's');
+    }
+    updateClipInfo(selectedClip);
     updateStats(); saveSession();
     return;
   }
