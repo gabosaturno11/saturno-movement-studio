@@ -349,7 +349,17 @@ body {
     repeating-linear-gradient(90deg, transparent 0px, transparent 79px, rgba(30,41,59,0.4) 79px, rgba(30,41,59,0.4) 80px);
 }
 .track-content.drag-over {
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.06) 0%, transparent 40%);
+  background:
+    linear-gradient(90deg, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 19px, rgba(30,41,59,0.15) 19px, rgba(30,41,59,0.15) 20px),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 79px, rgba(30,41,59,0.4) 79px, rgba(30,41,59,0.4) 80px);
+}
+.track-clip-count {
+  font-size: 7px; color: var(--micro);
+  background: var(--bg-deep);
+  padding: 0 4px; border-radius: 2px;
+  margin-top: 2px; display: inline-block;
+  padding-left: 6px;
 }
 
 /* Clips — Logic Pro Audio Region Style */
@@ -647,34 +657,44 @@ body {
 
 /* ===== TABLET (768px) ===== */
 @media(max-width:768px) {
-  .main { grid-template-columns: 180px 1fr 220px; }
-  .panel-header { font-size: 9px; padding: 10px 12px; }
-  .movement-item { padding: 6px 8px; font-size: 10px; }
-  .transport { padding: 6px 12px; gap: 6px; flex-wrap: wrap; }
+  .app { grid-template-rows: 36px 1fr 22px; }
+  .main { grid-template-columns: 160px 1fr 220px; }
+  .header { padding: 0 10px; }
+  .logo-text { font-size: 10px; }
+  .nav-btn { padding: 4px 8px; font-size: 8px; }
+  .nav-sep { display: none; }
+  .transport { padding: 4px 10px; height: 40px; }
   .time-display { font-size: 16px; min-width: 100px; }
-  .bpm-input { width: 46px; font-size: 12px; }
+  .bpm-input { width: 44px; font-size: 12px; }
   .fader-track { height: 60px; }
-  .knob-dial { width: 30px; height: 30px; }
-  .knob-indicator { height: 8px; }
-  .preset-card { min-width: 140px; }
+  .knob-dial { width: 28px; height: 28px; }
+  .knob-indicator { height: 7px; }
+  .preset-card { min-width: 130px; padding: 8px; }
 }
 
 /* ===== MOBILE (480px) ===== */
 @media(max-width:480px) {
+  .app { grid-template-rows: 36px 1fr 20px; }
   .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
-  .panel-left { max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
-  .panel-right { border-left: none; border-top: 1px solid var(--border); max-height: 260px; }
-  .header { padding: 0 10px; }
-  .header-nav { gap: 3px; }
-  .nav-btn { padding: 5px 8px; font-size: 8px; min-height: 36px; }
-  .logo-text { font-size: 11px; }
-  .transport-btn { width: 36px; height: 36px; font-size: 14px; min-height: 44px; }
-  .music-btn { width: 36px; height: 36px; min-height: 44px; }
-  .track-header { width: 80px; }
-  .fader-group { gap: 8px; }
+  .panel-left { max-height: 180px; border-right: none; border-bottom: 1px solid var(--border); }
+  .panel-right { border-left: none; border-top: 1px solid var(--border); max-height: 240px; }
+  .header { padding: 0 8px; }
+  .header-nav { gap: 0; overflow-x: auto; }
+  .nav-btn { padding: 4px 6px; font-size: 7px; min-height: 32px; white-space: nowrap; }
+  .nav-sep { display: none; }
+  .logo-text { font-size: 9px; }
+  .logo-sub { display: none; }
+  .transport { height: auto; padding: 4px 8px; flex-wrap: wrap; }
+  .transport-btn { width: 34px; height: 34px; font-size: 13px; min-height: 40px; }
+  .music-btn { width: 32px; height: 32px; min-height: 40px; }
+  .track-header { width: 70px; padding: 4px 6px; }
+  .track-name { font-size: 8px; padding-left: 4px; }
+  .track-info { display: none; }
+  .fader-group { gap: 6px; }
   .fader-track { height: 50px; }
-  .preset-card { min-width: 120px; padding: 10px; }
-  .presets-drawer { padding: 8px 12px; }
+  .preset-card { min-width: 120px; padding: 8px; }
+  .presets-drawer { padding: 8px 10px; }
+  .shortcuts-panel { width: 280px; }
 }
 
 /* ===== SAVED WORKOUTS MODAL ===== */
@@ -890,6 +910,9 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <button class="nav-btn" id="btn-snap" onclick="toggleSnap()">SNAP</button>
       <button class="nav-btn" id="btn-video" onclick="toggleVideo()">VID</button>
       <button class="nav-btn" onclick="toggleMusic()">MUS</button>
+      <div class="nav-sep"></div>
+      <button class="nav-btn" onclick="undo()" title="Undo (Cmd+Z)" style="font-size:11px">&#8617;</button>
+      <button class="nav-btn" onclick="redo()" title="Redo (Cmd+Shift+Z)" style="font-size:11px">&#8618;</button>
       <div class="nav-sep"></div>
       <button class="nav-btn" onclick="toggleShortcuts()" title="Keyboard shortcuts (?)" style="font-size:10px;font-weight:700">?</button>
     </nav>
@@ -1625,7 +1648,9 @@ function buildTracks() {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
       html += '<div class="track-header"><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
-      html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button></div></div>';
+      html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
+      html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
+      html += '</div>';
       html += '<div class="track-content" data-track="'+t.id+'"></div></div>';
     }
   });
@@ -1665,7 +1690,15 @@ function initDragDrop() {
     item.addEventListener('dragstart', function(e) {
       var ex = getExercise(item.dataset.id);
       e.dataTransfer.setData('text/plain', JSON.stringify(ex));
-      item.style.opacity = '0.5';
+      item.style.opacity = '0.4';
+      // Custom drag image — looks like a mini clip
+      var ghost = document.createElement('div');
+      ghost.textContent = ex.name;
+      ghost.style.cssText = 'position:absolute;top:-999px;left:-999px;padding:4px 10px;font-size:9px;font-weight:600;font-family:Sora,sans-serif;background:' + (FAMILY_MAP[ex.family] || {color:'#666'}).color + ';color:rgba(255,255,255,0.9);border-radius:3px;white-space:nowrap;border-top:2px solid rgba(255,255,255,0.3)';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(function() { document.body.removeChild(ghost); }, 0);
+      sfx('click');
     });
     item.addEventListener('dragend', function() { item.style.opacity = '1'; });
   });
@@ -1965,14 +1998,23 @@ function updateStats() {
   var clips = document.querySelectorAll('.clip');
   document.getElementById('clip-count').textContent = clips.length;
   var maxRight = 0;
+  var trackCounts = {};
   clips.forEach(function(c) {
     var r = parseInt(c.style.left) + parseInt(c.style.width);
     if (r > maxRight) maxRight = r;
+    var tid = c.parentElement.dataset.track;
+    trackCounts[tid] = (trackCounts[tid] || 0) + 1;
   });
   var secs = Math.round(maxRight / 80 * 15);
   var m = Math.floor(secs / 60);
   var s = secs % 60;
   document.getElementById('total-duration').textContent = m + ':' + s.toString().padStart(2, '0');
+  // Update per-track clip counts
+  TRACKS.forEach(function(t) {
+    if (t.isMusic) return;
+    var el = document.getElementById('track-count-' + t.id);
+    if (el) el.textContent = (trackCounts[t.id] || 0) + ' clips';
+  });
   updateSummary();
 }
 
@@ -2234,8 +2276,21 @@ function stopMeters() {
 }
 
 /* ===== TRACK CONTROLS ===== */
-function toggleMute(btn) { btn.classList.toggle('muted'); }
-function toggleSolo(btn) { btn.classList.toggle('soloed'); }
+function toggleMute(btn) { btn.classList.toggle('muted'); sfx('click'); }
+function toggleSolo(btn) { btn.classList.toggle('soloed'); sfx('click'); }
+function toggleArm(btn) {
+  btn.classList.toggle('armed');
+  if (btn.classList.contains('armed')) {
+    btn.style.background = 'var(--accent-red)';
+    btn.style.color = 'var(--bg)';
+    btn.style.borderColor = 'var(--accent-red)';
+  } else {
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+  }
+  sfx('click');
+}
 
 /* ===== VIDEO ===== */
 function toggleVideo() {
