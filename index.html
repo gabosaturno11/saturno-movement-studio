@@ -8069,6 +8069,11 @@ var CMD_ACTIONS = [
   {label:'Energy Expenditure', key:'', icon:'\ud83d\udd25', action: function() { showEnergyExpenditure(); }},
   {label:'Week Overview', key:'', icon:'\ud83d\udcc5', action: function() { showWeekOverview(); }},
   {label:'Confidence Rating', key:'', icon:'\u2b50', action: function() { showConfidenceRating(); }},
+  {label:'Report Card', key:'', icon:'\ud83d\udcdd', action: function() { showReportCard(); }},
+  {label:'Export All Notes', key:'', icon:'\ud83d\udccb', action: function() { exportAllNotes(); }},
+  {label:'Timeline Replay', key:'', icon:'\u25b6', action: function() { showTimelineReplay(); }},
+  {label:'Frequency Optimizer', key:'', icon:'\ud83d\udcc5', action: function() { showFrequencyOptimizer(); }},
+  {label:'Workout Genome', key:'', icon:'\ud83e\uddec', action: function() { showWorkoutGenome(); }},
 ];
 
 function openCmdPalette() {
@@ -21313,6 +21318,277 @@ function rateConfidence(name, val) {
   showToast(name + ': confidence ' + val + '/5');
   document.querySelectorAll('[style*="z-index:9999"]').forEach(function(el) { el.remove(); });
   showConfidenceRating();
+}
+
+// Batch 446: Workout Report Card
+function showReportCard() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var totalSets = 0, totalReps = 0, rpeSum = 0, families = {}, stages = {S1:0,S2:0,S3:0};
+  var exercises = {};
+  clips.forEach(function(c) {
+    var s = parseInt(c.dataset.sets || 3);
+    var r = parseInt(c.dataset.reps || 8);
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var fam = c.dataset.family || '';
+    var stage = c.dataset.stage || 'S1';
+    var name = c.dataset.exercise || '';
+    totalSets += s;
+    totalReps += s * r;
+    rpeSum += rpe;
+    families[fam] = (families[fam] || 0) + s;
+    if (stages[stage] !== undefined) stages[stage]++;
+    exercises[name] = true;
+  });
+  var avgRPE = (rpeSum / clips.length).toFixed(1);
+  var uniqueEx = Object.keys(exercises).length;
+  var famCount = Object.keys(families).length;
+  var grades = {};
+  grades.volume = totalSets >= 25 ? 'A' : totalSets >= 15 ? 'B' : totalSets >= 8 ? 'C' : 'D';
+  grades.intensity = avgRPE >= 8 ? 'A' : avgRPE >= 6.5 ? 'B' : avgRPE >= 5 ? 'C' : 'D';
+  grades.variety = uniqueEx >= 10 ? 'A' : uniqueEx >= 7 ? 'B' : uniqueEx >= 4 ? 'C' : 'D';
+  grades.balance = famCount >= 4 ? 'A' : famCount >= 3 ? 'B' : famCount >= 2 ? 'C' : 'D';
+  grades.progression = stages.S3 > stages.S1 ? 'A' : stages.S2 >= stages.S1 ? 'B' : 'C';
+  var gradeValues = {A: 4, B: 3, C: 2, D: 1};
+  var gpa = 0;
+  Object.values(grades).forEach(function(g) { gpa += gradeValues[g] || 0; });
+  gpa = (gpa / Object.keys(grades).length).toFixed(1);
+  var overall = gpa >= 3.5 ? 'S' : gpa >= 3 ? 'A' : gpa >= 2.5 ? 'B' : gpa >= 2 ? 'C' : 'D';
+  var gradeColor = function(g) { return g === 'S' ? '#fbbf24' : g === 'A' ? '#4ade80' : g === 'B' ? '#06b6d4' : g === 'C' ? '#fb923c' : '#f87171'; };
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:450px;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Report Card</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin:16px 0;">';
+  html += '<div style="font-size:56px;font-weight:700;color:' + gradeColor(overall) + ';">' + overall + '</div>';
+  html += '<div style="font-size:13px;color:#94a3b8;">Overall Grade (GPA: ' + gpa + ')</div></div>';
+  var subjects = [
+    {name: 'Volume', grade: grades.volume, detail: totalSets + ' total sets'},
+    {name: 'Intensity', grade: grades.intensity, detail: 'Avg RPE ' + avgRPE},
+    {name: 'Variety', grade: grades.variety, detail: uniqueEx + ' unique exercises'},
+    {name: 'Balance', grade: grades.balance, detail: famCount + ' families'},
+    {name: 'Progression', grade: grades.progression, detail: stages.S3 + ' S3 / ' + stages.S2 + ' S2 / ' + stages.S1 + ' S1'}
+  ];
+  subjects.forEach(function(s) {
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;margin-bottom:6px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div><div style="font-size:14px;font-weight:600;">' + s.name + '</div>';
+    html += '<div style="font-size:11px;color:#94a3b8;">' + s.detail + '</div></div>';
+    html += '<div style="font-size:24px;font-weight:700;color:' + gradeColor(s.grade) + ';">' + s.grade + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 447: Exercise Note Export
+function exportAllNotes() {
+  var notes = {};
+  try { notes = JSON.parse(localStorage.getItem('sms_coaching_notes') || '{}'); } catch(e) {}
+  var entries = Object.keys(notes).filter(function(k) { return notes[k] && notes[k].trim(); });
+  if (entries.length === 0) { showToast('No coaching notes to export'); return; }
+  var text = '=== COACHING NOTES EXPORT ===\n';
+  text += 'Generated: ' + new Date().toLocaleString() + '\n';
+  text += entries.length + ' exercises with notes\n\n';
+  entries.sort().forEach(function(name) {
+    text += '--- ' + name + ' ---\n';
+    text += notes[name] + '\n\n';
+  });
+  try { navigator.clipboard.writeText(text); showToast(entries.length + ' exercise notes exported'); } catch(e) { showToast('Copy failed'); }
+}
+
+// Batch 448: Session Timeline Replay
+function showTimelineReplay() {
+  var clips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    clips.push({exercise: c.dataset.exercise || '', family: c.dataset.family || '', sets: c.dataset.sets || '3', reps: c.dataset.reps || '8', rpe: c.dataset.rpe || '7', rest: c.dataset.rest || '60', pos: parseInt(c.style.left) || 0});
+  });
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  clips.sort(function(a, b) { return a.pos - b.pos; });
+  var idx = 0;
+  var overlay = document.createElement('div');
+  overlay.id = 'replay-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.97);display:flex;align-items:center;justify-content:center;';
+  function renderReplay() {
+    var c = clips[idx];
+    var fColor = getFamilyColor(c.family);
+    var html = '<div style="text-align:center;color:#e2e8f0;font-family:Sora,sans-serif;max-width:500px;width:90%;">';
+    html += '<div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">Exercise ' + (idx + 1) + ' of ' + clips.length + '</div>';
+    html += '<div style="font-size:36px;font-weight:700;margin-bottom:8px;">' + c.exercise + '</div>';
+    html += '<div style="font-size:16px;color:' + fColor + ';margin-bottom:16px;">' + c.family + '</div>';
+    html += '<div style="display:flex;gap:16px;justify-content:center;margin-bottom:24px;">';
+    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:600;color:#06b6d4;">' + c.sets + '</div><div style="font-size:11px;color:#94a3b8;">Sets</div></div>';
+    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:600;color:#22d3ee;">' + c.reps + '</div><div style="font-size:11px;color:#94a3b8;">Reps</div></div>';
+    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:600;color:#67e8f9;">' + c.rpe + '</div><div style="font-size:11px;color:#94a3b8;">RPE</div></div>';
+    html += '<div style="text-align:center;"><div style="font-size:28px;font-weight:600;color:#94a3b8;">' + c.rest + 's</div><div style="font-size:11px;color:#94a3b8;">Rest</div></div>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:12px;justify-content:center;">';
+    html += '<button onclick="replayPrev()" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:14px;' + (idx === 0 ? 'opacity:0.3;' : '') + '">&lt; Prev</button>';
+    html += '<button onclick="document.getElementById(\'replay-overlay\').remove()" style="background:rgba(248,113,113,0.15);color:#f87171;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:14px;">Close</button>';
+    html += '<button onclick="replayNext()" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:14px;' + (idx === clips.length - 1 ? 'opacity:0.3;' : '') + '">Next &gt;</button>';
+    html += '</div>';
+    html += '<div style="margin-top:16px;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + (((idx + 1) / clips.length) * 100) + '%;background:#06b6d4;border-radius:2px;transition:width 0.3s;"></div></div>';
+    html += '</div>';
+    overlay.innerHTML = html;
+  }
+  window.replayNext = function() { if (idx < clips.length - 1) { idx++; renderReplay(); } };
+  window.replayPrev = function() { if (idx > 0) { idx--; renderReplay(); } };
+  renderReplay();
+  document.body.appendChild(overlay);
+}
+
+// Batch 449: Training Frequency Optimizer
+function showFrequencyOptimizer() {
+  var families = {};
+  var totalSets = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var sets = parseInt(c.dataset.sets || 3);
+    Object.keys({Push:1,Pull:1,Core:1,Legs:1,Skills:1}).forEach(function(f) {
+      if (fam.toLowerCase().indexOf(f.toLowerCase()) > -1) {
+        if (!families[f]) families[f] = 0;
+        families[f] += sets;
+      }
+    });
+    totalSets += sets;
+  });
+  var mav = {Push: 14, Pull: 14, Core: 10, Legs: 16, Skills: 12};
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Frequency Optimizer</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="margin-bottom:16px;color:#94a3b8;font-size:13px;">Optimal weekly frequency to hit MAV (Maximum Adaptive Volume)</div>';
+  Object.keys(mav).forEach(function(f) {
+    var current = families[f] || 0;
+    var target = mav[f];
+    var freqNeeded = current > 0 ? Math.ceil(target / current) : 0;
+    freqNeeded = Math.min(freqNeeded, 6);
+    var status = current >= target ? 'Hit in 1 session' : freqNeeded + 'x per week';
+    var statusColor = current >= target ? '#4ade80' : freqNeeded <= 3 ? '#06b6d4' : '#fbbf24';
+    html += '<div style="margin-bottom:10px;padding:12px;background:rgba(6,182,212,0.05);border-radius:8px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+    html += '<span style="font-weight:600;color:' + getFamilyColor(f) + ';">' + f + '</span>';
+    html += '<span style="font-size:13px;color:' + statusColor + ';font-weight:600;">' + status + '</span></div>';
+    html += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;">';
+    html += '<span>Current: ' + current + ' sets/session</span>';
+    html += '<span>Target MAV: ' + target + ' sets/week</span></div>';
+    html += '</div>';
+  });
+  var optimalDays = Math.max.apply(null, Object.keys(mav).map(function(f) { return families[f] > 0 ? Math.ceil(mav[f] / families[f]) : 0; }));
+  optimalDays = Math.max(2, Math.min(6, optimalDays));
+  html += '<div style="text-align:center;margin-top:12px;padding:12px;background:rgba(6,182,212,0.08);border-radius:8px;">';
+  html += '<div style="font-size:24px;font-weight:700;color:#06b6d4;">' + optimalDays + ' days/week</div>';
+  html += '<div style="font-size:12px;color:#94a3b8;">Recommended training frequency</div></div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// BATCH 450 MILESTONE: Workout Genome
+function showWorkoutGenome() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var families = {}, patterns = {}, stages = {S1:0,S2:0,S3:0}, disciplines = {};
+  var totalSets = 0, totalReps = 0, rpeSum = 0, tempoSum = 0, restSum = 0;
+  var exerciseNames = [];
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || '';
+    var pat = c.dataset.pattern || '';
+    var stage = c.dataset.stage || 'S1';
+    var disc = c.dataset.discipline || '';
+    var sets = parseInt(c.dataset.sets || 3);
+    var reps = parseInt(c.dataset.reps || 8);
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var tempo = parseInt(c.dataset.tempo || 3);
+    var rest = parseInt(c.dataset.rest || 60);
+    families[fam] = (families[fam] || 0) + sets;
+    if (pat) patterns[pat] = (patterns[pat] || 0) + 1;
+    if (stages[stage] !== undefined) stages[stage]++;
+    if (disc) disciplines[disc] = (disciplines[disc] || 0) + 1;
+    totalSets += sets;
+    totalReps += sets * reps;
+    rpeSum += rpe;
+    tempoSum += tempo;
+    restSum += rest;
+    exerciseNames.push(c.dataset.exercise || '');
+  });
+  var n = clips.length;
+  var avgRPE = (rpeSum / n).toFixed(1);
+  var avgTempo = (tempoSum / n).toFixed(1);
+  var avgRest = Math.round(restSum / n);
+  var hashStr = exerciseNames.join('') + totalSets + avgRPE;
+  var hash = 0;
+  for (var i = 0; i < hashStr.length; i++) { hash = ((hash << 5) - hash) + hashStr.charCodeAt(i); hash |= 0; }
+  var genomeHex = Math.abs(hash).toString(16).toUpperCase().padStart(8, '0');
+  var dominant = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; })[0] || 'Mixed';
+  var archetype = avgRPE >= 8 ? 'Berserker' : stages.S3 > n * 0.5 ? 'Virtuoso' : Object.keys(families).length >= 4 ? 'Polymath' : 'Specialist';
+  var intensity = avgRPE >= 9 ? 'Extreme' : avgRPE >= 7.5 ? 'High' : avgRPE >= 5.5 ? 'Moderate' : 'Light';
+  var complexity = Object.keys(patterns).length + Object.keys(families).length + Object.keys(disciplines).length;
+  var complexLabel = complexity >= 12 ? 'Highly Complex' : complexity >= 8 ? 'Complex' : complexity >= 4 ? 'Moderate' : 'Simple';
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  var w = 400, h = 60;
+  var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="max-width:100%;margin:12px 0;">';
+  var segW = w / n;
+  clips.forEach(function(c, idx) {
+    var fam = c.dataset.family || '';
+    var rpe = parseFloat(c.dataset.rpe || 7);
+    var fColor = getFamilyColor(fam);
+    var barH = (rpe / 10) * h;
+    svg += '<rect x="' + (idx * segW) + '" y="' + (h - barH) + '" width="' + Math.max(1, segW - 1) + '" height="' + barH + '" fill="' + fColor + '" opacity="0.8"/>';
+  });
+  svg += '</svg>';
+  var html = '<div style="background:#0a0e1a;border:1px solid rgba(6,182,212,0.2);border-radius:12px;padding:24px;width:90%;max-width:550px;max-height:85vh;overflow-y:auto;color:#e2e8f0;font-family:Sora,sans-serif;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><span style="font-size:18px;font-weight:600;">Workout Genome</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="text-align:center;margin-bottom:12px;">';
+  html += '<div style="font-family:monospace;font-size:20px;color:#06b6d4;letter-spacing:4px;">GEN-' + genomeHex + '</div>';
+  html += '<div style="font-size:12px;color:#94a3b8;margin-top:4px;">Unique Genome Identifier</div></div>';
+  html += svg;
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;">';
+  html += '<div style="padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;text-align:center;">';
+  html += '<div style="font-size:16px;font-weight:700;color:#a78bfa;">' + archetype + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Archetype</div></div>';
+  html += '<div style="padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;text-align:center;">';
+  html += '<div style="font-size:16px;font-weight:700;color:' + (intensity === 'Extreme' ? '#f87171' : intensity === 'High' ? '#fbbf24' : '#4ade80') + ';">' + intensity + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Intensity Class</div></div>';
+  html += '<div style="padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;text-align:center;">';
+  html += '<div style="font-size:16px;font-weight:700;color:#06b6d4;">' + complexLabel + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Complexity</div></div>';
+  html += '<div style="padding:10px;background:rgba(6,182,212,0.05);border-radius:8px;text-align:center;">';
+  html += '<div style="font-size:16px;font-weight:700;color:' + getFamilyColor(dominant) + ';">' + dominant + '</div>';
+  html += '<div style="font-size:11px;color:#94a3b8;">Dominant Gene</div></div>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;">';
+  var stats = [
+    {val: n, label: 'Exercises'},
+    {val: totalSets, label: 'Sets'},
+    {val: totalReps, label: 'Reps'},
+    {val: avgRPE, label: 'Avg RPE'},
+    {val: avgRest + 's', label: 'Avg Rest'}
+  ];
+  stats.forEach(function(s) {
+    html += '<div style="text-align:center;padding:6px;background:rgba(255,255,255,0.03);border-radius:6px;">';
+    html += '<div style="font-size:14px;font-weight:600;color:#06b6d4;">' + s.val + '</div>';
+    html += '<div style="font-size:9px;color:#64748b;">' + s.label + '</div></div>';
+  });
+  html += '</div>';
+  html += '<div style="margin-top:12px;">';
+  Object.keys(families).sort(function(a, b) { return families[b] - families[a]; }).forEach(function(f) {
+    var pct = Math.round((families[f] / totalSets) * 100);
+    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+    html += '<span style="font-size:11px;color:' + getFamilyColor(f) + ';width:50px;">' + f + '</span>';
+    html += '<div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + getFamilyColor(f) + ';border-radius:2px;"></div></div>';
+    html += '<span style="font-size:10px;color:#64748b;width:28px;text-align:right;">' + pct + '%</span>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
 }
 
 function selectClipsByStage(stage) {
