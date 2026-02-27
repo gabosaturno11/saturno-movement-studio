@@ -549,15 +549,49 @@ body {
 .playhead {
   position: absolute; top: 0; bottom: 0;
   width: 1px; background: var(--text-bright);
-  box-shadow: 0 0 8px rgba(255,255,255,0.4);
+  box-shadow: 0 0 8px rgba(255,255,255,0.4), 1px 0 0 rgba(255,255,255,0.08), -1px 0 0 rgba(255,255,255,0.08);
   z-index: 20; pointer-events: none; left: 100px;
+}
+.playhead.playing {
+  box-shadow: 0 0 12px rgba(59,130,246,0.5), 0 0 4px rgba(255,255,255,0.3);
+  background: #60a5fa;
 }
 .playhead::before {
   content: '';
-  position: absolute; top: -2px; left: -4px;
-  width: 9px; height: 8px;
+  position: absolute; top: -2px; left: -5px;
+  width: 11px; height: 9px;
   background: var(--text-bright);
   clip-path: polygon(50% 100%, 0 0, 100% 0);
+}
+.playhead.playing::before {
+  background: #60a5fa;
+}
+.playhead::after {
+  content: '';
+  position: absolute; bottom: 0; left: -2px;
+  width: 5px; height: 3px;
+  background: var(--text-bright);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.5;
+}
+
+/* Armed track pulsing left border */
+@keyframes armPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.track-btn.armed {
+  background: var(--error); color: var(--bg); border-color: var(--error);
+  animation: armPulse 1.5s ease-in-out infinite;
+}
+
+/* Metronome active pulse */
+@keyframes metroPulse {
+  0%, 100% { background: var(--accent-orange); }
+  50% { background: var(--accent-green); }
+}
+.transport-btn.metro-active {
+  background: var(--accent-orange); color: var(--bg); border-color: var(--accent-orange);
 }
 
 /* ===== RIGHT PANEL: MIXER + INSPECTOR ===== */
@@ -2927,7 +2961,10 @@ function toggleMetronome() {
   metronomeEnabled = !metronomeEnabled;
   beatCounter = Math.floor(currentTime / (60 / bpm));
   var btn = document.getElementById('metro-btn');
-  if (btn) btn.classList.toggle('active', metronomeEnabled);
+  if (btn) {
+    btn.classList.toggle('active', metronomeEnabled);
+    btn.classList.toggle('metro-active', metronomeEnabled);
+  }
   sfx(metronomeEnabled ? 'metronome' : 'click');
   toast(metronomeEnabled ? 'Metronome ON' : 'Metronome OFF');
 }
@@ -3121,15 +3158,6 @@ function toggleSolo(btn) {
 }
 function toggleArm(btn) {
   btn.classList.toggle('armed');
-  if (btn.classList.contains('armed')) {
-    btn.style.background = 'var(--accent-red)';
-    btn.style.color = 'var(--bg)';
-    btn.style.borderColor = 'var(--accent-red)';
-  } else {
-    btn.style.background = '';
-    btn.style.color = '';
-    btn.style.borderColor = '';
-  }
   sfx('click');
 }
 
@@ -3901,6 +3929,26 @@ document.addEventListener('DOMContentLoaded', function() {
     header.addEventListener('contextmenu', function(e) {
       showTrackCtx(e, header.closest('.track'));
     });
+  });
+  /* Timecode scrub — drag on time display to scrub */
+  var timeDisp = document.getElementById('time-display');
+  timeDisp.style.cursor = 'ew-resize';
+  timeDisp.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    var startX = e.clientX;
+    var startTime = currentTime;
+    function onMove(e) {
+      var delta = (e.clientX - startX) * 0.5; // 0.5s per pixel
+      currentTime = Math.max(0, startTime + delta);
+      updateTimeDisplay();
+      updatePlayheadPosition();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
   /* Click on empty timeline area to seek */
   var tracks = document.getElementById('timeline-tracks');
