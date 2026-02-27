@@ -5987,7 +5987,11 @@ function printWorkout() {
   html += '<h1>' + (workoutName && workoutName !== 'Untitled' ? workoutName : 'Saturno Movement Studio') + '</h1>';
   html += '<div class="subtitle">' + (workoutName && workoutName !== 'Untitled' ? 'Saturno Movement Studio' : 'The Ableton of Movement') + '</div>';
   var printCreated = _sessionCreatedAt ? new Date(_sessionCreatedAt).toLocaleDateString('en-US', {month:'short',day:'numeric'}) : '';
-  html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span>';
+  var modeDesc = '';
+  for (var mi = 0; mi < BPM_MODES.length; mi++) {
+    if (mode === BPM_MODES[mi].name) { modeDesc = BPM_MODES[mi].desc; break; }
+  }
+  html += '<div class="meta"><span><b>' + bpm + '</b> BPM</span><span>' + mode + (modeDesc ? ' - ' + modeDesc : '') + '</span><span>' + new Date().toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + '</span>';
   if (printCreated) html += '<span>Created ' + printCreated + '</span>';
   html += '</div>';
   var totalDur = 0;
@@ -6503,6 +6507,35 @@ function deleteSelectedClips() {
 
 /* ===== DUPLICATE CLIP ===== */
 function duplicateClip() {
+  var allSelected = document.querySelectorAll('.clip.selected');
+  if (allSelected.length > 1) {
+    pushUndo();
+    var duped = 0;
+    allSelected.forEach(function(src) {
+      if (src.classList.contains('clip-locked')) return;
+      var ex = getExercise(src.dataset.exerciseId);
+      if (!ex) return;
+      var track = src.parentElement;
+      var newLeft = parseInt(src.style.left) + parseInt(src.style.width) + 4;
+      var clip = createClipElement(ex, newLeft, parseInt(src.style.width), {
+        sets: src.dataset.sets, reps: src.dataset.reps,
+        tempo: src.dataset.tempo, rest: src.dataset.rest,
+        rpe: src.dataset.rpe,
+        fadeIn: src.dataset.fadeIn || '0', fadeOut: src.dataset.fadeOut || '0'
+      });
+      if (src.dataset.notes) clip.dataset.notes = src.dataset.notes;
+      if (src.dataset.customColor) {
+        clip.dataset.customColor = src.dataset.customColor;
+        clip.style.background = 'linear-gradient(180deg, ' + src.dataset.customColor + '44 0%, ' + src.dataset.customColor + '22 100%)';
+        clip.style.borderTopColor = src.dataset.customColor;
+      }
+      track.appendChild(clip);
+      duped++;
+    });
+    updateStats(); saveSession(); sfx('drop');
+    toast(duped + ' clips duplicated');
+    return;
+  }
   if (!selectedClip) { toast('Select a clip first'); return; }
   pushUndo();
   var ex = getExercise(selectedClip.dataset.exerciseId);
@@ -6584,6 +6617,7 @@ function zoomIn() {
   if (idx < ZOOM_STEPS.length - 1) {
     zoomLevel = ZOOM_STEPS[idx + 1];
     applyZoom();
+    toast('Zoom: ' + zoomLevel + '%');
   }
 }
 
@@ -6592,6 +6626,7 @@ function zoomOut() {
   if (idx > 0) {
     zoomLevel = ZOOM_STEPS[idx - 1];
     applyZoom();
+    toast('Zoom: ' + zoomLevel + '%');
   }
 }
 
