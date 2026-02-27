@@ -2262,7 +2262,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <button class="transport-btn" onclick="zoomIn()" title="Zoom in" style="width:22px;height:22px;font-size:10px;border-radius:2px">+</button>
           <button class="transport-btn" onclick="zoomToFit()" title="Zoom to fit all clips" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FIT</button>
           <div class="transport-sep"></div>
-          <button class="transport-btn" id="auto-scroll-btn" onclick="toggleAutoScroll()" title="Auto-scroll follows playhead" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FOLLOW</button>
+          <button class="transport-btn" id="auto-scroll-btn" onclick="toggleAutoScrollFromTransport()" title="Auto-scroll follows playhead" style="width:auto;height:22px;font-size:7px;border-radius:2px;padding:0 6px;letter-spacing:0.05em">FOLLOW</button>
         </div>
       </div>
 
@@ -2441,7 +2441,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           </div>
           <div class="inspector-field">
             <label>Auto-scroll during playback</label>
-            <button id="settings-autoscroll" class="export-btn" onclick="toggleAutoScroll()" style="width:auto;padding:4px 12px">ON</button>
+            <button id="settings-autoscroll" class="export-btn" onclick="toggleAutoScrollFromSettings()" style="width:auto;padding:4px 12px">ON</button>
           </div>
         </div>
         <div class="mixer-section">
@@ -2742,15 +2742,17 @@ function sfx(type) {
         osc.connect(gain); gain.connect(sfxCtx.destination);
         osc.start(now); osc.stop(now + 0.2);
         break;
-      case 'metronome': // Metronome tick
+      case 'metronome': // Metronome tick — downbeat accent
         osc = sfxCtx.createOscillator();
         gain = sfxCtx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(1000, now);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+        var isDownbeat = (beatCounter % 4 === 0);
+        osc.frequency.setValueAtTime(isDownbeat ? 1500 : 1000, now);
+        var vol = (typeof metroVolume !== 'undefined' ? metroVolume : 0.5) * (isDownbeat ? 0.15 : 0.08);
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
         osc.connect(gain); gain.connect(sfxCtx.destination);
-        osc.start(now); osc.stop(now + 0.02);
+        osc.start(now); osc.stop(now + 0.03);
         break;
     }
   } catch(e) {}
@@ -3915,6 +3917,11 @@ function stopPlayback() {
   psStop.textContent = 'STOP';
   psStop.className = 'transport-state state-stop';
   updateStatusDot();
+  // Reset beat dots
+  for (var d = 1; d <= 4; d++) {
+    var dot = document.getElementById('beat-' + d);
+    if (dot) dot.style.background = 'rgba(255,255,255,0.1)';
+  }
   sfx('stop');
 }
 
@@ -3930,13 +3937,17 @@ function updatePlayhead() {
   }
   updateTimeDisplay();
   updatePlayheadPosition();
-  // Metronome tick on the beat
-  if (metronomeEnabled) {
-    var beatInterval = 60 / bpm;
-    var currentBeat = Math.floor(currentTime / beatInterval);
-    if (currentBeat > beatCounter) {
-      beatCounter = currentBeat;
-      sfx('metronome');
+  // Beat tracking — visual dots + metronome
+  var beatInterval = 60 / bpm;
+  var currentBeat = Math.floor(currentTime / beatInterval);
+  if (currentBeat > beatCounter) {
+    beatCounter = currentBeat;
+    if (metronomeEnabled) sfx('metronome');
+    // Animate beat dots (1-4)
+    var dotIdx = (beatCounter % 4) + 1;
+    for (var d = 1; d <= 4; d++) {
+      var dot = document.getElementById('beat-' + d);
+      if (dot) dot.style.background = (d === dotIdx) ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.1)';
     }
   }
 }
@@ -4620,6 +4631,11 @@ function saveSession() {
       var fill = f.querySelector('.fader-fill');
       session.faders[f.dataset.fader] = parseFloat(fill.style.height) || 50;
     });
+    // Markers
+    session.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
+    session.markerCounter = markerCounter;
+    // Workout name
+    session.workoutName = workoutName || '';
     localStorage.setItem('sms_session', JSON.stringify(session));
     // Flash save indicator
     var si = document.getElementById('save-indicator');
@@ -4663,6 +4679,18 @@ function loadSession() {
         fader.querySelector('.fader-value').textContent = (v / 10).toFixed(0);
       });
     }
+    // Restore markers
+    if (s.markers && s.markers.length) {
+      markers = s.markers;
+      markerCounter = s.markerCounter || markers.length;
+      renderAllMarkers();
+    }
+    // Restore workout name
+    if (s.workoutName) {
+      workoutName = s.workoutName;
+      var wn = document.getElementById('workout-name');
+      if (wn) wn.textContent = workoutName;
+    }
     updateStats();
   } catch(e) {}
 }
@@ -4699,6 +4727,7 @@ function exportWorkout() {
       notes: clip.dataset.notes || ''
     });
   });
+  workout.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
   var blob = new Blob([JSON.stringify(workout, null, 2)], {type: 'application/json'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -4750,6 +4779,12 @@ function importWorkout() {
             track.appendChild(clip);
           });
         });
+        // Import markers
+        if (workout.markers && workout.markers.length) {
+          markers = workout.markers;
+          markerCounter = markers.reduce(function(max, m) { return Math.max(max, m.id); }, 0);
+          renderAllMarkers();
+        }
         updateStats();
         saveSession();
         sfx('preset');
@@ -5115,6 +5150,8 @@ function captureState() {
       customColor: clip.dataset.customColor || ''
     });
   });
+  state.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
+  state.markerCounter = markerCounter;
   return JSON.stringify(state);
 }
 
@@ -5172,6 +5209,12 @@ function restoreState(state) {
     }
     track.appendChild(clip);
   });
+  // Restore markers
+  if (state.markers) {
+    markers = state.markers;
+    markerCounter = state.markerCounter || markers.length;
+    renderAllMarkers();
+  }
   updateStats();
   saveSession();
 }
@@ -5694,7 +5737,7 @@ var CMD_ACTIONS = [
   {label:'Keyboard Shortcuts', key:'?', icon:'\u2328', action: function() { toggleShortcuts(); }},
   {label:'Reset Session', key:'', icon:'\u21BA', action: function() { resetSession(); }},
   {label:'Scroll to Playhead', key:'', icon:'\u25B8', action: function() { scrollToPlayhead(); }},
-  {label:'Toggle Auto-Scroll', key:'', icon:'\u21C5', action: function() { toggleAutoScroll(); }},
+  {label:'Toggle Auto-Scroll', key:'', icon:'\u21C5', action: function() { toggleAutoScrollFromTransport(); }},
 ];
 
 function openCmdPalette() {
@@ -5981,9 +6024,9 @@ function setGridRes(val) {
   toast('Grid: ' + gridRes + ' beat' + (gridRes > 1 ? 's' : ''));
 }
 
-function toggleAutoScroll() {
+function toggleAutoScrollFromSettings() {
   autoScrollEnabled = !autoScrollEnabled;
-  document.getElementById('settings-autoscroll').textContent = autoScrollEnabled ? 'ON' : 'OFF';
+  syncAutoScrollUI();
   toast('Auto-scroll ' + (autoScrollEnabled ? 'on' : 'off'));
 }
 
@@ -6320,17 +6363,21 @@ function toggleMixerSection(btn) {
   sfx('click');
 }
 
-/* Auto-scroll toggle — disable playhead-following during playback */
-var autoScrollEnabled = true;
-function toggleAutoScroll() {
+/* Auto-scroll toggle — unified: syncs FOLLOW button + settings panel */
+function toggleAutoScrollFromTransport() {
   autoScrollEnabled = !autoScrollEnabled;
-  var btn = document.getElementById('auto-scroll-btn');
-  btn.classList.toggle('active', autoScrollEnabled);
+  syncAutoScrollUI();
   toast('Auto-scroll: ' + (autoScrollEnabled ? 'On' : 'Off'));
   sfx('click');
 }
+function syncAutoScrollUI() {
+  var btn = document.getElementById('auto-scroll-btn');
+  var stg = document.getElementById('settings-autoscroll');
+  if (btn) btn.classList.toggle('active', autoScrollEnabled);
+  if (stg) stg.textContent = autoScrollEnabled ? 'ON' : 'OFF';
+}
 document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('auto-scroll-btn').classList.add('active');
+  syncAutoScrollUI();
 });
 
 /* Panel resize — drag left panel border to resize */
