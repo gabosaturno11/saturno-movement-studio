@@ -2335,7 +2335,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
         </div>
         <div id="bars-display" style="font-size:10px;font-weight:600;color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums;min-width:50px;text-align:center">1.1.1</div>
-        <div id="beat-indicator" style="display:flex;gap:2px;padding:0 4px" title="Beat position">
+        <div id="beat-indicator" style="display:flex;gap:2px;padding:0 4px" data-tip="Beat position">
           <div class="beat-dot" id="beat-1" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
           <div class="beat-dot" id="beat-2" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
           <div class="beat-dot" id="beat-3" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
@@ -2343,7 +2343,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         </div>
         <div class="bpm-section">
           <span class="bpm-label">BPM</span>
-          <div class="bpm-pulse" id="bpm-pulse" title="Tempo pulse"></div>
+          <div class="bpm-pulse" id="bpm-pulse" data-tip="Tempo pulse"></div>
           <input type="number" class="bpm-input" id="bpm-input" value="120" min="40" max="200" onchange="updateBPM()">
           <span class="bpm-mode" id="bpm-mode">Standard</span>
           <span class="tempo-link" id="tempo-link" onclick="toggleTempoLink()" data-tip="Link BPM to tempo">LINK</span>
@@ -2368,7 +2368,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <span style="font-size:9px;opacity:0.5">Landscape video plays in sync with timeline</span>
         </div>
         <video id="studio-video" style="width:100%;height:100%;object-fit:contain;display:none" controls></video>
-        <button class="video-toggle" onclick="toggleVideo()" title="Toggle video">&#9660;</button>
+        <button class="video-toggle" onclick="toggleVideo()" data-tip="Toggle video">&#9660;</button>
       </div>
 
       <!-- Timeline -->
@@ -2406,7 +2406,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <!-- Meter -->
         <div class="mixer-section">
           <div class="mixer-title">Output</div>
-          <button class="mixer-collapse" onclick="toggleMixerSection(this)" title="Collapse section">&#9660;</button>
+          <button class="mixer-collapse" onclick="toggleMixerSection(this)" data-tip="Collapse section">&#9660;</button>
           <div class="mixer-section-body" style="max-height:200px">
             <div class="meter-group" id="meters"></div>
             <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
@@ -2417,7 +2417,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <!-- Faders -->
         <div class="mixer-section">
           <div class="mixer-title">Master Faders</div>
-          <button class="mixer-collapse" onclick="toggleMixerSection(this)" title="Collapse section">&#9660;</button>
+          <button class="mixer-collapse" onclick="toggleMixerSection(this)" data-tip="Collapse section">&#9660;</button>
           <div class="mixer-section-body" style="max-height:200px">
             <div class="fader-group" id="fader-group"></div>
           </div>
@@ -2427,7 +2427,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <!-- Knobs -->
         <div class="mixer-section">
           <div class="mixer-title">Blend Controls</div>
-          <button class="mixer-collapse" onclick="toggleMixerSection(this)" title="Collapse section">&#9660;</button>
+          <button class="mixer-collapse" onclick="toggleMixerSection(this)" data-tip="Collapse section">&#9660;</button>
           <div class="mixer-section-body" style="max-height:200px">
             <div class="knob-group" id="knob-group"></div>
           </div>
@@ -2586,12 +2586,12 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       </div>
     </aside>
   </main>
-  <div class="focus-indicator" id="focus-indicator" onclick="toggleFocusMode()" title="Exit focus mode (F)">FOCUS</div>
+  <div class="focus-indicator" id="focus-indicator" onclick="toggleFocusMode()" data-tip="Exit focus mode (F)">FOCUS</div>
 
   <!-- FOOTER -->
   <footer class="footer">
     <div class="status-item"><div class="status-dot"></div><span id="status-text">Ready</span></div>
-    <span id="undo-count" style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em" title="Undo / Redo history"></span>
+    <span id="undo-count" style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em" data-tip="Undo / Redo history"></span>
     <div style="display:flex;gap:12px;font-size:9px">
       <span>Clips: <span id="clip-count" style="color:var(--text-secondary)">0</span></span>
       <span style="color:var(--border)">|</span>
@@ -2604,12 +2604,12 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span data-tip="Session elapsed time" style="color:var(--micro);font-variant-numeric:tabular-nums">Session: <span id="session-timer" style="color:var(--muted)">0:00</span></span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <div id="footer-balance" style="display:flex;gap:1px;height:4px;width:60px;border-radius:2px;overflow:hidden" title="Family balance"></div>
+      <div id="footer-balance" style="display:flex;gap:1px;height:4px;width:60px;border-radius:2px;overflow:hidden" data-tip="Family balance"></div>
       <span id="save-indicator" style="color:var(--accent-green);opacity:0;transition:opacity 0.3s;font-size:7px;text-transform:uppercase;letter-spacing:0.1em">Saved</span>
       <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" data-tip="Click to rename">Untitled</span>
       <span style="color:var(--border)">|</span>
       <div class="footer-quote" id="footer-hint">Saturno Movement Studio</div>
-      <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
+      <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" data-tip="Zoom level">
       <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
       <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v3.0</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
@@ -2682,7 +2682,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
     </div>
     <div class="shortcuts-grid">
       <div class="shortcut-item"><kbd>Space</kbd><span>Play / Pause</span></div>
-      <div class="shortcut-item"><kbd>Esc</kbd><span>Stop</span></div>
+      <div class="shortcut-item"><kbd>Esc</kbd><span>Deselect / Stop</span></div>
       <div class="shortcut-item"><kbd>S</kbd><span>Toggle Snap</span></div>
       <div class="shortcut-item"><kbd>Del</kbd><span>Delete Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd+Z</kbd><span>Undo</span></div>
@@ -2692,7 +2692,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Cmd+D</kbd><span>Duplicate</span></div>
       <div class="shortcut-item"><kbd>B</kbd><span>Split Clip</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+D</kbd><span>Dup Track</span></div>
-      <div class="shortcut-item"><kbd>&#8592; &#8594;</kbd><span>Nudge Clip</span></div>
+      <div class="shortcut-item"><kbd>&#8592; &#8594;</kbd><span>Nudge (beat)</span></div>
+      <div class="shortcut-item"><kbd>Shift+&#8592; &#8594;</kbd><span>Nudge (bar)</span></div>
       <div class="shortcut-item"><kbd>Cmd++</kbd><span>Zoom In</span></div>
       <div class="shortcut-item"><kbd>Cmd+-</kbd><span>Zoom Out</span></div>
       <div class="shortcut-item"><kbd>Cmd+0</kbd><span>Zoom Reset</span></div>
@@ -3273,7 +3274,7 @@ function buildTracks() {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
       html += '<div class="track-header"><div class="track-num">'+(ti+1)+'</div><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+' <span style="color:'+fm.color+';opacity:0.5">| '+(fm.instrument||'')+'</span></div>';
-      html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
+      html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" data-tip="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" data-tip="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" data-tip="Arm" style="color:var(--micro)">R</button></div>';
       html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
       html += '<div class="track-vu" id="vu-'+t.id+'"><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div></div>';
       html += '</div>';
