@@ -7953,6 +7953,15 @@ var CMD_ACTIONS = [
   {label:'Training Week Planner', key:'', icon:'\u2630', action: function() { showWeekPlanner(); }},
   {label:'Load Today\'s Workout', key:'', icon:'\u25B6', action: function() { loadTodaysWorkout(); }},
   {label:'Complexity Radar Chart', key:'', icon:'\u25CE', action: function() { showComplexityRadar(); }},
+  {label:'Challenge: Speed Build', key:'', icon:'\u26A1', action: function() { startChallenge('speed'); }},
+  {label:'Challenge: Family Blitz', key:'', icon:'\u26A1', action: function() { startChallenge('variety'); }},
+  {label:'Challenge: Volume King', key:'', icon:'\u26A1', action: function() { startChallenge('volume'); }},
+  {label:'Challenge: Perfect Balance', key:'', icon:'\u26A1', action: function() { startChallenge('balance'); }},
+  {label:'End Challenge', key:'', icon:'\u25A0', action: function() { endChallenge(); }},
+  {label:'Edit Movement Cues', key:'', icon:'\u270E', action: function() { showCueEditor(); }},
+  {label:'Show Movement Cues', key:'', icon:'\u270E', action: function() { showCueForClip(); }},
+  {label:'Narrate Workout (TTS)', key:'', icon:'\u266A', action: function() { generateNarration(); }},
+  {label:'Stop Narration', key:'', icon:'\u25A0', action: function() { stopNarration(); }},
 ];
 
 function openCmdPalette() {
@@ -15505,6 +15514,158 @@ function showComplexityRadar() {
   svg += '</svg>';
   var tab = window.open('', '_blank');
   if (tab) { tab.document.write('<html><head><title>Complexity Radar</title></head><body style="margin:0;background:#050711;display:flex;align-items:center;justify-content:center;min-height:100vh">' + svg + '</body></html>'); tab.document.close(); }
+}
+
+// Batch 352: Workout Challenge Mode
+var _challengeTimer = null;
+var _challengeOverlay = null;
+function startChallenge(type) {
+  var challenges = {
+    speed: { name: 'Speed Build', desc: 'Build a 12-exercise workout in 2 minutes', target: 12, time: 120 },
+    variety: { name: 'Family Blitz', desc: 'Use all 5 families in 90 seconds', target: 5, time: 90 },
+    volume: { name: 'Volume King', desc: 'Reach 50 total sets in 3 minutes', target: 50, time: 180 },
+    balance: { name: 'Perfect Balance', desc: 'Equal clips per family (4 each) in 2 minutes', target: 4, time: 120 }
+  };
+  var ch = challenges[type];
+  if (!ch) { showToast('Unknown challenge: ' + type); return; }
+  if (_challengeTimer) clearInterval(_challengeTimer);
+  if (_challengeOverlay) _challengeOverlay.remove();
+  var timeLeft = ch.time;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9998;background:rgba(5,7,17,0.95);border:1px solid rgba(251,191,36,0.3);border-radius:12px;padding:12px 20px;font-family:Sora,sans-serif;text-align:center';
+  ov.innerHTML = '<div style="color:#fbbf24;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;font-weight:600">' + ch.name + '</div><div id="challenge-timer" style="color:#e2e8f0;font-size:24px;font-weight:300;font-variant-numeric:tabular-nums;margin:4px 0">' + formatTimerSec(timeLeft) + '</div><div id="challenge-progress" style="color:#64748b;font-size:9px">' + ch.desc + '</div><button onclick="endChallenge()" style="margin-top:6px;padding:3px 10px;background:none;border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:8px">Give Up</button>';
+  document.body.appendChild(ov);
+  _challengeOverlay = ov;
+  var timerEl = ov.querySelector('#challenge-timer');
+  var progressEl = ov.querySelector('#challenge-progress');
+  _challengeTimer = setInterval(function() {
+    timeLeft--;
+    if (timeLeft <= 0) {
+      var result = checkChallengeResult(type, ch);
+      endChallenge();
+      showToast(result ? ch.name + ' COMPLETE!' : ch.name + ' FAILED. Try again!');
+      return;
+    }
+    timerEl.textContent = formatTimerSec(timeLeft);
+    updateChallengeProgress(type, ch, progressEl);
+  }, 1000);
+  if (navigator.vibrate) navigator.vibrate(200);
+  showToast(ch.name + ' started! ' + ch.desc);
+}
+function updateChallengeProgress(type, ch, el) {
+  var clips = document.querySelectorAll('.clip');
+  if (type === 'speed') el.textContent = clips.length + '/' + ch.target + ' exercises';
+  else if (type === 'variety') {
+    var fams = {};
+    clips.forEach(function(c) { fams[c.dataset.family || 'core'] = true; });
+    el.textContent = Object.keys(fams).length + '/' + ch.target + ' families';
+  } else if (type === 'volume') {
+    var sets = 0;
+    clips.forEach(function(c) { sets += parseInt(c.dataset.sets) || 3; });
+    el.textContent = sets + '/' + ch.target + ' sets';
+  } else if (type === 'balance') {
+    var fams = {};
+    clips.forEach(function(c) { var f = c.dataset.family || 'core'; fams[f] = (fams[f] || 0) + 1; });
+    var balanced = Object.keys(fams).filter(function(f) { return fams[f] >= ch.target; }).length;
+    el.textContent = balanced + '/5 families with ' + ch.target + '+ clips';
+  }
+}
+function checkChallengeResult(type, ch) {
+  var clips = document.querySelectorAll('.clip');
+  if (type === 'speed') return clips.length >= ch.target;
+  if (type === 'variety') {
+    var fams = {};
+    clips.forEach(function(c) { fams[c.dataset.family || 'core'] = true; });
+    return Object.keys(fams).length >= ch.target;
+  }
+  if (type === 'volume') {
+    var sets = 0;
+    clips.forEach(function(c) { sets += parseInt(c.dataset.sets) || 3; });
+    return sets >= ch.target;
+  }
+  if (type === 'balance') {
+    var fams = {};
+    clips.forEach(function(c) { var f = c.dataset.family || 'core'; fams[f] = (fams[f] || 0) + 1; });
+    return Object.keys(fams).filter(function(f) { return fams[f] >= ch.target; }).length >= 5;
+  }
+  return false;
+}
+function endChallenge() {
+  if (_challengeTimer) { clearInterval(_challengeTimer); _challengeTimer = null; }
+  if (_challengeOverlay) { _challengeOverlay.remove(); _challengeOverlay = null; }
+}
+
+// Batch 353: Exercise Movement Cues
+var _movementCues = {};
+function loadMovementCues() {
+  try { var d = localStorage.getItem('sms_movement_cues'); if (d) _movementCues = JSON.parse(d); } catch(e) {}
+}
+function saveMovementCues() {
+  try { localStorage.setItem('sms_movement_cues', JSON.stringify(_movementCues)); } catch(e) {}
+}
+function showCueEditor() {
+  var clip = document.querySelector('.clip.selected');
+  if (!clip) { showToast('Select a clip first'); return; }
+  var name = clip.dataset.exercise || '';
+  loadMovementCues();
+  var cues = _movementCues[name] || '';
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:420px;width:90%">';
+  html += '<span style="color:#e2e8f0;font-size:13px;font-weight:600;display:block;margin-bottom:4px">' + name + '</span>';
+  html += '<span style="color:#64748b;font-size:9px;display:block;margin-bottom:12px">Coaching cues for proper form</span>';
+  html += '<textarea id="cue-editor" placeholder="e.g. Engage lats before pull\nHollow body position\nSlow eccentric 3 seconds..." style="width:100%;height:100px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:11px;resize:vertical;box-sizing:border-box;line-height:1.6">' + cues + '</textarea>';
+  html += '<button onclick="var t=document.getElementById(\'cue-editor\').value;saveCue(\'' + name.replace(/'/g, "\\'") + '\',t);this.closest(\'div[style*=fixed]\').remove()" style="width:100%;margin-top:8px;padding:10px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:600">Save Cues</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function saveCue(name, text) {
+  _movementCues[name] = text;
+  saveMovementCues();
+  showToast('Cues saved for ' + name);
+}
+function showCueForClip() {
+  var clip = document.querySelector('.clip.selected');
+  if (!clip) { showToast('Select a clip first'); return; }
+  var name = clip.dataset.exercise || '';
+  loadMovementCues();
+  var cues = _movementCues[name];
+  if (!cues) { showToast('No cues set for ' + name + '. Use Edit Cues to add them.'); return; }
+  showRecoveryToast(name + '\n\n' + cues);
+}
+loadMovementCues();
+
+// Batch 354: Audio Narration Generator
+function generateNarration() {
+  if (!('speechSynthesis' in window)) { showToast('Speech not supported in this browser'); return; }
+  var clips = Array.from(document.querySelectorAll('.clip')).sort(function(a, b) {
+    var tA = a.closest('.track-lane') ? parseInt(a.closest('.track-lane').dataset.track) : 0;
+    var tB = b.closest('.track-lane') ? parseInt(b.closest('.track-lane').dataset.track) : 0;
+    if (tA !== tB) return tA - tB;
+    return parseFloat(a.style.left) - parseFloat(b.style.left);
+  });
+  if (!clips.length) { showToast('No exercises to narrate'); return; }
+  var text = 'Starting workout. ';
+  clips.forEach(function(c, idx) {
+    var name = c.dataset.exercise || 'exercise';
+    var sets = c.dataset.sets || '3';
+    var reps = c.dataset.reps || '8';
+    var rest = c.dataset.rest || '60';
+    text += 'Exercise ' + (idx + 1) + ': ' + name + '. ' + sets + ' sets of ' + reps + ' reps. Rest ' + rest + ' seconds. ';
+  });
+  text += 'Workout complete. Great job!';
+  var utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.pitch = 1;
+  utterance.volume = 0.8;
+  var voices = speechSynthesis.getVoices();
+  var english = voices.filter(function(v) { return v.lang.indexOf('en') === 0; });
+  if (english.length) utterance.voice = english[0];
+  speechSynthesis.speak(utterance);
+  showToast('Narrating ' + clips.length + ' exercises... Press Stop Narration to cancel.');
+}
+function stopNarration() {
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  showToast('Narration stopped');
 }
 
 function selectClipsByStage(stage) {
