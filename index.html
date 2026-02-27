@@ -2513,7 +2513,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         </div>
         <div class="inspector-field"><label>Tempo (seconds per rep)</label><input type="number" id="insp-tempo" value="3" min="1" max="20" step="0.5" onchange="updateClipDNA()"></div>
         <div class="inspector-field"><label>Rest (seconds)</label><input type="number" id="insp-rest" value="60" min="0" max="300" step="5" onchange="updateClipDNA()"></div>
-        <div class="inspector-field"><label>RPE (1-10)</label><input type="range" id="insp-rpe" min="1" max="10" value="7" style="width:100%" oninput="updateClipDNA()"></div>
+        <div class="inspector-field"><label>RPE <span id="insp-rpe-val" style="font-weight:500">7</span></label><input type="range" id="insp-rpe" min="1" max="10" value="7" style="width:100%" oninput="updateClipDNA();updateRpeColor()"></div>
         <div class="inspector-tags" id="insp-tags"></div>
         <div id="insp-progression" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:none"></div>
         <div id="insp-time" style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:8px;color:var(--muted);display:flex;justify-content:space-between">
@@ -4014,6 +4014,7 @@ function selectClipEl(clip, addToSelection) {
   updateInspectorTime();
   updateProgressionChain(ex);
   syncInspectorLockBtn();
+  updateRpeColor();
   // Auto-scroll timeline to show selected clip
   scrollToClip(clip);
 }
@@ -4151,6 +4152,16 @@ function updateClipNotes() {
   if (!selectedClip) return;
   selectedClip.dataset.notes = document.getElementById('insp-notes').value;
   saveSession();
+}
+
+function updateRpeColor() {
+  var rpe = parseInt(document.getElementById('insp-rpe').value) || 7;
+  var valEl = document.getElementById('insp-rpe-val');
+  if (valEl) {
+    valEl.textContent = rpe;
+    var colors = ['#22c55e','#22c55e','#84cc16','#a3e635','#eab308','#f59e0b','#f97316','#ef4444','#dc2626','#991b1b'];
+    valEl.style.color = colors[rpe - 1] || '#eab308';
+  }
 }
 
 function toggleInspectorLock() {
@@ -5706,6 +5717,7 @@ function loadSession() {
 /* ===== EXPORT ===== */
 function exportWorkout() {
   var workout = {
+    version: 2,
     name: workoutName || 'Saturno Movement Studio Export',
     timestamp: new Date().toISOString(),
     createdAt: _sessionCreatedAt,
@@ -6066,7 +6078,7 @@ function printWorkout() {
     var letter = letters[letterIdx] || 'Z';
     letterIdx++;
     html += '<div class="divider"></div>';
-    html += '<div class="group-label" style="color:' + (trackColors[trackId] || '#64748b') + '">' + (trackNames[trackId] || trackId) + '</div>';
+    html += '<div class="group-label" style="color:' + (trackColors[trackId] || '#64748b') + '">' + (trackNames[trackId] || trackId) + ' <span style="font-weight:300;opacity:0.6">(' + exercises.length + ')</span></div>';
     exercises.forEach(function(ex, i) {
       var idx = letter + (i + 1);
       html += '<div class="exercise">';
