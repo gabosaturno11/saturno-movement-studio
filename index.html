@@ -1052,6 +1052,21 @@ input[type="number"]:hover::-webkit-outer-spin-button {
   border-color: rgba(6,182,212,0.2);
 }
 
+/* Rubber band selection box */
+.select-box {
+  position: absolute; z-index: 30;
+  border: 1px solid rgba(59,130,246,0.5);
+  background: rgba(59,130,246,0.08);
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+/* Solo track highlight */
+.track-btn.soloed ~ .track-btn { opacity: 0.5; }
+.track.track-soloed .track-header::before {
+  box-shadow: 0 0 10px var(--accent-cyan);
+}
+
 /* ===== COMMAND PALETTE ===== */
 .cmd-palette {
   display: none; position: fixed; inset: 0; z-index: 250;
@@ -3305,6 +3320,7 @@ function toggleSolo(btn) {
     } else if (!anysoloed && !hasMute) {
       t.classList.remove('track-muted');
     }
+    t.classList.toggle('track-soloed', !!hasSolo);
   });
 }
 function toggleArm(btn) {
@@ -4134,6 +4150,54 @@ document.addEventListener('DOMContentLoaded', function() {
     currentTime = Math.max(0, (x / scale - 100) / pps);
     updateTimeDisplay();
     updatePlayheadPosition();
+  });
+  /* Rubber band selection on timeline */
+  tracks.addEventListener('mousedown', function(e) {
+    if (e.target.closest('.clip') || e.target.closest('.track-header') || e.button !== 0) return;
+    var container = document.getElementById('timeline-container');
+    var rect = tracks.getBoundingClientRect();
+    var startX = e.clientX - rect.left + container.scrollLeft;
+    var startY = e.clientY - rect.top + container.scrollTop;
+    var box = document.createElement('div');
+    box.className = 'select-box';
+    tracks.appendChild(box);
+    function onMove(e) {
+      var curX = e.clientX - rect.left + container.scrollLeft;
+      var curY = e.clientY - rect.top + container.scrollTop;
+      var x1 = Math.min(startX, curX), x2 = Math.max(startX, curX);
+      var y1 = Math.min(startY, curY), y2 = Math.max(startY, curY);
+      box.style.left = x1 + 'px';
+      box.style.top = y1 + 'px';
+      box.style.width = (x2 - x1) + 'px';
+      box.style.height = (y2 - y1) + 'px';
+      // Highlight clips inside selection box
+      document.querySelectorAll('.clip').forEach(function(c) {
+        var cl = parseInt(c.style.left) || 0;
+        var cw = parseInt(c.style.width) || 0;
+        var ct = c.closest('.track');
+        var tOff = ct ? ct.offsetTop : 0;
+        var ch = ct ? ct.offsetHeight : 60;
+        var inX = cl + cw > x1 && cl < x2;
+        var inY = tOff + ch > y1 && tOff < y2;
+        if (inX && inY) {
+          c.classList.add('selected');
+        } else if (!e.shiftKey) {
+          c.classList.remove('selected');
+        }
+      });
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      box.remove();
+      var sel = document.querySelectorAll('.clip.selected');
+      if (sel.length > 0) {
+        selectedClip = sel[sel.length - 1];
+        toast(sel.length + ' clip' + (sel.length > 1 ? 's' : '') + ' selected');
+      }
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
 });
 
