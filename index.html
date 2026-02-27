@@ -1845,12 +1845,19 @@ a:focus-visible, button:focus-visible, input:focus-visible {
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
         </div>
         <div id="bars-display" style="font-size:10px;font-weight:600;color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums;min-width:50px;text-align:center">1.1.1</div>
+        <div id="beat-indicator" style="display:flex;gap:2px;padding:0 4px" title="Beat position">
+          <div class="beat-dot" id="beat-1" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
+          <div class="beat-dot" id="beat-2" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
+          <div class="beat-dot" id="beat-3" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
+          <div class="beat-dot" id="beat-4" style="width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.1)"></div>
+        </div>
         <div class="bpm-section">
           <span class="bpm-label">BPM</span>
           <div class="bpm-pulse" id="bpm-pulse" title="Tempo pulse"></div>
           <input type="number" class="bpm-input" id="bpm-input" value="120" min="40" max="200" onchange="updateBPM()">
           <span class="bpm-mode" id="bpm-mode">Standard</span>
           <span class="tempo-link" id="tempo-link" onclick="toggleTempoLink()" title="Link BPM to exercise tempo">LINK</span>
+          <span class="tempo-link" id="tap-tempo" onclick="tapTempo()" title="Tap rhythm to set BPM (or press T)">TAP</span>
           <span id="time-sig" style="font-size:8px;font-weight:700;color:var(--micro);padding:0 4px;letter-spacing:0.04em;cursor:pointer;font-variant-numeric:tabular-nums" onclick="cycleTimeSig()" title="Time signature">4/4</span>
           <div class="transport-sep"></div>
           <span class="bpm-label">Zoom</span>
@@ -2139,6 +2146,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Q</kbd><span>Quantize All</span></div>
       <div class="shortcut-item"><kbd>R</kbd><span>Record Toggle</span></div>
       <div class="shortcut-item"><kbd>F</kbd><span>Focus Mode</span></div>
+      <div class="shortcut-item"><kbd>T</kbd><span>Tap Tempo</span></div>
       <div class="shortcut-item"><kbd>Dbl-Click</kbd><span>Add Random Clip</span></div>
       <div class="shortcut-item"><kbd>Drag</kbd><span>Marquee Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+S</kbd><span>Save Session</span></div>
@@ -3468,6 +3476,19 @@ function updateTimeDisplay() {
   }
   var barsDisp = document.getElementById('bars-display');
   if (barsDisp) barsDisp.textContent = bbStr;
+  // Update beat indicator dots (1-4)
+  for (var bi = 1; bi <= 4; bi++) {
+    var dot = document.getElementById('beat-' + bi);
+    if (dot) {
+      if (bi === beat && isPlaying) {
+        dot.style.background = bi === 1 ? 'var(--accent-green)' : 'var(--accent-blue)';
+        dot.style.boxShadow = '0 0 4px ' + (bi === 1 ? 'rgba(34,197,94,0.4)' : 'rgba(59,130,246,0.4)');
+      } else {
+        dot.style.background = 'rgba(255,255,255,0.1)';
+        dot.style.boxShadow = 'none';
+      }
+    }
+  }
 }
 
 function updatePlayheadPosition() {
@@ -3598,6 +3619,34 @@ function toggleTempoLink() {
     if (audioEl) audioEl.playbackRate = 1.0;
     sfx('click');
     toast('Tempo unlinked');
+  }
+}
+
+/* Tap Tempo — tap rhythm to set BPM */
+var tapTimes = [];
+function tapTempo() {
+  var now = Date.now();
+  tapTimes.push(now);
+  // Keep only last 8 taps (last 3 seconds)
+  tapTimes = tapTimes.filter(function(t) { return now - t < 3000; });
+  if (tapTimes.length >= 2) {
+    var intervals = [];
+    for (var i = 1; i < tapTimes.length; i++) {
+      intervals.push(tapTimes[i] - tapTimes[i - 1]);
+    }
+    var avg = intervals.reduce(function(a, b) { return a + b; }, 0) / intervals.length;
+    var tapBpm = Math.round(60000 / avg);
+    tapBpm = Math.max(40, Math.min(200, tapBpm));
+    bpm = tapBpm;
+    document.getElementById('bpm-input').value = bpm;
+    updateBPM();
+  }
+  sfx('metronome');
+  // Visual feedback on tap button
+  var btn = document.getElementById('tap-tempo');
+  if (btn) {
+    btn.classList.add('active');
+    setTimeout(function() { btn.classList.remove('active'); }, 100);
   }
 }
 
@@ -4876,6 +4925,7 @@ var CMD_ACTIONS = [
   {label:'Zoom Out', key:'Cmd+-', icon:'-', action: function() { zoomOut(); }},
   {label:'Zoom Reset (100%)', key:'Cmd+0', icon:'1:1', action: function() { zoomLevel = 100; applyZoom(); toast('Zoom reset: 100%'); }},
   {label:'Toggle Focus Mode', key:'F', icon:'\u2B1C', action: function() { toggleFocusMode(); }},
+  {label:'Tap Tempo', key:'T', icon:'\u266A', action: function() { tapTempo(); }},
   {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
   {label:'Quantize All Clips', key:'Q', icon:'\u2593', action: function() { quantizeClips(); }},
   {label:'Auto-Arrange Clips', key:'', icon:'\u21F6', action: function() { autoArrange(); }},
@@ -5360,6 +5410,9 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyF' && !e.metaKey && !e.ctrlKey) {
     toggleFocusMode();
+  }
+  if (e.code === 'KeyT' && !e.metaKey && !e.ctrlKey) {
+    tapTempo();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
