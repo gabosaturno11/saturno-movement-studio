@@ -5484,7 +5484,9 @@ function captureState() {
       rest: clip.dataset.rest,
       rpe: clip.dataset.rpe,
       notes: clip.dataset.notes || '',
-      customColor: clip.dataset.customColor || ''
+      customColor: clip.dataset.customColor || '',
+      fadeIn: clip.dataset.fadeIn || '0',
+      fadeOut: clip.dataset.fadeOut || '0'
     });
   });
   state.markers = markers.map(function(m) { return {id: m.id, time: m.time, label: m.label}; });
@@ -5536,7 +5538,8 @@ function restoreState(state) {
     var ex = getExercise(c.exerciseId);
     if (!track || !ex) return;
     var clip = createClipElement(ex, c.left, c.width, {
-      sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
+      sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe,
+      fadeIn: c.fadeIn || '0', fadeOut: c.fadeOut || '0'
     });
     if (c.notes) clip.dataset.notes = c.notes;
     if (c.customColor) {
