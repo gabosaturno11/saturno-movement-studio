@@ -942,6 +942,27 @@ body {
   font-size: 10px; color: var(--muted);
 }
 
+/* ===== MARKERS ===== */
+.marker {
+  position: absolute; z-index: 15;
+  top: 0; cursor: pointer;
+}
+.marker-flag {
+  width: auto; min-width: 8px; height: 14px;
+  background: var(--accent-orange);
+  padding: 0 4px;
+  font-size: 7px; font-weight: 600;
+  color: var(--bg); display: flex; align-items: center;
+  white-space: nowrap; border-radius: 0 2px 2px 0;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.marker-line {
+  width: 1px; height: 100%;
+  background: var(--accent-orange); opacity: 0.3;
+  position: absolute; top: 14px; left: 0;
+}
+.marker:hover .marker-flag { filter: brightness(1.2); }
+
 /* ===== LOOP REGION ===== */
 .loop-region {
   position: absolute; top: 0; bottom: 0;
@@ -1093,6 +1114,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
         <div class="time-display" id="time-display">
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
         </div>
+        <div id="bars-display" style="font-size:10px;font-weight:600;color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums;min-width:50px;text-align:center">1.1.1</div>
         <div class="bpm-section">
           <span class="bpm-label">BPM</span>
           <input type="number" class="bpm-input" id="bpm-input" value="120" min="40" max="200" onchange="updateBPM()">
@@ -1276,6 +1298,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Cmd++</kbd><span>Zoom In</span></div>
       <div class="shortcut-item"><kbd>Cmd+-</kbd><span>Zoom Out</span></div>
       <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
+      <div class="shortcut-item"><kbd>M</kbd><span>Add Marker</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
@@ -1667,6 +1690,7 @@ var meterInterval = null;
 var undoStack = [], redoStack = [], maxUndo = 30;
 var metronomeEnabled = false, lastBeatTime = 0, beatCounter = 0;
 var loopEnabled = false, loopStart = 0, loopEnd = 60;
+var markers = [], markerCounter = 0;
 
 /* Music tracks (from Vercel Blob CDN) */
 var MUSIC_TRACKS = [
@@ -1790,11 +1814,14 @@ function selectMusicTrack(idx) {
 
 function buildRuler() {
   var ruler = document.getElementById('timeline-ruler');
-  var html = '<div class="ruler-mark" style="flex:0 0 100px">0:00</div>';
+  var beatDuration = 60 / bpm;
+  var barDuration = beatDuration * 4;
+  var html = '<div class="ruler-mark" style="flex:0 0 100px"><span style="color:var(--muted)">1</span></div>';
   for (var i = 15; i <= 300; i += 15) {
     var m = Math.floor(i / 60);
     var s = i % 60;
-    html += '<div class="ruler-mark">'+m+':'+s.toString().padStart(2,'0')+'</div>';
+    var barNum = Math.floor(i / barDuration) + 1;
+    html += '<div class="ruler-mark">'+m+':'+s.toString().padStart(2,'0')+' <span style="color:var(--micro);font-size:7px">|'+barNum+'</span></div>';
   }
   ruler.innerHTML = html;
 }
@@ -2310,14 +2337,17 @@ function updateTimeDisplay() {
   document.getElementById('td-min').textContent = mins.toString().padStart(2, '0');
   document.getElementById('td-sec').textContent = secs.toString().padStart(2, '0');
   document.getElementById('td-ms').textContent = ms.toString().padStart(2, '0');
-  // Update bars:beats:ticks in footer
+  // Update bars:beats:ticks in footer and transport
   var beatDuration = 60 / bpm;
   var totalBeats = currentTime / beatDuration;
   var bar = Math.floor(totalBeats / 4) + 1;
   var beat = Math.floor(totalBeats % 4) + 1;
   var tick = Math.floor((totalBeats % 1) * 4) + 1;
+  var bbStr = bar + '.' + beat + '.' + tick;
   var posEl = document.getElementById('footer-pos');
-  if (posEl) posEl.textContent = bar + '.' + beat + '.' + tick;
+  if (posEl) posEl.textContent = bbStr;
+  var barsDisp = document.getElementById('bars-display');
+  if (barsDisp) barsDisp.textContent = bbStr;
 }
 
 function updatePlayheadPosition() {
@@ -2346,6 +2376,7 @@ function toggleRec() {
 function updateBPM() {
   bpm = parseInt(document.getElementById('bpm-input').value) || 120;
   updateBPMMode();
+  buildRuler();
   saveSession();
   // If tempo-linked, adjust exercise tempos AND music playback rate
   if (tempoLinked) {
@@ -3256,6 +3287,48 @@ function updatePlayheadClass() {
   if (isPlaying) { ph.classList.add('playing'); } else { ph.classList.remove('playing'); }
 }
 
+/* ===== MARKERS ===== */
+function addMarker() {
+  markerCounter++;
+  var pps = 80 / 15;
+  var pos = 100 + currentTime * pps;
+  var marker = {id: markerCounter, time: currentTime, label: 'M' + markerCounter};
+  markers.push(marker);
+  renderMarker(marker);
+  sfx('click');
+  toast('Marker ' + markerCounter + ' at ' + formatTime(currentTime));
+}
+
+function renderMarker(marker) {
+  var pps = 80 / 15;
+  var pos = 100 + marker.time * pps;
+  var el = document.createElement('div');
+  el.className = 'marker';
+  el.dataset.markerId = marker.id;
+  el.style.left = pos + 'px';
+  el.innerHTML = '<div class="marker-flag">' + marker.label + '</div><div class="marker-line"></div>';
+  el.addEventListener('click', function(e) {
+    e.stopPropagation();
+    currentTime = marker.time;
+    updateTimeDisplay();
+    updatePlayheadPosition();
+    sfx('click');
+  });
+  el.addEventListener('dblclick', function(e) {
+    e.stopPropagation();
+    el.remove();
+    markers = markers.filter(function(m) { return m.id !== marker.id; });
+    sfx('delete');
+    toast('Marker removed');
+  });
+  document.getElementById('timeline-tracks').appendChild(el);
+}
+
+function renderAllMarkers() {
+  document.querySelectorAll('.marker').forEach(function(m) { m.remove(); });
+  markers.forEach(function(m) { renderMarker(m); });
+}
+
 /* ===== SHORTCUTS OVERLAY ===== */
 function toggleShortcuts() {
   var overlay = document.getElementById('shortcuts-overlay');
@@ -3291,6 +3364,9 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyL' && !e.metaKey && !e.ctrlKey) {
     toggleLoop();
+  }
+  if (e.code === 'KeyM' && !e.metaKey && !e.ctrlKey) {
+    addMarker();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
