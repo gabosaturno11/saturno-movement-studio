@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~9,415 lines). No build step. No framework.
+Single-file HTML app (index.html, ~9,800 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-231)
+### Features (Batches 1-249)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -259,8 +259,21 @@ saturno-movement-studio/
 - **Distribute across tracks** (spread selected clips round-robin)
 - **Cycle exercise in pattern** (cycle through progression stages)
 - **Compact all tracks** (remove gaps on all tracks at once)
-- **Command palette** (Cmd+K, 135+ commands)
-- **Keyboard shortcuts panel** (?, 60+ shortcuts)
+- **Smart record mode** (uses recent exercises instead of random)
+- **Select overlapping/superset clips** (quickly select conflict clips)
+- **Shift all clips left/right by bar** (lock-aware bulk shift)
+- **Insert/Remove silence at playhead** (push/pull clips by 1 bar)
+- **Clone track to target** (duplicate all clips from active to any track)
+- **Session time in summary** (shows elapsed session duration in stats)
+- **Export session stats** (detailed stats to clipboard)
+- **RPE color mode** (toggle RPE-based clip coloring, green->red scale)
+- **Repeat last command** (_lastCommand stored on palette execution)
+- **J/K clip navigation** (next/prev clip selection by track+position)
+- **Select duplicate exercises** (select all clips with same exercise)
+- **Time-range selection** (select clips in first 30s/60s)
+- **Workout templates** (save/load reusable templates, localStorage, up to 10)
+- **Command palette** (Cmd+K, 156+ commands)
+- **Keyboard shortcuts panel** (?, 62+ shortcuts)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
