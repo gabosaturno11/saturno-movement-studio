@@ -186,6 +186,39 @@ body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);height
 .toast.show{opacity:1}
 @media(prefers-reduced-motion:reduce){.music-now-playing .eq span{animation:none;height:6px}.preset-card:hover{transform:none}}
 
+/* ===== TABLET (768px) ===== */
+@media(max-width:768px){
+  .main{grid-template-columns:160px 1fr 200px}
+  .panel-header{font-size:8px;padding:8px 10px}
+  .movement-item{padding:5px 6px;font-size:9px}
+  .movement-item .mv-icon{width:18px;height:18px;font-size:7px}
+  .transport{padding:6px 10px;gap:8px;flex-wrap:wrap}
+  .time-display{font-size:16px;min-width:100px}
+  .bpm-input{width:46px;font-size:12px}
+  .fader-track{height:60px}
+  .knob-dial{width:30px;height:30px}
+  .knob-indicator{height:8px}
+  .preset-card{min-width:140px}
+}
+
+/* ===== MOBILE (480px) ===== */
+@media(max-width:480px){
+  .main{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+  .panel-left{max-height:200px;border-right:none;border-bottom:1px solid var(--border)}
+  .panel-right{border-left:none;border-top:1px solid var(--border);max-height:240px}
+  .header{padding:0 8px}
+  .header-nav{gap:3px}
+  .nav-btn{padding:4px 8px;font-size:8px}
+  .logo-text{font-size:11px}
+  .transport-btn{width:36px;height:36px;font-size:14px}
+  .music-btn{width:36px;height:36px}
+  .track-header{width:80px}
+  .fader-group{gap:6px}
+  .fader-track{height:50px}
+  .preset-card{min-width:120px;padding:8px}
+  .presets-drawer{padding:8px 12px}
+}
+
 /* ===== PRESETS DRAWER ===== */
 .presets-drawer{display:none;position:absolute;top:52px;left:0;right:0;background:var(--bg-panel);border-bottom:2px solid var(--accent-cyan);z-index:50;padding:12px 20px}
 .presets-drawer.open{display:flex;gap:12px;flex-wrap:wrap}
@@ -861,7 +894,46 @@ function createClipElement(exercise, left, width, dna) {
     document.addEventListener('mouseup', onUp);
   });
 
-  // Double click to delete
+  // Touch drag support
+  clip.addEventListener('touchstart', function(e) {
+    if (e.target === resize || e.target.classList.contains('clip-resize')) return;
+    selectClipEl(clip);
+    var touch = e.touches[0];
+    var startX = touch.clientX, startLeft = parseInt(clip.style.left);
+    function onMove(e) { e.preventDefault(); clip.style.left = Math.max(0, startLeft + e.touches[0].clientX - startX) + 'px'; }
+    function onEnd() { clip.removeEventListener('touchmove', onMove); clip.removeEventListener('touchend', onEnd); saveSession(); updateStats(); }
+    clip.addEventListener('touchmove', onMove, {passive: false});
+    clip.addEventListener('touchend', onEnd);
+  }, {passive: true});
+
+  // Touch resize support
+  resize.addEventListener('touchstart', function(e) {
+    e.stopPropagation();
+    var touch = e.touches[0];
+    var startX = touch.clientX, startW = parseInt(clip.style.width);
+    function onMove(e) {
+      e.preventDefault();
+      var newW = Math.max(40, startW + e.touches[0].clientX - startX);
+      clip.style.width = newW + 'px';
+      updateStats();
+    }
+    function onEnd() { resize.removeEventListener('touchmove', onMove); resize.removeEventListener('touchend', onEnd); saveSession(); updateStats(); }
+    resize.addEventListener('touchmove', onMove, {passive: false});
+    resize.addEventListener('touchend', onEnd);
+  }, {passive: true});
+
+  // Double click / double tap to delete
+  var lastTap = 0;
+  clip.addEventListener('touchend', function(e) {
+    var now = Date.now();
+    if (now - lastTap < 300) {
+      clip.remove();
+      if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
+      updateStats(); saveSession();
+      toast('Clip removed');
+    }
+    lastTap = now;
+  });
   clip.addEventListener('dblclick', function() {
     clip.remove();
     if (selectedClip === clip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
@@ -1062,7 +1134,7 @@ function buildFaders() {
   FADERS.forEach(function(f) {
     html += '<div class="fader" data-fader="'+f.id+'">';
     html += '<div class="fader-label">'+f.label+'</div>';
-    html += '<div class="fader-track" onmousedown="startFaderDrag(event,\''+f.id+'\')">';
+    html += '<div class="fader-track" onmousedown="startFaderDrag(event,\''+f.id+'\')" ontouchstart="startFaderDrag(event,\''+f.id+'\')">';
     html += '<div class="fader-fill" style="height:'+f.value+'%;background:'+f.color+'"></div>';
     html += '<div class="fader-handle" style="bottom:'+(f.value-3)+'%"></div>';
     html += '</div>';
@@ -1076,22 +1148,27 @@ function startFaderDrag(e, faderId) {
   e.preventDefault();
   var track = e.currentTarget;
   var rect = track.getBoundingClientRect();
-  function update(e) {
-    var y = 1 - ((e.clientY - rect.top) / rect.height);
+  function updatePos(clientY) {
+    var y = 1 - ((clientY - rect.top) / rect.height);
     y = Math.max(0, Math.min(1, y));
     var pct = y * 100;
     track.querySelector('.fader-fill').style.height = pct + '%';
     track.querySelector('.fader-handle').style.bottom = (pct - 3) + '%';
     document.getElementById('fader-val-' + faderId).textContent = (pct / 10).toFixed(0);
   }
-  function onUp() {
-    document.removeEventListener('mousemove', update);
-    document.removeEventListener('mouseup', onUp);
-    saveSession();
+  function onMouseMove(e) { updatePos(e.clientY); }
+  function onMouseUp() { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); saveSession(); }
+  function onTouchMove(e) { e.preventDefault(); updatePos(e.touches[0].clientY); }
+  function onTouchEnd() { document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onTouchEnd); saveSession(); }
+  if (e.type === 'touchstart') {
+    updatePos(e.touches[0].clientY);
+    document.addEventListener('touchmove', onTouchMove, {passive: false});
+    document.addEventListener('touchend', onTouchEnd);
+  } else {
+    updatePos(e.clientY);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   }
-  update(e);
-  document.addEventListener('mousemove', update);
-  document.addEventListener('mouseup', onUp);
 }
 
 /* ===== KNOBS ===== */
@@ -1101,7 +1178,7 @@ function buildKnobs() {
   KNOBS.forEach(function(k) {
     var deg = (k.value - 0.5) * 270;
     html += '<div class="knob" data-knob="'+k.id+'">';
-    html += '<div class="knob-dial" onmousedown="startKnobDrag(event,\''+k.id+'\')">';
+    html += '<div class="knob-dial" onmousedown="startKnobDrag(event,\''+k.id+'\')" ontouchstart="startKnobDrag(event,\''+k.id+'\')">';
     html += '<div class="knob-indicator" style="transform:translateX(-50%) rotate('+deg+'deg)"></div>';
     html += '</div>';
     html += '<div class="knob-label">'+k.label+'</div>';
@@ -1113,24 +1190,28 @@ function buildKnobs() {
 
 function startKnobDrag(e, knobId) {
   e.preventDefault();
-  var startY = e.clientY;
+  var startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
   var dial = e.currentTarget;
   var indicator = dial.querySelector('.knob-indicator');
   var startDeg = parseFloat(indicator.style.transform.match(/rotate\(([^)]+)deg\)/)[1]);
-  function update(e) {
-    var delta = (startY - e.clientY) * 1.5;
+  function updateKnob(clientY) {
+    var delta = (startY - clientY) * 1.5;
     var deg = Math.max(-135, Math.min(135, startDeg + delta));
     indicator.style.transform = 'translateX(-50%) rotate(' + deg + 'deg)';
     var val = ((deg + 135) / 270);
     document.getElementById('knob-val-' + knobId).textContent = (val * 100).toFixed(0) + '%';
   }
-  function onUp() {
-    document.removeEventListener('mousemove', update);
-    document.removeEventListener('mouseup', onUp);
-    saveSession();
+  function onMouseMove(e) { updateKnob(e.clientY); }
+  function onMouseUp() { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); saveSession(); }
+  function onTouchMove(e) { e.preventDefault(); updateKnob(e.touches[0].clientY); }
+  function onTouchEnd() { document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('touchend', onTouchEnd); saveSession(); }
+  if (e.type === 'touchstart') {
+    document.addEventListener('touchmove', onTouchMove, {passive: false});
+    document.addEventListener('touchend', onTouchEnd);
+  } else {
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   }
-  document.addEventListener('mousemove', update);
-  document.addEventListener('mouseup', onUp);
 }
 
 /* ===== METERS ===== */
