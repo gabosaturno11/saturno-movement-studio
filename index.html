@@ -328,6 +328,11 @@ body {
   border-radius: var(--radius-sm);
 }
 .bpm-input:focus { outline: none; border-color: var(--accent-orange); box-shadow: 0 0 8px rgba(249,115,22,0.15); }
+@keyframes bpmFlash {
+  0% { box-shadow: 0 0 12px rgba(249,115,22,0.3), inset 0 0 4px rgba(249,115,22,0.1); }
+  100% { box-shadow: none; }
+}
+.bpm-input.flash { animation: bpmFlash 0.4s ease-out; }
 .bpm-mode {
   font-size: 8px; padding: 3px 8px;
   background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.15);
@@ -345,6 +350,18 @@ body {
 }
 .tempo-link:hover { color: var(--accent-orange); border-color: rgba(249,115,22,0.2); background: rgba(249,115,22,0.05); }
 .tempo-link.active { background: rgba(249,115,22,0.12); border-color: rgba(249,115,22,0.25); color: var(--accent-orange); box-shadow: 0 0 8px rgba(249,115,22,0.1); }
+
+/* Transport state pill — colored indicator for PLAY/STOP/REC */
+.transport-state {
+  font-size: 7px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.15em;
+  min-width: 34px; text-align: center;
+  padding: 2px 6px; border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+.transport-state.state-stop { color: var(--micro); background: transparent; }
+.transport-state.state-play { color: var(--accent-green); background: rgba(34,197,94,0.08); }
+.transport-state.state-rec { color: var(--accent-red); background: rgba(239,68,68,0.08); }
 
 /* Video Section — Premiere Pro Source Monitor */
 .video-section {
@@ -1470,6 +1487,7 @@ button:focus-visible, .transport-btn:focus-visible {
   @keyframes emptyPulse { 0%, 100% { opacity: 0.1; } }
   @keyframes panelFadeIn { from, to { opacity: 1; transform: none; } }
   .snap-line { animation: none; }
+  .bpm-input.flash { animation: none; }
   .toast { transition: none; }
   .playhead { transition: none; }
   .cmd-palette { backdrop-filter: none; }
@@ -1908,7 +1926,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <button class="transport-btn" onclick="forward()" title="Forward 15s">&#9197;</button>
           <button class="transport-btn rec" id="rec-btn" onclick="toggleRec()" title="Record" style="border-radius:0 3px 3px 0">&#9679;</button>
         </div>
-        <span id="playback-state" style="font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:var(--micro);min-width:30px;text-align:center">STOP</span>
+        <span id="playback-state" class="transport-state state-stop">STOP</span>
         <span class="snap-badge" id="snap-badge" onclick="toggleSnap()" title="Snap to grid (S)">SNAP</span>
         <div class="transport-sep"></div>
         <div class="transport-buttons">
@@ -3502,8 +3520,9 @@ function togglePlay() {
     playInterval = setInterval(updatePlayhead, 50);
     startMeters();
     document.getElementById('status-text').textContent = 'Playing';
-    document.getElementById('playback-state').textContent = 'PLAY';
-    document.getElementById('playback-state').style.color = 'var(--accent-green)';
+    var psEl = document.getElementById('playback-state');
+    psEl.textContent = 'PLAY';
+    psEl.className = 'transport-state state-play';
     updatePlayheadClass();
     updateStatusDot();
     sfx('play');
@@ -3513,8 +3532,9 @@ function togglePlay() {
     clearInterval(playInterval);
     stopMeters();
     document.getElementById('status-text').textContent = 'Paused';
-    document.getElementById('playback-state').textContent = 'PAUSE';
-    document.getElementById('playback-state').style.color = 'var(--accent-orange)';
+    var psEl2 = document.getElementById('playback-state');
+    psEl2.textContent = 'PAUSE';
+    psEl2.className = 'transport-state state-stop';
     updatePlayheadClass();
     updateStatusDot();
     sfx('click');
@@ -3541,8 +3561,9 @@ function stopPlayback() {
     if (pf) pf.style.width = '0';
   });
   document.getElementById('status-text').textContent = 'Ready';
-  document.getElementById('playback-state').textContent = 'STOP';
-  document.getElementById('playback-state').style.color = 'var(--micro)';
+  var psStop = document.getElementById('playback-state');
+  psStop.textContent = 'STOP';
+  psStop.className = 'transport-state state-stop';
   updateStatusDot();
   sfx('stop');
 }
@@ -3668,12 +3689,13 @@ function toggleRec() {
   var btn = document.getElementById('rec-btn');
   btn.classList.toggle('active', isRecording);
   document.getElementById('status-text').textContent = isRecording ? 'Recording' : 'Ready';
+  var psRec = document.getElementById('playback-state');
   if (isRecording) {
-    document.getElementById('playback-state').textContent = 'REC';
-    document.getElementById('playback-state').style.color = 'var(--error)';
+    psRec.textContent = 'REC';
+    psRec.className = 'transport-state state-rec';
   } else {
-    document.getElementById('playback-state').textContent = isPlaying ? 'PLAY' : 'STOP';
-    document.getElementById('playback-state').style.color = isPlaying ? 'var(--accent-green)' : 'var(--micro)';
+    psRec.textContent = isPlaying ? 'PLAY' : 'STOP';
+    psRec.className = 'transport-state ' + (isPlaying ? 'state-play' : 'state-stop');
   }
   updateStatusDot();
   sfx(isRecording ? 'rec' : 'click');
@@ -3685,6 +3707,11 @@ function updateBPM() {
   updateBPMMode();
   buildRuler();
   saveSession();
+  // Flash BPM input on change
+  var bpmEl = document.getElementById('bpm-input');
+  bpmEl.classList.remove('flash');
+  void bpmEl.offsetWidth; // force reflow
+  bpmEl.classList.add('flash');
   // Update BPM pulse animation speed
   var pulseDuration = (60 / bpm).toFixed(3);
   var pulse = document.getElementById('bpm-pulse');
