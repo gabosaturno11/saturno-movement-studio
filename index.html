@@ -4895,7 +4895,7 @@ function buildFaders() {
   FADERS.forEach(function(f) {
     html += '<div class="fader" data-fader="'+f.id+'">';
     html += '<div class="fader-label">'+f.label+'</div>';
-    html += '<div class="fader-track" onmousedown="startFaderDrag(event,\''+f.id+'\')" ontouchstart="startFaderDrag(event,\''+f.id+'\')">';
+    html += '<div class="fader-track" onmousedown="startFaderDrag(event,\''+f.id+'\')" ontouchstart="startFaderDrag(event,\''+f.id+'\')" ondblclick="resetFader(\''+f.id+'\')">';
     html += '<div class="fader-fill" style="height:'+f.value+'%;background:'+f.color+'"></div>';
     html += '<div class="fader-handle" style="bottom:'+(f.value-3)+'%"></div>';
     html += '</div>';
@@ -4903,6 +4903,16 @@ function buildFaders() {
     html += '</div>';
   });
   container.innerHTML = html;
+}
+
+function resetFader(faderId) {
+  var fader = document.querySelector('[data-fader="'+faderId+'"]');
+  if (!fader) return;
+  fader.querySelector('.fader-fill').style.height = '50%';
+  fader.querySelector('.fader-handle').style.bottom = '47%';
+  fader.querySelector('.fader-value').textContent = '5';
+  saveSession();
+  toast('Fader reset: 50%');
 }
 
 function startFaderDrag(e, faderId) {
@@ -6273,7 +6283,7 @@ function undo() {
   var state = JSON.parse(undoStack.pop());
   restoreState(state);
   sfx('undo');
-  toast('Undo');
+  toast('Undo (' + undoStack.length + ' left)');
   updateUndoCount();
 }
 
@@ -6283,7 +6293,7 @@ function redo() {
   var state = JSON.parse(redoStack.pop());
   restoreState(state);
   sfx('undo');
-  toast('Redo');
+  toast('Redo (' + redoStack.length + ' left)');
   updateUndoCount();
 }
 
@@ -6982,6 +6992,8 @@ var CMD_ACTIONS = [
   {label:'Playback 1x (Normal)', key:'', icon:'\u25B6', action: function() { playbackSpeed=1; document.getElementById('speed-btn').textContent='1x'; toast('Speed: 1x'); }},
   {label:'Playback 2x', key:'', icon:'\u25B6', action: function() { playbackSpeed=2; document.getElementById('speed-btn').textContent='2x'; toast('Speed: 2x'); }},
   {label:'Reverse Track Order', key:'', icon:'\u21C4', action: function() { reverseTrackClips(); }},
+  {label:'Reset All Faders', key:'', icon:'\u21BA', action: function() { FADERS.forEach(function(f){resetFader(f.id);}); toast('All faders reset'); }},
+  {label:'Reset All Knobs', key:'', icon:'\u21BA', action: function() { KNOBS.forEach(function(k){resetKnob(k.id);}); toast('All knobs reset'); }},
 ];
 
 function openCmdPalette() {
