@@ -428,6 +428,7 @@ body {
   border-bottom: 1px solid var(--border);
   display: flex; position: sticky; top: 0; z-index: 10;
   backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.02);
   -webkit-backdrop-filter: blur(4px);
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
@@ -2331,7 +2332,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="footer-quote" id="footer-hint">Saturno Movement Studio</div>
       <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
       <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
-      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v2.0</span>
+      <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v2.1</span>
       <a href="https://saturno-bonus-omega.vercel.app/vault" style="font-size:7px;color:var(--micro);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em">Vault</a>
     </div>
   </footer>
@@ -2960,7 +2961,7 @@ function buildTracks() {
     } else {
       var fm = FAMILY_MAP[t.family] || {color:'#666'};
       html += '<div class="track" data-track="'+t.id+'">';
-      html += '<div class="track-header"><div class="track-num">'+(ti+1)+'</div><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+'</div>';
+      html += '<div class="track-header"><div class="track-num">'+(ti+1)+'</div><div class="track-grip"><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div><div class="track-grip-dot"></div></div><div class="track-name" style="color:'+fm.color+'">'+t.name+'</div><div class="track-info">'+t.info+' <span style="color:'+fm.color+';opacity:0.5">| '+(fm.instrument||'')+'</span></div>';
       html += '<div class="track-controls"><button class="track-btn" onclick="toggleMute(this)" title="Mute">M</button><button class="track-btn" onclick="toggleSolo(this)" title="Solo">S</button><button class="track-btn" onclick="toggleArm(this)" title="Arm" style="color:var(--micro)">R</button></div>';
       html += '<div class="track-clip-count" id="track-count-'+t.id+'">0 clips</div>';
       html += '<div class="track-vu" id="vu-'+t.id+'"><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div><div class="track-vu-dot"></div></div>';
