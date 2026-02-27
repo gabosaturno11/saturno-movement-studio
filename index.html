@@ -2664,6 +2664,10 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
   <div class="ctx-item" data-action="rpe-up">RPE + 1<span class="ctx-key">&#9650;</span></div>
   <div class="ctx-item" data-action="rpe-down">RPE - 1<span class="ctx-key">&#9660;</span></div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="stage-up">Stage Up</div>
+  <div class="ctx-item" data-action="stage-down">Stage Down</div>
+  <div class="ctx-item" data-action="reset-fades">Reset Fades</div>
+  <div class="ctx-sep"></div>
   <div class="ctx-item ctx-color-row" data-action="color">Color<span style="display:inline-flex;gap:3px;margin-left:auto"><span class="ctx-color-swatch" data-color="" title="Default"></span><span class="ctx-color-swatch" data-color="#ef4444" style="background:#ef4444"></span><span class="ctx-color-swatch" data-color="#f97316" style="background:#f97316"></span><span class="ctx-color-swatch" data-color="#eab308" style="background:#eab308"></span><span class="ctx-color-swatch" data-color="#22c55e" style="background:#22c55e"></span><span class="ctx-color-swatch" data-color="#06b6d4" style="background:#06b6d4"></span><span class="ctx-color-swatch" data-color="#8b5cf6" style="background:#8b5cf6"></span><span class="ctx-color-swatch" data-color="#ec4899" style="background:#ec4899"></span></span></div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="move-push" style="font-size:8px;color:var(--accent-blue)">Move to Push</div>
@@ -5793,6 +5797,28 @@ document.addEventListener('DOMContentLoaded', function() {
         saveSession();
         toast(newColor ? 'Color set' : 'Color reset');
       }
+    } else if (action === 'stage-up' || action === 'stage-down') {
+      var curEx = getExercise(ctxClip.dataset.exerciseId);
+      if (curEx) {
+        var targetStage = action === 'stage-up' ? curEx.stage + 1 : curEx.stage - 1;
+        var sibling = EXERCISES.filter(function(e) { return e.pattern === curEx.pattern && e.stage === targetStage; })[0];
+        if (sibling) {
+          selectClipEl(ctxClip);
+          swapClipExercise(sibling.id);
+        } else {
+          toast('No stage ' + targetStage + ' for this pattern');
+        }
+      }
+    } else if (action === 'reset-fades') {
+      ctxClip.dataset.fadeIn = '0';
+      ctxClip.dataset.fadeOut = '0';
+      var fadeInEl = ctxClip.querySelector('.clip-fade-in');
+      var fadeOutEl = ctxClip.querySelector('.clip-fade-out');
+      if (fadeInEl) { fadeInEl.style.width = '0px'; fadeInEl.classList.remove('has-fade'); }
+      if (fadeOutEl) { fadeOutEl.style.width = '0px'; fadeOutEl.classList.remove('has-fade'); }
+      updateFadeOverlay(ctxClip);
+      saveSession();
+      toast('Fades reset');
     } else if (action === 'delete') {
       pushUndo();
       ctxClip.remove();
