@@ -3205,7 +3205,7 @@ var PRESETS = {
 
 /* ===== STATE ===== */
 var isPlaying = false, currentTime = 0, bpm = 120, playInterval = null;
-var isRecording = false, tempoLinked = false, playbackSpeed = 1;
+var isRecording = false, tempoLinked = false, playbackSpeed = 1, _userSelectedDuringPlayback = false;
 var selectedClip = null, musicPlaying = false, musicIndex = 0;
 var audioEl = null;
 var meterInterval = null;
@@ -3766,6 +3766,7 @@ function createClipElement(exercise, left, width, dna) {
   clip.addEventListener('mousedown', function(e) {
     if (e.target === resize || e.target.classList.contains('clip-resize') || e.target === resizeL || e.target.classList.contains('clip-resize-left')) return;
     e.preventDefault();
+    if (isPlaying) _userSelectedDuringPlayback = true;
     var altDup = e.altKey;
     var dragClip = clip;
     if (altDup) {
@@ -4376,6 +4377,7 @@ function togglePlay() {
   var btn = document.getElementById('play-btn');
   if (isPlaying) {
     playStartTime = currentTime;
+    _userSelectedDuringPlayback = false;
     btn.classList.add('active');
     btn.innerHTML = '&#9616;&#9616;';
     playInterval = setInterval(updatePlayhead, 50);
@@ -4549,7 +4551,10 @@ function updatePlayheadPosition() {
         var pct = ((pos - clipLeft) / clipW) * 100;
         if (progressEl) progressEl.style.width = pct + '%';
         if (fillEl) fillEl.style.width = pct + '%';
-        clip.classList.add('clip-playing');
+        if (!clip.classList.contains('clip-playing')) {
+          clip.classList.add('clip-playing');
+          if (!_userSelectedDuringPlayback) selectClipEl(clip, false);
+        }
       } else {
         var done = isActive && pos > clipRight;
         if (progressEl) progressEl.style.width = done ? '100%' : '0';
@@ -5362,6 +5367,17 @@ function _doSaveSession() {
     session.loopStart = loopStart;
     session.loopEnd = loopEnd;
     session.groupCounter = _groupCounter;
+    // Playhead time
+    session.currentTime = currentTime;
+    // Settings persistence
+    session.settings = {
+      snapEnabled: snapEnabled,
+      gridRes: gridRes,
+      sfxEnabled: sfxEnabled,
+      metroVolume: metroVolume,
+      autoScrollEnabled: autoScrollEnabled,
+      playbackSpeed: playbackSpeed
+    };
     // Track states (solo/mute/armed)
     session.trackStates = {};
     document.querySelectorAll('.track').forEach(function(t) {
@@ -5389,6 +5405,12 @@ function loadSession() {
     if (!saved) return;
     var s = JSON.parse(saved);
     if (s.bpm) { bpm = s.bpm; document.getElementById('bpm-input').value = bpm; updateBPMMode(); }
+    // Restore playhead position
+    if (typeof s.currentTime === 'number') {
+      currentTime = s.currentTime;
+      updateTimeDisplay();
+      updatePlayheadPosition();
+    }
     if (s.clips) {
       s.clips.forEach(function(c) {
         var track = document.querySelector('.track-content[data-track="'+c.track+'"]');
@@ -5470,6 +5492,44 @@ function loadSession() {
       var hasSolo = !!document.querySelector('.track-btn.soloed');
       var tracksEl = document.getElementById('timeline-tracks');
       if (tracksEl) tracksEl.classList.toggle('has-solo', hasSolo);
+    }
+    // Restore settings
+    if (s.settings) {
+      var st = s.settings;
+      if (typeof st.snapEnabled !== 'undefined') {
+        snapEnabled = st.snapEnabled;
+        var snapBtn = document.getElementById('snap-badge');
+        if (snapBtn) { snapBtn.classList.toggle('active', snapEnabled); snapBtn.textContent = snapEnabled ? 'SNAP ' + (st.gridRes || 4) + 'B' : 'SNAP'; }
+        var settingsSnapBtn = document.getElementById('settings-snap');
+        if (settingsSnapBtn) settingsSnapBtn.textContent = snapEnabled ? 'ON' : 'OFF';
+      }
+      if (st.gridRes) {
+        gridRes = st.gridRes;
+        var gridSel = document.getElementById('settings-grid');
+        if (gridSel) gridSel.value = gridRes;
+      }
+      if (typeof st.sfxEnabled !== 'undefined') {
+        sfxEnabled = st.sfxEnabled;
+        var sfxBtn = document.getElementById('settings-sfx');
+        if (sfxBtn) sfxBtn.textContent = sfxEnabled ? 'ON' : 'OFF';
+      }
+      if (typeof st.metroVolume !== 'undefined') {
+        metroVolume = st.metroVolume;
+        var metroSlider = document.getElementById('settings-metro-vol');
+        if (metroSlider) metroSlider.value = metroVolume * 100;
+      }
+      if (typeof st.autoScrollEnabled !== 'undefined') {
+        autoScrollEnabled = st.autoScrollEnabled;
+        var asBtn = document.getElementById('auto-scroll-btn');
+        if (asBtn) asBtn.classList.toggle('active', autoScrollEnabled);
+        var asSettings = document.getElementById('settings-autoscroll');
+        if (asSettings) asSettings.textContent = autoScrollEnabled ? 'ON' : 'OFF';
+      }
+      if (st.playbackSpeed) {
+        playbackSpeed = st.playbackSpeed;
+        var speedBtn = document.getElementById('speed-btn');
+        if (speedBtn) speedBtn.textContent = playbackSpeed + 'x';
+      }
     }
     updateStats();
   } catch(e) {}
