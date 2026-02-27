@@ -772,6 +772,49 @@ body {
   border-radius: 2px;
 }
 
+/* ===== CONTEXT MENU — Premiere Pro Right-Click ===== */
+.clip-context-menu {
+  position: fixed; z-index: 250;
+  background: var(--surface2); border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  min-width: 160px;
+  border-radius: 4px;
+  padding: 4px 0;
+  display: none;
+}
+.clip-context-menu.open { display: block; }
+.ctx-item {
+  padding: 6px 14px; font-size: 10px;
+  color: var(--text-secondary); cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background 0.08s, color 0.08s;
+}
+.ctx-item:hover { background: rgba(59,130,246,0.15); color: var(--text); }
+.ctx-item .ctx-key {
+  font-size: 8px; color: var(--micro);
+  margin-left: 16px;
+}
+.ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+.ctx-item.danger:hover { background: rgba(239,68,68,0.15); color: var(--accent-red); }
+
+/* ===== PLAYHEAD GLOW ANIMATION ===== */
+@keyframes playheadPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,255,255,0.4); }
+  50% { box-shadow: 0 0 14px rgba(255,255,255,0.6); }
+}
+.playhead.playing {
+  animation: playheadPulse 1s ease-in-out infinite;
+}
+
+/* ===== RECORDING PULSE ===== */
+@keyframes recPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.transport-btn.rec.active {
+  animation: recPulse 1s ease-in-out infinite;
+}
+
 /* ===== SHORTCUTS OVERLAY — CapCut Style ===== */
 .shortcuts-overlay {
   display: none; position: fixed; inset: 0; z-index: 300;
@@ -1074,6 +1117,15 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   </div>
 </div>
 
+<div class="clip-context-menu" id="clip-context-menu">
+  <div class="ctx-item" data-action="duplicate">Duplicate<span class="ctx-key">Cmd+D</span></div>
+  <div class="ctx-item" data-action="inspect">Inspect</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="snap-start">Snap to Start</div>
+  <div class="ctx-item" data-action="snap-next">Snap After Previous</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" data-action="delete">Delete<span class="ctx-key">Del</span></div>
+</div>
 <div class="shortcuts-overlay" id="shortcuts-overlay">
   <div class="shortcuts-panel">
     <div class="shortcuts-header">
@@ -1727,7 +1779,7 @@ function createClipElement(exercise, left, width, dna) {
     document.addEventListener('mouseup', onUp);
   });
 
-  // Resize clip (stretching shows duration)
+  // Resize clip (stretching shows duration + redraws waveform)
   resize.addEventListener('mousedown', function(e) {
     e.stopPropagation();
     var startX = e.clientX, startW = parseInt(clip.style.width);
@@ -1735,6 +1787,7 @@ function createClipElement(exercise, left, width, dna) {
       var newW = Math.max(40, startW + e.clientX - startX);
       newW = snapEnabled ? Math.max(40, snapValue(newW)) : newW;
       clip.style.width = newW + 'px';
+      drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', newW + 'px');
       var durSec = Math.round(newW / 80 * 15);
       var durM = Math.floor(durSec / 60);
       var durS = durSec % 60;
@@ -1745,6 +1798,13 @@ function createClipElement(exercise, left, width, dna) {
     function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+  });
+
+  // Right-click context menu (Premiere Pro style)
+  clip.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    selectClipEl(clip);
+    showClipContextMenu(e.clientX, e.clientY, clip, exercise);
   });
 
   // Touch drag support
@@ -1768,6 +1828,7 @@ function createClipElement(exercise, left, width, dna) {
       e.preventDefault();
       var newW = Math.max(40, startW + e.touches[0].clientX - startX);
       clip.style.width = newW + 'px';
+      drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', newW + 'px');
       updateStats();
     }
     function onEnd() { resize.removeEventListener('touchmove', onMove); resize.removeEventListener('touchend', onEnd); saveSession(); updateStats(); }
@@ -1925,6 +1986,7 @@ function togglePlay() {
     playInterval = setInterval(updatePlayhead, 50);
     startMeters();
     document.getElementById('status-text').textContent = 'Playing';
+    updatePlayheadClass();
     sfx('play');
   } else {
     btn.classList.remove('active');
@@ -1932,6 +1994,7 @@ function togglePlay() {
     clearInterval(playInterval);
     stopMeters();
     document.getElementById('status-text').textContent = 'Paused';
+    updatePlayheadClass();
     sfx('click');
   }
 }
@@ -1946,6 +2009,7 @@ function stopPlayback() {
   stopMeters();
   updateTimeDisplay();
   updatePlayheadPosition();
+  updatePlayheadClass();
   document.getElementById('status-text').textContent = 'Ready';
   sfx('stop');
 }
@@ -2652,6 +2716,76 @@ function toggleSnap() {
 function snapValue(val) {
   if (!snapEnabled) return val;
   return Math.round(val / SNAP_SIZE) * SNAP_SIZE;
+}
+
+/* ===== CONTEXT MENU ===== */
+var ctxClip = null, ctxExercise = null;
+function showClipContextMenu(x, y, clip, exercise) {
+  ctxClip = clip;
+  ctxExercise = exercise;
+  var menu = document.getElementById('clip-context-menu');
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.classList.add('open');
+  // Adjust if overflows viewport
+  var rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = (x - rect.width) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+}
+
+function hideContextMenu() {
+  document.getElementById('clip-context-menu').classList.remove('open');
+  ctxClip = null;
+  ctxExercise = null;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.clip-context-menu')) hideContextMenu();
+  });
+  document.getElementById('clip-context-menu').addEventListener('click', function(e) {
+    var item = e.target.closest('.ctx-item');
+    if (!item || !ctxClip) return;
+    var action = item.dataset.action;
+    if (action === 'duplicate') {
+      selectClipEl(ctxClip);
+      duplicateClip();
+    } else if (action === 'inspect') {
+      selectClipEl(ctxClip);
+    } else if (action === 'snap-start') {
+      pushUndo();
+      ctxClip.style.left = '0px';
+      saveSession(); updateStats();
+      toast('Snapped to start');
+    } else if (action === 'snap-next') {
+      pushUndo();
+      var track = ctxClip.parentElement;
+      var clips = track.querySelectorAll('.clip');
+      var maxRight = 0;
+      clips.forEach(function(c) {
+        if (c === ctxClip) return;
+        var r = parseInt(c.style.left) + parseInt(c.style.width);
+        if (r > maxRight) maxRight = r;
+      });
+      ctxClip.style.left = (maxRight + 2) + 'px';
+      saveSession(); updateStats();
+      toast('Snapped after previous');
+    } else if (action === 'delete') {
+      pushUndo();
+      ctxClip.remove();
+      if (selectedClip === ctxClip) { selectedClip = null; document.getElementById('inspector').style.display = 'none'; }
+      updateStats(); saveSession();
+      sfx('delete');
+      toast('Clip deleted');
+    }
+    hideContextMenu();
+  });
+});
+
+/* ===== PLAYHEAD ANIMATION ===== */
+function updatePlayheadClass() {
+  var ph = document.getElementById('playhead');
+  if (isPlaying) { ph.classList.add('playing'); } else { ph.classList.remove('playing'); }
 }
 
 /* ===== SHORTCUTS OVERLAY ===== */
