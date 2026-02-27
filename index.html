@@ -6124,6 +6124,16 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePlayheadPosition();
     sfx('click');
   });
+  /* Double-click ruler to add marker at that position */
+  ruler.addEventListener('dblclick', function(e) {
+    if (e.altKey) return;
+    var rect = ruler.getBoundingClientRect();
+    var x = e.clientX - rect.left + document.getElementById('timeline-container').scrollLeft;
+    var pps = (80 / 15) * (zoomLevel / 100);
+    var ho = 100 * (zoomLevel / 100);
+    var timeSec = Math.max(0, (x - ho) / pps);
+    addMarkerAt(timeSec);
+  });
   /* Click track header to highlight active track, double-click to collapse */
   document.querySelectorAll('.track-header').forEach(function(header) {
     header.addEventListener('click', function() {
@@ -6228,7 +6238,15 @@ document.addEventListener('DOMContentLoaded', function() {
   container.addEventListener('wheel', function(e) {
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
+      var rect = container.getBoundingClientRect();
+      var mouseX = e.clientX - rect.left;
+      var scrollBefore = container.scrollLeft;
+      var oldZoom = zoomLevel;
       if (e.deltaY < 0) { zoomIn(); } else { zoomOut(); }
+      if (zoomLevel !== oldZoom) {
+        var ratio = zoomLevel / oldZoom;
+        container.scrollLeft = (scrollBefore + mouseX) * ratio - mouseX;
+      }
     }
   }, { passive: false });
 });
@@ -6295,14 +6313,17 @@ function updateStatusDot() {
 
 /* ===== MARKERS ===== */
 function addMarker() {
+  addMarkerAt(currentTime);
+}
+
+function addMarkerAt(timeSec) {
   markerCounter++;
-  var pps = 80 / 15;
-  var pos = 100 + currentTime * pps;
-  var marker = {id: markerCounter, time: currentTime, label: 'M' + markerCounter};
+  var marker = {id: markerCounter, time: timeSec, label: 'M' + markerCounter};
   markers.push(marker);
   renderMarker(marker);
+  saveSession();
   sfx('click');
-  toast('Marker ' + markerCounter + ' at ' + formatTime(currentTime));
+  toast('Marker ' + markerCounter + ' at ' + formatTime(timeSec));
 }
 
 function renderMarker(marker) {
