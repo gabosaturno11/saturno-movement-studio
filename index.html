@@ -2812,6 +2812,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>Cmd+Shift+V</kbd><span>Paste @ Head</span></div>
       <div class="shortcut-item"><kbd>Cmd+I</kbd><span>Invert Select</span></div>
       <div class="shortcut-item"><kbd>Cmd+Shift+A</kbd><span>Track Clips</span></div>
+      <div class="shortcut-item"><kbd>0</kbd><span>Playhead Zero</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
@@ -3989,7 +3990,9 @@ function selectClipEl(clip, addToSelection) {
   var tagHtml =
     '<span class="inspector-tag" style="background:'+((FAMILY_MAP[ex.family]||{}).color||'#666')+'22;color:'+(FAMILY_MAP[ex.family]||{}).color+'">'+ex.family+'</span>' +
     '<span class="inspector-tag">'+(fm.instrument||'')+'</span>' +
-    '<span class="inspector-tag">S'+ex.stage+'</span>';
+    '<span class="inspector-tag">S'+ex.stage+'</span>' +
+    (ex.discipline ? '<span class="inspector-tag" style="background:rgba(59,130,246,0.1);color:rgba(147,197,253,0.8)">'+ex.discipline+'</span>' : '') +
+    (ex.pattern ? '<span class="inspector-tag" style="background:rgba(168,85,247,0.1);color:rgba(196,181,253,0.7)">'+ex.pattern+'</span>' : '');
   if (clip.classList.contains('clip-locked')) {
     tagHtml += '<span class="inspector-tag" style="background:rgba(239,68,68,0.12);color:#ef4444">LOCKED</span>';
   }
@@ -7225,6 +7228,7 @@ var CMD_ACTIONS = [
   {label:'Set BPM 120', key:'', icon:'\u266A', action: function() { bpm=120; document.getElementById('bpm-input').value=120; updateBPM(); toast('BPM: 120'); }},
   {label:'Set BPM 140', key:'', icon:'\u266A', action: function() { bpm=140; document.getElementById('bpm-input').value=140; updateBPM(); toast('BPM: 140'); }},
   {label:'Set BPM 160', key:'', icon:'\u266A', action: function() { bpm=160; document.getElementById('bpm-input').value=160; updateBPM(); toast('BPM: 160'); }},
+  {label:'Workout Stats', key:'', icon:'\u2139', action: function() { showWorkoutStats(); }},
 ];
 
 function openCmdPalette() {
@@ -7826,6 +7830,27 @@ function selectClipsByFamily(family) {
   toast(count + ' ' + family + ' clip' + (count !== 1 ? 's' : '') + ' selected');
 }
 
+function showWorkoutStats() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips in workout'); return; }
+  var exercises = {};
+  var families = {};
+  var totalSets = 0;
+  var totalReps = 0;
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) {
+      exercises[ex.name] = true;
+      families[ex.family] = (families[ex.family] || 0) + 1;
+    }
+    totalSets += parseInt(c.dataset.sets) || 3;
+    totalReps += parseInt(c.dataset.reps) || 8;
+  });
+  var exCount = Object.keys(exercises).length;
+  var famList = Object.keys(families).sort(function(a, b) { return families[b] - families[a]; });
+  toast(clips.length + ' clips, ' + exCount + ' exercises, ' + totalSets + ' sets, ' + totalReps + ' reps | ' + famList.join(', '));
+}
+
 function autoNameWorkout() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('Add clips first'); return; }
@@ -8258,6 +8283,10 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'Digit0' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomLevel = 100; applyZoom(); toast('Zoom reset: 100%'); return;
+  }
+  if (e.code === 'Digit0' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    currentTime = 0; updateTimeDisplay(); updatePlayheadPosition(); toast('Playhead: 0:00');
+    return;
   }
   if (e.code === 'Delete' || e.code === 'Backspace') {
     deleteSelectedClips();
