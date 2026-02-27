@@ -7520,17 +7520,21 @@ function toggleSFXSetting() {
 
 /* ===== QUANTIZE — Snap All Clips to Grid ===== */
 function quantizeClips() {
-  var clips = document.querySelectorAll('.clip');
+  var selected = document.querySelectorAll('.clip.selected');
+  var clips = selected.length > 0 ? selected : document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('No clips to quantize'); return; }
   pushUndo();
-  var beatPx = 80 / 4; // pixels per beat at standard zoom
+  var snapPx = (typeof getSnapSize === 'function') ? getSnapSize() : (80 / 4);
+  var count = 0;
   clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
     var left = parseInt(c.style.left) || 0;
-    c.style.left = Math.round(left / beatPx) * beatPx + 'px';
+    c.style.left = Math.round(left / snapPx) * snapPx + 'px';
+    count++;
   });
   saveSession();
   sfx('snap');
-  toast(clips.length + ' clips quantized');
+  toast(count + ' clip' + (count !== 1 ? 's' : '') + ' quantized');
 }
 
 /* ===== CLIPBOARD — Copy/Paste Clips ===== */
@@ -7628,6 +7632,10 @@ function autoArrange() {
     var pos = 0;
     var gap = 2;
     clips.forEach(function(c) {
+      if (c.classList.contains('clip-locked')) {
+        pos = (parseInt(c.style.left) || 0) + (parseInt(c.style.width) || 80) + gap;
+        return;
+      }
       var old = parseInt(c.style.left) || 0;
       c.style.left = pos + 'px';
       if (old !== pos) totalMoved++;
@@ -7653,7 +7661,9 @@ function spreadClipsEvenly() {
   var gap = clips.length > 1 ? availableSpace / (clips.length - 1) : 0;
   var curLeft = parseInt(clips[0].style.left) || 0;
   clips.forEach(function(c, i) {
-    c.style.left = Math.round(curLeft) + 'px';
+    if (!c.classList.contains('clip-locked')) {
+      c.style.left = Math.round(curLeft) + 'px';
+    }
     curLeft += (parseInt(c.style.width) || 80) + gap;
   });
   updateStats(); saveSession();
