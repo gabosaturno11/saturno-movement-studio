@@ -7998,6 +7998,10 @@ var CMD_ACTIONS = [
   {label:'Exercise Relationships', key:'', icon:'\u2194', action: function() { showRelationshipsMap(); }},
   {label:'Workout Score', key:'', icon:'\u2605', action: function() { showWorkoutScore(); }},
   {label:'Quick Notes Sidebar', key:'', icon:'\u270e', action: function() { toggleQuickNotes(); }},
+  {label:'Workout Playlist Creator', key:'', icon:'\u266b', action: function() { showPlaylistCreator(); }},
+  {label:'Next Playlist Workout', key:'', icon:'\u23ed', action: function() { nextPlaylistWorkout(); }},
+  {label:'Check Exercise Frequency', key:'', icon:'\u26a0', action: function() { checkExerciseFrequency(); }},
+  {label:'Training Split Recommender', key:'', icon:'\u2263', action: function() { showSplitRecommender(); }},
 ];
 
 function openCmdPalette() {
@@ -17459,6 +17463,189 @@ function clearQuickNotes() {
   var counter = document.getElementById('sms-qn-count');
   if (counter) counter.textContent = '0 chars';
   showToast('Notes cleared');
+}
+
+// Batch 379: Workout Playlist Creator
+var _workoutPlaylist = [];
+function showPlaylistCreator() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length === 0) { showToast('Save some workouts first'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Workout Playlist</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Queue multiple workouts for a training session</div>';
+  // Current playlist
+  if (_workoutPlaylist.length > 0) {
+    html += '<div style="margin-bottom:12px">';
+    html += '<div style="color:#22d3ee;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Current Playlist</div>';
+    _workoutPlaylist.forEach(function(name, i) {
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(34,211,238,0.05);border-radius:6px;margin-bottom:4px">';
+      html += '<span style="color:#22d3ee;font-size:12px;font-weight:600;width:20px">' + (i+1) + '</span>';
+      html += '<span style="flex:1;color:#e2e8f0;font-size:13px">' + name + '</span>';
+      html += '<button onclick="_workoutPlaylist.splice(' + i + ',1);this.closest(\'div[style*=fixed]\').remove();showPlaylistCreator()" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px;font-family:Sora,sans-serif">x</button>';
+      html += '</div>';
+    });
+    var totalClips = 0;
+    _workoutPlaylist.forEach(function(name) {
+      saved.forEach(function(w) { if(w.name === name) totalClips += (w.clips||[]).length; });
+    });
+    html += '<div style="color:#64748b;font-size:11px;margin-top:6px">' + _workoutPlaylist.length + ' workouts, ~' + totalClips + ' total clips</div>';
+    html += '</div>';
+  }
+  // Available workouts
+  html += '<div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Add to Playlist</div>';
+  saved.forEach(function(w) {
+    html += '<button onclick="_workoutPlaylist.push(\'' + (w.name||'').replace(/'/g, "\\'") + '\');this.closest(\'div[style*=fixed]\').remove();showPlaylistCreator()" style="display:block;width:100%;padding:8px 12px;margin-bottom:4px;background:rgba(34,211,238,0.03);color:#e2e8f0;border:1px solid rgba(34,211,238,0.1);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px;text-align:left">';
+    html += (w.name || 'Untitled') + ' <span style="color:#64748b">(' + (w.clips||[]).length + ' clips)</span>';
+    html += '</button>';
+  });
+  if (_workoutPlaylist.length > 0) {
+    html += '<div style="display:flex;gap:8px;margin-top:16px">';
+    html += '<button onclick="loadPlaylistWorkout(0)" style="flex:1;padding:10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Start Playlist</button>';
+    html += '<button onclick="_workoutPlaylist=[];this.closest(\'div[style*=fixed]\').remove();showPlaylistCreator()" style="flex:1;padding:10px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Clear</button>';
+    html += '</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function loadPlaylistWorkout(idx) {
+  if (idx >= _workoutPlaylist.length) { showToast('Playlist complete!'); return; }
+  var name = _workoutPlaylist[idx];
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var workout = null;
+  saved.forEach(function(w) { if(w.name === name) workout = w; });
+  if (!workout) { showToast('Workout "' + name + '" not found'); return; }
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  if (typeof loadWorkoutState === 'function') loadWorkoutState(workout);
+  showToast('Playlist ' + (idx+1) + '/' + _workoutPlaylist.length + ': ' + name);
+  window._playlistIdx = idx;
+}
+function nextPlaylistWorkout() {
+  if (typeof window._playlistIdx === 'undefined') { showToast('No playlist active'); return; }
+  loadPlaylistWorkout(window._playlistIdx + 1);
+}
+
+// Batch 380: Exercise Frequency Limiter
+function checkExerciseFrequency() {
+  var clips = document.querySelectorAll('.clip');
+  var freq = {};
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    var name = c.dataset.exercise || '';
+    freq[name] = (freq[name] || 0) + 1;
+  });
+  var warnings = [];
+  var maxAllowed = 3;
+  Object.keys(freq).forEach(function(name) {
+    if (freq[name] > maxAllowed) {
+      warnings.push({ name: name, count: freq[name] });
+    }
+  });
+  if (warnings.length === 0) {
+    showToast('All exercises within frequency limits (max ' + maxAllowed + ')');
+    return;
+  }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:24px;width:400px">';
+  html += '<div style="color:#f87171;font-size:16px;font-weight:700;margin-bottom:12px">Frequency Warnings</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Exercises appearing more than ' + maxAllowed + ' times may indicate redundancy</div>';
+  warnings.forEach(function(w) {
+    html += '<div style="display:flex;justify-content:space-between;padding:8px 12px;background:rgba(248,113,113,0.05);border-radius:6px;margin-bottom:4px">';
+    html += '<span style="color:#e2e8f0;font-size:13px">' + w.name + '</span>';
+    html += '<span style="color:#f87171;font-size:13px;font-weight:600">' + w.count + 'x</span>';
+    html += '</div>';
+  });
+  html += '<div style="color:#64748b;font-size:11px;margin-top:12px">Consider swapping duplicates for variety using Quick Swap or Workout Variant</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 381: Training Split Recommender
+function showSplitRecommender() {
+  var clips = document.querySelectorAll('.clip');
+  var families = {};
+  var totalClips = 0;
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    totalClips++;
+    var f = c.dataset.family || ''; families[f] = (families[f]||0) + 1;
+  });
+  if (totalClips === 0) { showToast('Build a workout to get recommendations'); return; }
+  // Determine dominant patterns
+  var pushPull = (families['Push']||0) + (families['Pull']||0);
+  var legs = families['Legs'] || 0;
+  var core = families['Core'] || 0;
+  var skills = families['Skills'] || 0;
+  var splits = [];
+  // PPL if good volume
+  if (totalClips >= 8) {
+    splits.push({
+      name: 'Push / Pull / Legs',
+      match: pushPull > legs ? 85 : 70,
+      desc: '3-day split. Day 1: Push+Core, Day 2: Pull+Core, Day 3: Legs+Skills',
+      schedule: ['Push + Core', 'Pull + Core', 'Legs + Skills', 'Rest', 'Push + Core', 'Pull + Core', 'Legs + Skills']
+    });
+  }
+  // Upper/Lower
+  splits.push({
+    name: 'Upper / Lower',
+    match: Math.abs(pushPull - legs) < 5 ? 90 : 65,
+    desc: '4-day split alternating upper and lower body focus',
+    schedule: ['Upper', 'Lower', 'Rest', 'Upper', 'Lower', 'Rest', 'Rest']
+  });
+  // Full Body
+  splits.push({
+    name: 'Full Body',
+    match: Object.keys(families).length >= 4 ? 90 : 60,
+    desc: '3x/week full body, great for beginners and general fitness',
+    schedule: ['Full Body', 'Rest', 'Full Body', 'Rest', 'Full Body', 'Rest', 'Rest']
+  });
+  // Skills Focus
+  if (skills > 0) {
+    splits.push({
+      name: 'Skills + Strength',
+      match: skills >= 3 ? 85 : 55,
+      desc: 'Skills on fresh days, strength on separate days',
+      schedule: ['Skills', 'Strength', 'Rest', 'Skills', 'Strength', 'Mobility', 'Rest']
+    });
+  }
+  splits.sort(function(a,b) { return b.match - a.match; });
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Training Split Recommender</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">Based on your ' + totalClips + ' clips across ' + Object.keys(families).length + ' families</div>';
+  splits.forEach(function(split) {
+    var matchColor = split.match >= 80 ? '#4ade80' : split.match >= 60 ? '#fbbf24' : '#94a3b8';
+    html += '<div style="padding:14px;background:rgba(34,211,238,0.03);border:1px solid rgba(34,211,238,0.1);border-radius:8px;margin-bottom:10px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<span style="color:#e2e8f0;font-weight:600;font-size:14px">' + split.name + '</span>';
+    html += '<span style="color:' + matchColor + ';font-size:12px;font-weight:600">' + split.match + '% match</span>';
+    html += '</div>';
+    html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:8px">' + split.desc + '</div>';
+    html += '<div style="display:flex;gap:3px">';
+    var days = ['M','T','W','T','F','S','S'];
+    split.schedule.forEach(function(day, i) {
+      var isRest = day === 'Rest';
+      html += '<div style="flex:1;text-align:center;padding:4px 2px;background:' + (isRest ? 'rgba(100,116,139,0.1)' : 'rgba(34,211,238,0.1)') + ';border-radius:4px">';
+      html += '<div style="color:#64748b;font-size:9px">' + days[i] + '</div>';
+      html += '<div style="color:' + (isRest ? '#64748b' : '#22d3ee') + ';font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + day + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
 }
 
 function selectClipsByStage(stage) {
