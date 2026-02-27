@@ -8023,6 +8023,7 @@ var CMD_ACTIONS = [
   {label:'Toggle Favorite Exercise', key:'', icon:'\u2605', action: function() { toggleFavorite(); }},
   {label:'Show Favorites', key:'', icon:'\u2605', action: function() { showFavorites(); }},
   {label:'About Saturno Movement Studio', key:'', icon:'\u24d8', action: function() { showAbout(); }},
+  {label:'Workout DNA', key:'', icon:'\u2622', action: function() { showWorkoutDNA(); }},
 ];
 
 function openCmdPalette() {
@@ -18804,6 +18805,92 @@ function showAbout() {
   html += 'Part of the Saturno Movement ecosystem<br>';
   html += 'Built by Gabo Saturno with Claude Code<br>';
   html += 'saturnomovement.com';
+  html += '</div>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 400: Workout DNA Generator
+function showWorkoutDNA() {
+  var clips = document.querySelectorAll('.clip');
+  var data = [];
+  var famCounts = {};
+  var totalSets = 0;
+  var rpeSum = 0;
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    var fam = c.dataset.family || '';
+    var rpe = parseFloat(c.dataset.rpe) || 7;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var stage = c.dataset.stage || 'S1';
+    data.push({ fam: fam, rpe: rpe, sets: sets, stage: stage });
+    famCounts[fam] = (famCounts[fam] || 0) + 1;
+    totalSets += sets;
+    rpeSum += rpe;
+  });
+  if (data.length === 0) { showToast('Build a workout to generate DNA'); return; }
+  var avgRpe = rpeSum / data.length;
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa'};
+  // Generate DNA strip as SVG
+  var stripW = 400;
+  var stripH = 40;
+  var segW = Math.max(2, Math.floor(stripW / data.length));
+  var svg = '<svg width="' + stripW + '" height="' + stripH + '" viewBox="0 0 ' + stripW + ' ' + stripH + '">';
+  data.forEach(function(d, i) {
+    var color = famColors[d.fam] || '#22d3ee';
+    var h = 10 + (d.rpe / 10) * 30;
+    var y = (stripH - h) / 2;
+    svg += '<rect x="' + (i * segW) + '" y="' + y.toFixed(1) + '" width="' + (segW - 1) + '" height="' + h.toFixed(1) + '" rx="1" fill="' + color + '" opacity="' + (0.4 + d.rpe / 15) + '"/>';
+  });
+  svg += '</svg>';
+  // Workout archetype
+  var dominant = Object.keys(famCounts).sort(function(a,b) { return famCounts[b] - famCounts[a]; })[0];
+  var archetypes = {
+    Push: 'The Presser',
+    Pull: 'The Puller',
+    Core: 'The Foundation',
+    Legs: 'The Pillar',
+    Skills: 'The Virtuoso'
+  };
+  var archetype = archetypes[dominant] || 'The Mover';
+  // Intensity class
+  var intensityClass = avgRpe >= 8.5 ? 'Extreme' : avgRpe >= 7.5 ? 'High' : avgRpe >= 6 ? 'Moderate' : 'Light';
+  // Complexity
+  var complexity = Object.keys(famCounts).length >= 4 ? 'Complex' : Object.keys(famCounts).length >= 2 ? 'Focused' : 'Specialized';
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Workout';
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:32px;width:460px;text-align:center">';
+  html += '<div style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Workout DNA</div>';
+  html += '<div style="color:#e2e8f0;font-size:22px;font-weight:700;margin-bottom:4px">' + workoutName + '</div>';
+  html += '<div style="color:#22d3ee;font-size:14px;font-style:italic;margin-bottom:20px">"' + archetype + '"</div>';
+  // DNA strip
+  html += '<div style="display:flex;justify-content:center;margin-bottom:20px;border-radius:6px;overflow:hidden;background:rgba(34,211,238,0.03);padding:8px">' + svg + '</div>';
+  // Stats grid
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px">';
+  html += '<div style="padding:10px;background:rgba(34,211,238,0.05);border-radius:8px"><div style="color:#22d3ee;font-size:20px;font-weight:700">' + data.length + '</div><div style="color:#64748b;font-size:10px">Exercises</div></div>';
+  html += '<div style="padding:10px;background:rgba(34,211,238,0.05);border-radius:8px"><div style="color:#22d3ee;font-size:20px;font-weight:700">' + totalSets + '</div><div style="color:#64748b;font-size:10px">Total Sets</div></div>';
+  html += '<div style="padding:10px;background:rgba(34,211,238,0.05);border-radius:8px"><div style="color:#22d3ee;font-size:20px;font-weight:700">' + avgRpe.toFixed(1) + '</div><div style="color:#64748b;font-size:10px">Avg RPE</div></div>';
+  html += '</div>';
+  // Tags
+  html += '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:16px">';
+  html += '<span style="padding:4px 12px;background:rgba(34,211,238,0.1);color:#22d3ee;border-radius:12px;font-size:11px">' + intensityClass + ' Intensity</span>';
+  html += '<span style="padding:4px 12px;background:rgba(34,211,238,0.1);color:#22d3ee;border-radius:12px;font-size:11px">' + complexity + '</span>';
+  html += '<span style="padding:4px 12px;background:rgba(34,211,238,0.1);color:#22d3ee;border-radius:12px;font-size:11px">' + Object.keys(famCounts).length + ' Families</span>';
+  html += '</div>';
+  // Family breakdown bar
+  html += '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-bottom:8px">';
+  Object.keys(famCounts).forEach(function(fam) {
+    var pct = famCounts[fam] / data.length * 100;
+    html += '<div style="width:' + pct + '%;background:' + (famColors[fam]||'#22d3ee') + '" title="' + fam + ' ' + Math.round(pct) + '%"></div>';
+  });
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">';
+  Object.keys(famCounts).forEach(function(fam) {
+    html += '<span style="color:' + (famColors[fam]||'#22d3ee') + ';font-size:10px">' + fam + ' ' + Math.round(famCounts[fam]/data.length*100) + '%</span>';
+  });
   html += '</div>';
   html += '</div>';
   overlay.innerHTML = html;
