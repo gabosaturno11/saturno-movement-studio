@@ -7372,6 +7372,9 @@ var CMD_ACTIONS = [
   {label:'Quantize Selected Clips', key:'', icon:'\u2593', action: function() { quantizeSelected(); }},
   {label:'Export as Markdown', key:'', icon:'\u21A6', action: function() { exportMarkdown(); }},
   {label:'Compare with Saved Session', key:'', icon:'\u21C4', action: function() { compareWithSaved(); }},
+  {label:'Select Clips in Loop Range', key:'', icon:'\u2610', action: function() { selectClipsInLoopRange(); }},
+  {label:'Sort Track Alphabetically', key:'', icon:'\u2193', action: function() { sortTrackByName(); }},
+  {label:'Compact Track (Remove Gaps)', key:'', icon:'\u25A0', action: function() { compactTrack(); }},
 ];
 
 function openCmdPalette() {
@@ -8500,6 +8503,76 @@ function compareWithSaved() {
   var diff = curClips - savedClipCount;
   var diffStr = diff > 0 ? '+' + diff : diff === 0 ? '0' : '' + diff;
   toast('Saved: ' + savedClipCount + ' clips | Current: ' + curClips + ' clips (' + diffStr + ')');
+}
+
+function selectClipsInLoopRange() {
+  if (!loopEnabled) { toast('Enable loop region first'); return; }
+  var pps = 80 / 15;
+  var ho = 100;
+  var loopLeftPx = ho + Math.round(loopStart * pps);
+  var loopRightPx = ho + Math.round(loopEnd * pps);
+  document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
+  var count = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var cL = parseInt(c.style.left);
+    var cR = cL + parseInt(c.style.width);
+    if (cR > loopLeftPx && cL < loopRightPx) {
+      c.classList.add('selected');
+      count++;
+    }
+  });
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+  toast(count + ' clips in loop range selected');
+}
+
+function sortTrackByName() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('No active track'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length < 2) { toast('Need 2+ clips to sort'); return; }
+  pushUndo();
+  clips.sort(function(a, b) {
+    var exA = getExercise(a.dataset.exerciseId);
+    var exB = getExercise(b.dataset.exerciseId);
+    var nameA = exA ? exA.name : '';
+    var nameB = exB ? exB.name : '';
+    return nameA.localeCompare(nameB);
+  });
+  var ho = 100;
+  var gap = 4;
+  var pos = ho;
+  clips.forEach(function(c) {
+    if (!c.classList.contains('clip-locked')) {
+      c.style.left = pos + 'px';
+    }
+    pos = parseInt(c.style.left) + parseInt(c.style.width) + gap;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast('Track sorted alphabetically');
+}
+
+function compactTrack() {
+  var activeTrack = document.querySelector('.track.track-active .track-content');
+  if (!activeTrack) { toast('No active track'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
+  if (clips.length === 0) { toast('No clips on track'); return; }
+  pushUndo();
+  clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
+  var ho = 100;
+  var gap = 4;
+  var pos = ho;
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) {
+      pos = parseInt(c.style.left) + parseInt(c.style.width) + gap;
+      return;
+    }
+    if (parseInt(c.style.left) !== pos) count++;
+    c.style.left = pos + 'px';
+    pos += parseInt(c.style.width) + gap;
+  });
+  updateStats(); saveSession(); sfx('click');
+  toast('Track compacted (' + count + ' clips moved)');
 }
 
 function selectClipsByStage(stage) {
