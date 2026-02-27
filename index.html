@@ -7987,6 +7987,10 @@ var CMD_ACTIONS = [
   {label:'Search Coaching Notes', key:'', icon:'\u2315', action: function() { searchExerciseNotes(); }},
   {label:'Create Workout Variant', key:'', icon:'\u2234', action: function() { createWorkoutVariant(); }},
   {label:'Focus Timer (Pomodoro)', key:'', icon:'\u23f2', action: function() { showFocusTimer(); }},
+  {label:'Build Movement Flow', key:'', icon:'\u2194', action: function() { showFlowBuilder(); }},
+  {label:'Show Saved Flows', key:'', icon:'\u2194', action: function() { showFlowList(); }},
+  {label:'Export Analytics Report', key:'', icon:'\u2197', action: function() { exportAnalyticsHTML(); }},
+  {label:'Quick Workout Wizard', key:'', icon:'\u2606', action: function() { showWorkoutWizard(); }},
 ];
 
 function openCmdPalette() {
@@ -16675,6 +16679,313 @@ function resetFocusTimer() {
 function closeFocusTimer() {
   var el = document.getElementById('sms-focus-overlay');
   if (el) el.remove();
+}
+
+// Batch 370: Movement Flow Builder
+var _flows = [];
+function loadFlows() {
+  try { _flows = JSON.parse(localStorage.getItem('sms_flows') || '[]'); } catch(e) { _flows = []; }
+}
+function saveFlows() {
+  try { localStorage.setItem('sms_flows', JSON.stringify(_flows)); } catch(e) {}
+}
+function showFlowBuilder() {
+  var sel = document.querySelectorAll('.clip.selected');
+  var exercises = [];
+  sel.forEach(function(c) {
+    exercises.push(c.dataset.exercise || c.querySelector('.clip-name').textContent);
+  });
+  if (exercises.length < 2) {
+    // If not enough selected, use all clips on active track
+    var active = document.querySelector('.track.active .track-clips') || document.querySelector('.track-clips');
+    if (active) {
+      active.querySelectorAll('.clip').forEach(function(c) {
+        exercises.push(c.dataset.exercise || c.querySelector('.clip-name').textContent);
+      });
+    }
+  }
+  if (exercises.length < 2) { showToast('Need 2+ exercises for a flow'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Movement Flow Builder</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">' + exercises.length + ' exercises in sequence</div>';
+  // Visual flow chain
+  exercises.forEach(function(ex, i) {
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+    html += '<div style="width:24px;height:24px;border-radius:50%;background:rgba(34,211,238,0.2);color:#22d3ee;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">' + (i+1) + '</div>';
+    html += '<div style="flex:1;padding:8px 12px;background:rgba(34,211,238,0.05);border-radius:6px;color:#e2e8f0;font-size:13px">' + ex + '</div>';
+    html += '</div>';
+    if (i < exercises.length - 1) {
+      html += '<div style="text-align:center;color:#22d3ee;font-size:14px;margin:2px 0;opacity:0.5">\u2193</div>';
+    }
+  });
+  html += '<input id="sms-flow-name" placeholder="Flow name..." style="width:100%;padding:10px;background:#111827;color:#e2e8f0;border:1px solid rgba(34,211,238,0.3);border-radius:8px;font-family:Sora,sans-serif;font-size:14px;margin-top:16px;margin-bottom:12px;box-sizing:border-box">';
+  html += '<div style="display:flex;gap:8px">';
+  html += '<button onclick="saveFlow()" style="flex:1;padding:10px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px;font-weight:600">Save Flow</button>';
+  html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="flex:1;padding:10px;background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.2);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:13px">Cancel</button>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  overlay.dataset.exercises = JSON.stringify(exercises);
+  document.body.appendChild(overlay);
+  document.getElementById('sms-flow-name').focus();
+}
+function saveFlow() {
+  var nameInput = document.getElementById('sms-flow-name');
+  var name = nameInput ? nameInput.value.trim() : '';
+  if (!name) { showToast('Enter a flow name'); return; }
+  var overlay = nameInput.closest('div[style*="fixed"]');
+  var exercises = JSON.parse(overlay.dataset.exercises || '[]');
+  loadFlows();
+  _flows.push({ name: name, exercises: exercises, created: new Date().toISOString() });
+  if (_flows.length > 20) _flows = _flows.slice(-20);
+  saveFlows();
+  overlay.remove();
+  showToast('Flow "' + name + '" saved (' + exercises.length + ' exercises)');
+}
+function showFlowList() {
+  loadFlows();
+  if (_flows.length === 0) { showToast('No flows saved yet'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Saved Flows (' + _flows.length + ')</div>';
+  _flows.forEach(function(flow, i) {
+    html += '<div style="padding:12px;background:rgba(34,211,238,0.05);border-radius:8px;margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+    html += '<span style="color:#22d3ee;font-weight:600;font-size:14px">' + flow.name + '</span>';
+    html += '<button onclick="_flows.splice(' + i + ',1);saveFlows();this.closest(\'div[style*=fixed]\').remove();showFlowList();" style="padding:4px 8px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);border-radius:4px;cursor:pointer;font-size:10px;font-family:Sora,sans-serif">Del</button>';
+    html += '</div>';
+    html += '<div style="color:#94a3b8;font-size:12px">' + flow.exercises.join(' \u2192 ') + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+loadFlows();
+
+// Batch 371: Workout Analytics Export
+function exportAnalyticsHTML() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('No clips to analyze'); return; }
+  var data = { totalClips: 0, totalSets: 0, totalReps: 0, families: {}, patterns: {}, stages: {}, rpeSum: 0, exercises: {} };
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    data.totalClips++;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 10;
+    data.totalSets += sets;
+    data.totalReps += sets * reps;
+    data.rpeSum += parseFloat(c.dataset.rpe) || 7;
+    var fam = c.dataset.family || 'Unknown';
+    data.families[fam] = (data.families[fam] || 0) + 1;
+    var pat = c.dataset.pattern || 'Unknown';
+    data.patterns[pat] = (data.patterns[pat] || 0) + 1;
+    var stage = c.dataset.stage || 'S1';
+    data.stages[stage] = (data.stages[stage] || 0) + 1;
+    var name = c.dataset.exercise || 'Unknown';
+    data.exercises[name] = (data.exercises[name] || 0) + 1;
+  });
+  var avgRpe = data.totalClips > 0 ? (data.rpeSum / data.totalClips).toFixed(1) : '0';
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Workout';
+  var famColors = {Push:'#f87171',Pull:'#60a5fa',Core:'#fbbf24',Legs:'#4ade80',Skills:'#a78bfa'};
+  var htmlStr = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + workoutName + ' Analytics</title>';
+  htmlStr += '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#050711;color:#e2e8f0;font-family:Sora,system-ui,sans-serif;padding:40px 20px}';
+  htmlStr += '.container{max-width:800px;margin:0 auto}.card{background:#0a0f1e;border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:20px;margin-bottom:16px}';
+  htmlStr += 'h1{font-size:24px;font-weight:700;margin-bottom:8px}h2{font-size:16px;font-weight:600;color:#22d3ee;margin-bottom:12px}';
+  htmlStr += '.stat{display:inline-block;padding:8px 16px;background:rgba(34,211,238,0.05);border-radius:8px;margin:4px;text-align:center}';
+  htmlStr += '.stat-val{font-size:24px;font-weight:700;color:#22d3ee}.stat-label{font-size:11px;color:#94a3b8}';
+  htmlStr += '.bar{height:20px;border-radius:4px;margin-bottom:6px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:600}';
+  htmlStr += '.exercise-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(34,211,238,0.05);font-size:13px}';
+  htmlStr += '</style></head><body><div class="container">';
+  htmlStr += '<h1>' + workoutName + '</h1><p style="color:#94a3b8;font-size:12px;margin-bottom:24px">Generated ' + new Date().toLocaleDateString() + ' | Saturno Movement Studio</p>';
+  // Stats cards
+  htmlStr += '<div class="card"><h2>Overview</h2><div>';
+  htmlStr += '<div class="stat"><div class="stat-val">' + data.totalClips + '</div><div class="stat-label">Clips</div></div>';
+  htmlStr += '<div class="stat"><div class="stat-val">' + Object.keys(data.exercises).length + '</div><div class="stat-label">Exercises</div></div>';
+  htmlStr += '<div class="stat"><div class="stat-val">' + data.totalSets + '</div><div class="stat-label">Total Sets</div></div>';
+  htmlStr += '<div class="stat"><div class="stat-val">' + data.totalReps + '</div><div class="stat-label">Total Reps</div></div>';
+  htmlStr += '<div class="stat"><div class="stat-val">' + avgRpe + '</div><div class="stat-label">Avg RPE</div></div>';
+  htmlStr += '</div></div>';
+  // Family distribution
+  var maxFam = Math.max.apply(null, Object.values(data.families).concat([1]));
+  htmlStr += '<div class="card"><h2>Family Distribution</h2>';
+  Object.keys(data.families).forEach(function(fam) {
+    var pct = Math.round(data.families[fam] / data.totalClips * 100);
+    var w = Math.round(data.families[fam] / maxFam * 100);
+    htmlStr += '<div class="bar" style="width:' + w + '%;background:' + (famColors[fam]||'#22d3ee') + '30;color:' + (famColors[fam]||'#22d3ee') + '">' + fam + ' ' + data.families[fam] + ' (' + pct + '%)</div>';
+  });
+  htmlStr += '</div>';
+  // Stage breakdown
+  htmlStr += '<div class="card"><h2>Stage Breakdown</h2>';
+  ['S1','S2','S3'].forEach(function(s) {
+    var count = data.stages[s] || 0;
+    var pct = data.totalClips > 0 ? Math.round(count / data.totalClips * 100) : 0;
+    htmlStr += '<div class="bar" style="width:' + Math.max(pct, 5) + '%;background:rgba(34,211,238,0.15);color:#22d3ee">' + s + ': ' + count + ' (' + pct + '%)</div>';
+  });
+  htmlStr += '</div>';
+  // Exercise list
+  var sorted = Object.keys(data.exercises).sort(function(a,b) { return data.exercises[b] - data.exercises[a]; });
+  htmlStr += '<div class="card"><h2>Exercise Frequency</h2>';
+  sorted.forEach(function(name) {
+    htmlStr += '<div class="exercise-row"><span>' + name + '</span><span style="color:#22d3ee">' + data.exercises[name] + ' clips</span></div>';
+  });
+  htmlStr += '</div>';
+  htmlStr += '<p style="text-align:center;color:#64748b;font-size:11px;margin-top:24px">Saturno Movement Studio | The Ableton of Movement</p>';
+  htmlStr += '</div></body></html>';
+  var blob = new Blob([htmlStr], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (workoutName.replace(/[^a-zA-Z0-9]/g,'-') || 'workout') + '-analytics.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Analytics report downloaded');
+}
+
+// Batch 372: Quick Workout Builder Wizard
+function showWorkoutWizard() {
+  var overlay = document.createElement('div');
+  overlay.id = 'sms-wizard';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:480px;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Quick Workout Wizard</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:20px">Build a workout in 3 clicks</div>';
+  // Step 1: Focus
+  html += '<div style="margin-bottom:16px">';
+  html += '<div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Step 1: Focus</div>';
+  var focuses = [
+    { id:'upper', label:'Upper Body', families:['Push','Pull'] },
+    { id:'lower', label:'Lower Body', families:['Legs','Core'] },
+    { id:'full', label:'Full Body', families:['Push','Pull','Core','Legs','Skills'] },
+    { id:'push-pull', label:'Push / Pull', families:['Push','Pull'] },
+    { id:'skills', label:'Skills & Flow', families:['Skills','Core'] }
+  ];
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+  focuses.forEach(function(f) {
+    html += '<button onclick="wizardSetFocus(\'' + f.id + '\')" id="wiz-focus-' + f.id + '" data-families=\'' + JSON.stringify(f.families) + '\' style="padding:8px 14px;background:rgba(34,211,238,0.05);color:#94a3b8;border:1px solid rgba(34,211,238,0.15);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px">' + f.label + '</button>';
+  });
+  html += '</div></div>';
+  // Step 2: Volume
+  html += '<div style="margin-bottom:16px">';
+  html += '<div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Step 2: Volume</div>';
+  var volumes = [
+    { id:'quick', label:'Quick (4-6)', count:5 },
+    { id:'standard', label:'Standard (8-10)', count:9 },
+    { id:'long', label:'Long (12-16)', count:14 }
+  ];
+  html += '<div style="display:flex;gap:6px">';
+  volumes.forEach(function(v) {
+    html += '<button onclick="wizardSetVolume(' + v.count + ',\'' + v.id + '\')" id="wiz-vol-' + v.id + '" style="flex:1;padding:8px;background:rgba(34,211,238,0.05);color:#94a3b8;border:1px solid rgba(34,211,238,0.15);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px">' + v.label + '</button>';
+  });
+  html += '</div></div>';
+  // Step 3: Intensity
+  html += '<div style="margin-bottom:20px">';
+  html += '<div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Step 3: Intensity</div>';
+  var intensities = [
+    { id:'easy', label:'Easy', sets:2, reps:12, rpe:5 },
+    { id:'moderate', label:'Moderate', sets:3, reps:10, rpe:7 },
+    { id:'hard', label:'Hard', sets:4, reps:8, rpe:8 },
+    { id:'max', label:'Max Effort', sets:5, reps:5, rpe:9 }
+  ];
+  html += '<div style="display:flex;gap:6px">';
+  intensities.forEach(function(v) {
+    html += '<button onclick="wizardSetIntensity(' + v.sets + ',' + v.reps + ',' + v.rpe + ',\'' + v.id + '\')" id="wiz-int-' + v.id + '" style="flex:1;padding:8px;background:rgba(34,211,238,0.05);color:#94a3b8;border:1px solid rgba(34,211,238,0.15);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;font-size:12px">' + v.label + '</button>';
+  });
+  html += '</div></div>';
+  html += '<button id="wiz-generate" onclick="wizardGenerate()" style="width:100%;padding:12px;background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.3);border-radius:8px;cursor:pointer;font-family:Sora,sans-serif;font-size:14px;font-weight:600;opacity:0.3;pointer-events:none">Select all 3 steps to generate</button>';
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+var _wizardState = { families: null, count: 0, sets: 3, reps: 10, rpe: 7 };
+function wizardSetFocus(id) {
+  document.querySelectorAll('[id^="wiz-focus-"]').forEach(function(b) {
+    b.style.background = 'rgba(34,211,238,0.05)'; b.style.color = '#94a3b8';
+  });
+  var btn = document.getElementById('wiz-focus-' + id);
+  if (btn) {
+    btn.style.background = 'rgba(34,211,238,0.2)'; btn.style.color = '#22d3ee';
+    _wizardState.families = JSON.parse(btn.dataset.families || '[]');
+  }
+  wizardCheckReady();
+}
+function wizardSetVolume(count, id) {
+  document.querySelectorAll('[id^="wiz-vol-"]').forEach(function(b) {
+    b.style.background = 'rgba(34,211,238,0.05)'; b.style.color = '#94a3b8';
+  });
+  var btn = document.getElementById('wiz-vol-' + id);
+  if (btn) { btn.style.background = 'rgba(34,211,238,0.2)'; btn.style.color = '#22d3ee'; }
+  _wizardState.count = count;
+  wizardCheckReady();
+}
+function wizardSetIntensity(sets, reps, rpe, id) {
+  document.querySelectorAll('[id^="wiz-int-"]').forEach(function(b) {
+    b.style.background = 'rgba(34,211,238,0.05)'; b.style.color = '#94a3b8';
+  });
+  var btn = document.getElementById('wiz-int-' + id);
+  if (btn) { btn.style.background = 'rgba(34,211,238,0.2)'; btn.style.color = '#22d3ee'; }
+  _wizardState.sets = sets;
+  _wizardState.reps = reps;
+  _wizardState.rpe = rpe;
+  wizardCheckReady();
+}
+function wizardCheckReady() {
+  var btn = document.getElementById('wiz-generate');
+  if (_wizardState.families && _wizardState.count > 0) {
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+    btn.textContent = 'Generate Workout (' + _wizardState.count + ' exercises)';
+  }
+}
+function wizardGenerate() {
+  if (!_wizardState.families || !_wizardState.count) return;
+  captureUndo();
+  var pool = [];
+  EXERCISES.forEach(function(e) {
+    if (_wizardState.families.indexOf(e.family) >= 0) pool.push(e);
+  });
+  // Shuffle pool
+  for (var i = pool.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  }
+  var selected = pool.slice(0, _wizardState.count);
+  var trackMap = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills'};
+  var trackOffsets = {};
+  selected.forEach(function(ex) {
+    var trackId = trackMap[ex.family] || 'push';
+    var track = document.querySelector('.track[data-family="' + trackId + '"] .track-clips');
+    if (!track) return;
+    if (!trackOffsets[trackId]) trackOffsets[trackId] = 10;
+    var clip = document.createElement('div');
+    clip.className = 'clip';
+    clip.dataset.exercise = ex.name;
+    clip.dataset.family = ex.family;
+    clip.dataset.pattern = ex.pattern || '';
+    clip.dataset.stage = ex.stage || 'S1';
+    clip.dataset.discipline = ex.discipline || '';
+    clip.dataset.sets = _wizardState.sets;
+    clip.dataset.reps = _wizardState.reps;
+    clip.dataset.tempo = ex.tempo || 3;
+    clip.dataset.rest = ex.rest || 60;
+    clip.dataset.rpe = _wizardState.rpe;
+    var w = (_wizardState.sets * 40);
+    clip.style.width = w + 'px';
+    clip.style.left = trackOffsets[trackId] + 'px';
+    clip.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--' + trackId + '-color') || '#22d3ee';
+    clip.innerHTML = '<div class="clip-name">' + ex.name + '</div><div class="clip-params">' + _wizardState.sets + 'x' + _wizardState.reps + '</div>';
+    track.appendChild(clip);
+    initClipDrag(clip);
+    trackOffsets[trackId] += w + 10;
+  });
+  document.getElementById('sms-wizard').remove();
+  showToast('Wizard generated ' + selected.length + ' exercises');
+  if (typeof logChange === 'function') logChange('wizard', selected.length + ' exercises');
 }
 
 function selectClipsByStage(stage) {
