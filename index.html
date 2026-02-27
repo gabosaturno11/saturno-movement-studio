@@ -5679,6 +5679,31 @@ function exportWorkout() {
   toast('Workout exported');
 }
 
+function exportCSV() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to export'); return; }
+  var rows = [['Track','Exercise','Pattern','Family','Discipline','Stage','Sets','Reps','Tempo','Rest','RPE','Notes']];
+  clips.forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    var track = c.parentElement.dataset.track;
+    rows.push([
+      track, ex ? ex.name : '', ex ? ex.pattern : '', ex ? ex.family : '',
+      ex ? ex.discipline : '', ex ? ex.stage : '',
+      c.dataset.sets || '3', c.dataset.reps || '8', c.dataset.tempo || '3',
+      c.dataset.rest || '60', c.dataset.rpe || '7',
+      (c.dataset.notes || '').replace(/"/g, '""')
+    ]);
+  });
+  var csv = rows.map(function(r) { return r.map(function(v) { return '"' + v + '"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], {type: 'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  var safeName = (workoutName || 'workout').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/,'');
+  a.download = safeName + '-' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+  toast('CSV exported');
+}
+
 function shareWorkout() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('Add clips first'); return; }
@@ -6982,12 +7007,15 @@ var CMD_ACTIONS = [
   {label:'Select All Clips', key:'Cmd+A', icon:'\u2610', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.add('selected')}); toast('All selected'); }},
   {label:'Quantize All Clips', key:'Q', icon:'\u2593', action: function() { quantizeClips(); }},
   {label:'Auto-Arrange Clips', key:'', icon:'\u21F6', action: function() { autoArrange(); }},
+  {label:'Humanize Clips', key:'', icon:'\u223F', action: function() { humanizeClips(); }},
+  {label:'Invert Selection', key:'Cmd+I', icon:'\u21C4', action: function() { document.querySelectorAll('.clip').forEach(function(c){c.classList.toggle('selected')}); if(typeof updateSelectionBadge==='function')updateSelectionBadge(); toast('Selection inverted'); }},
   {label:'Clear All Clips', key:'', icon:'\u2716', action: function() { clearAllClips(); }},
   {label:'Save Session', key:'Cmd+S', icon:'\u2913', action: function() { saveSession(); sfx('click'); toast('Session saved'); }},
   {label:'Save as Named Workout', key:'', icon:'\u2913', action: function() { saveNamedWorkout(); }},
   {label:'Load Workout', key:'', icon:'\u2912', action: function() { showSavedWorkouts(); }},
   {label:'Export JSON', key:'', icon:'\u21A6', action: function() { exportWorkout(); }},
   {label:'Import Workout', key:'', icon:'\u21A4', action: function() { importWorkout(); }},
+  {label:'Export CSV', key:'', icon:'\u21A6', action: function() { exportCSV(); }},
   {label:'Print Sheet', key:'', icon:'\u2399', action: function() { printWorkout(); }},
   {label:'Workout Summary', key:'', icon:'\u2261', action: function() { showSummary(); }},
   {label:'Generate Random', key:'G', icon:'\u2684', action: function() { generateRandom(); }},
@@ -7487,6 +7515,24 @@ function autoArrange() {
   toast(totalMoved + ' clips arranged');
 }
 
+function humanizeClips() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips to humanize'); return; }
+  pushUndo();
+  var pps = 80 / 15;
+  var maxJitter = pps * 0.3; // +/- 0.3 seconds
+  var count = 0;
+  clips.forEach(function(c) {
+    if (c.classList.contains('clip-locked')) return;
+    var cur = parseInt(c.style.left) || 0;
+    var offset = (Math.random() - 0.5) * 2 * maxJitter;
+    c.style.left = Math.max(0, Math.round(cur + offset)) + 'px';
+    count++;
+  });
+  saveSession(); updateStats();
+  toast(count + ' clips humanized');
+}
+
 function clearAllClips() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length === 0) { toast('No clips to clear'); return; }
@@ -7734,6 +7780,12 @@ document.addEventListener('keydown', function(e) {
     document.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
     if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
     toast('All clips selected');
+  }
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyI') {
+    e.preventDefault();
+    document.querySelectorAll('.clip').forEach(function(c) { c.classList.toggle('selected'); });
+    if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
+    toast('Selection inverted');
   }
   // Number keys 1-6 to select track (or record clip in rec mode)
   if (e.key >= '1' && e.key <= '6' && !e.metaKey && !e.ctrlKey && !e.altKey) {
