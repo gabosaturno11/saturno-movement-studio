@@ -2730,6 +2730,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <div class="shortcut-item"><kbd>&#8592; &#8594;</kbd><span>Nudge (beat)</span></div>
       <div class="shortcut-item"><kbd>Shift+&#8592; &#8594;</kbd><span>Nudge (bar)</span></div>
       <div class="shortcut-item"><kbd>Alt+&#8592; &#8594;</kbd><span>Resize (beat)</span></div>
+      <div class="shortcut-item"><kbd>Alt+Drag</kbd><span>Dup & Move</span></div>
       <div class="shortcut-item"><kbd>&#8593; &#8595;</kbd><span>Move Track</span></div>
       <div class="shortcut-item"><kbd>Alt+Drag Ruler</kbd><span>Set Loop Region</span></div>
       <div class="shortcut-item"><kbd>Cmd++</kbd><span>Zoom In</span></div>
@@ -3707,27 +3708,49 @@ function createClipElement(exercise, left, width, dna) {
     document.addEventListener('mouseup', onUp);
   });
 
-  // Drag clip (with group support)
+  // Drag clip (with group support + Alt to duplicate)
   clip.addEventListener('mousedown', function(e) {
     if (e.target === resize || e.target.classList.contains('clip-resize') || e.target === resizeL || e.target.classList.contains('clip-resize-left')) return;
     e.preventDefault();
-    selectClipEl(clip, e.shiftKey);
-    var startX = e.clientX, startLeft = parseInt(clip.style.left);
-    var groupSibs = getGroupSiblings(clip);
+    var altDup = e.altKey;
+    var dragClip = clip;
+    if (altDup) {
+      pushUndo();
+      var ex = getExercise(clip.dataset.exerciseId);
+      if (ex) {
+        var clone = createClipElement(ex, clip.style.left, clip.style.width, {
+          sets: clip.dataset.sets, reps: clip.dataset.reps, tempo: clip.dataset.tempo,
+          rest: clip.dataset.rest, rpe: clip.dataset.rpe,
+          fadeIn: clip.dataset.fadeIn || '0', fadeOut: clip.dataset.fadeOut || '0'
+        });
+        if (clip.dataset.notes) clone.dataset.notes = clip.dataset.notes;
+        if (clip.dataset.customColor) {
+          clone.dataset.customColor = clip.dataset.customColor;
+          clone.style.background = 'linear-gradient(180deg, ' + clip.dataset.customColor + '44 0%, ' + clip.dataset.customColor + '22 100%)';
+          clone.style.borderTopColor = clip.dataset.customColor;
+        }
+        clip.parentElement.appendChild(clone);
+        dragClip = clone;
+        selectClipEl(clone, false);
+      }
+    } else {
+      selectClipEl(clip, e.shiftKey);
+    }
+    var startX = e.clientX, startLeft = parseInt(dragClip.style.left);
+    var groupSibs = altDup ? [] : getGroupSiblings(dragClip);
     var sibStarts = groupSibs.map(function(s) { return {el: s, left: parseInt(s.style.left) || 0}; });
-    clip.classList.add('clip-dragging');
+    dragClip.classList.add('clip-dragging');
     function onMove(e) {
       var delta = e.clientX - startX;
       var newLeft = Math.max(0, startLeft + delta);
       newLeft = snapValue(newLeft);
-      // Clip-to-clip edge snapping
       if (snapEnabled) {
-        var clipW = parseInt(clip.style.width) || 80;
+        var clipW = parseInt(dragClip.style.width) || 80;
         var rightEdge = newLeft + clipW;
         var threshold = 6;
-        var neighbors = clip.parentElement.querySelectorAll('.clip');
+        var neighbors = dragClip.parentElement.querySelectorAll('.clip');
         for (var si = 0; si < neighbors.length; si++) {
-          if (neighbors[si] === clip || groupSibs.indexOf(neighbors[si]) !== -1) continue;
+          if (neighbors[si] === dragClip || groupSibs.indexOf(neighbors[si]) !== -1) continue;
           var sL = parseInt(neighbors[si].style.left) || 0;
           var sR = sL + (parseInt(neighbors[si].style.width) || 80);
           if (Math.abs(newLeft - sR) < threshold) { newLeft = sR; break; }
@@ -3736,15 +3759,20 @@ function createClipElement(exercise, left, width, dna) {
           if (Math.abs(rightEdge - sR) < threshold) { newLeft = sR - clipW; break; }
         }
       }
-      clip.style.left = Math.max(0, newLeft) + 'px';
-      // Move group siblings by same delta
-      var actualDelta = (parseInt(clip.style.left) || 0) - startLeft;
+      dragClip.style.left = Math.max(0, newLeft) + 'px';
+      var actualDelta = (parseInt(dragClip.style.left) || 0) - startLeft;
       sibStarts.forEach(function(s) {
-        if (s.el === clip) return;
+        if (s.el === dragClip) return;
         s.el.style.left = Math.max(0, s.left + actualDelta) + 'px';
       });
     }
-    function onUp() { clip.classList.remove('clip-dragging'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); saveSession(); updateStats(); }
+    function onUp() {
+      dragClip.classList.remove('clip-dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (altDup) toast('Duplicated');
+      saveSession(); updateStats();
+    }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
@@ -6204,12 +6232,12 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-/* ===== CLICK-TO-SEEK ON RULER ===== */
+/* ===== CLICK-TO-SEEK + DRAG-TO-SCRUB ON RULER ===== */
 document.addEventListener('DOMContentLoaded', function() {
   var ruler = document.getElementById('timeline-ruler');
   ruler.style.cursor = 'pointer';
-  ruler.addEventListener('click', function(e) {
-    if (e.altKey) return; /* Alt+click handled by loop drag */
+  var _rulerScrubbing = false;
+  function rulerSeek(e) {
     var rect = ruler.getBoundingClientRect();
     var x = e.clientX - rect.left + document.getElementById('timeline-container').scrollLeft;
     var pps = (80 / 15) * (zoomLevel / 100);
@@ -6217,7 +6245,22 @@ document.addEventListener('DOMContentLoaded', function() {
     currentTime = Math.max(0, (x - ho) / pps);
     updateTimeDisplay();
     updatePlayheadPosition();
+  }
+  ruler.addEventListener('mousedown', function(e) {
+    if (e.altKey) return; /* Alt+click handled by loop drag */
+    if (e.button !== 0) return;
+    e.preventDefault();
+    _rulerScrubbing = true;
+    rulerSeek(e);
     sfx('click');
+    function onMove(e) { if (_rulerScrubbing) rulerSeek(e); }
+    function onUp() {
+      _rulerScrubbing = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   });
   /* Double-click ruler to add marker at that position */
   ruler.addEventListener('dblclick', function(e) {
