@@ -5376,7 +5376,9 @@ function _doSaveSession() {
       sfxEnabled: sfxEnabled,
       metroVolume: metroVolume,
       autoScrollEnabled: autoScrollEnabled,
-      playbackSpeed: playbackSpeed
+      playbackSpeed: playbackSpeed,
+      zoomLevel: zoomLevel,
+      timeSigIdx: timeSigIdx
     };
     // Track states (solo/mute/armed)
     session.trackStates = {};
@@ -5529,6 +5531,15 @@ function loadSession() {
         playbackSpeed = st.playbackSpeed;
         var speedBtn = document.getElementById('speed-btn');
         if (speedBtn) speedBtn.textContent = playbackSpeed + 'x';
+      }
+      if (st.zoomLevel) {
+        zoomLevel = st.zoomLevel;
+        applyZoom();
+      }
+      if (typeof st.timeSigIdx === 'number') {
+        timeSigIdx = st.timeSigIdx;
+        var tsEl = document.getElementById('time-sig');
+        if (tsEl && timeSigOptions[timeSigIdx]) tsEl.textContent = timeSigOptions[timeSigIdx];
       }
     }
     updateStats();
@@ -6868,6 +6879,10 @@ var CMD_ACTIONS = [
   {label:'Ungroup Selected Clips', key:'Cmd+Shift+G', icon:'\u2B1C', action: function() { ungroupSelectedClips(); }},
   {label:'Share Workout (URL)', key:'', icon:'\u21A6', action: function() { shareWorkout(); }},
   {label:'Copy Workout as Text', key:'', icon:'\u2398', action: function() { copyWorkoutText(); }},
+  {label:'Cycle Playback Speed', key:'', icon:'\u25B6', action: function() { cyclePlaybackSpeed(); }},
+  {label:'Playback 0.5x', key:'', icon:'\u25B6', action: function() { playbackSpeed=0.5; document.getElementById('speed-btn').textContent='0.5x'; toast('Speed: 0.5x'); }},
+  {label:'Playback 1x (Normal)', key:'', icon:'\u25B6', action: function() { playbackSpeed=1; document.getElementById('speed-btn').textContent='1x'; toast('Speed: 1x'); }},
+  {label:'Playback 2x', key:'', icon:'\u25B6', action: function() { playbackSpeed=2; document.getElementById('speed-btn').textContent='2x'; toast('Speed: 2x'); }},
 ];
 
 function openCmdPalette() {
