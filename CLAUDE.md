@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~6,900 lines). No build step. No framework.
+Single-file HTML app (index.html, ~7,300 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-80)
+### Features (Batches 1-95)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -111,6 +111,24 @@ saturno-movement-studio/
 - **Auto-save debounce** (300ms, Cmd+S bypasses for immediate save)
 - **Escape deselects** (clips deselected before stopping playback)
 - **Shuffled footer hints** (Fisher-Yates randomization, feels organic)
+- **Draggable loop region** (Option+drag ruler to set, handles to resize, body to move)
+- **Loop persistence** (save/load, undo/redo, export/import — full round-trip)
+- **Library collapse memory** (localStorage persists which categories are open/closed)
+- **Clip overlap flash warning** (pulse animation + toast when new overlaps detected)
+- **Arrow key clip resize** (Alt+Arrow to resize, Up/Down to move between tracks)
+- **Command palette** (Cmd+K, 44 commands including Move Up/Down, Delete Selected)
+- **Keyboard shortcuts panel** (?, 38 shortcuts including Alt+Arrow, ruler loop drag)
+- **Auto-scroll to selected clip** (timeline scrolls to show clip when selected)
+- **Clip duration display** (shows seconds on clip: "3x8 15s", updates on resize)
+- **Zoom follows cursor** (mouse wheel zoom centers on cursor position)
+- **Double-click ruler markers** (dblclick ruler to add marker at position)
+- **Playhead return-to-start** (stop returns to play start, double-stop to zero)
+- **Clip-to-clip edge snapping** (magnetic snap to sibling clip edges, 6px threshold)
+- **Colored waveforms** (family color used in all resize/split operations)
+- **Gradient clip name mask** (CSS mask-image fade instead of hard ellipsis)
+- **Minimap loop region** (blue overlay + marker dots in minimap overview)
+- **Sorted Tab cycling** (Tab cycles clips in track-then-position order)
+- **Empty state keyboard hints** (P/G/Cmd+K/? badges shown when no clips)
 
 ## Source References
 - ~/dev/saturno-bonus/tools/saturno-movement-studio/ (original 4,548-line version)
