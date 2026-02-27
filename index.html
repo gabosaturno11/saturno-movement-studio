@@ -3563,23 +3563,43 @@ function createClipElement(exercise, left, width, dna) {
   fadeOut.className = 'clip-fade clip-fade-out';
   clip.appendChild(fadeOut);
 
-  // Fade handle drag (visual only — shows fade triangle)
+  // Fade handle drag — visual fade overlay + persist width
   function setupFadeDrag(fadeEl, isIn) {
     fadeEl.addEventListener('mousedown', function(e) {
       e.stopPropagation();
       var startX = e.clientX;
       function onMove(e) {
         var delta = Math.abs(e.clientX - startX);
-        fadeEl.style.width = Math.min(delta, parseInt(clip.style.width) / 2) + 'px';
-        fadeEl.classList.add('has-fade');
+        var maxFade = parseInt(clip.style.width) / 2;
+        var w = Math.min(Math.max(0, delta), maxFade);
+        fadeEl.style.width = w + 'px';
+        fadeEl.classList.toggle('has-fade', w > 2);
+        clip.dataset[isIn ? 'fadeIn' : 'fadeOut'] = Math.round(w);
+        updateFadeOverlay(clip);
       }
-      function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        saveSession();
+      }
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
   }
   setupFadeDrag(fadeIn, true);
   setupFadeDrag(fadeOut, false);
+  // Restore fade widths from DNA
+  if (dna && dna.fadeIn && parseInt(dna.fadeIn) > 0) {
+    fadeIn.style.width = dna.fadeIn + 'px';
+    fadeIn.classList.add('has-fade');
+    clip.dataset.fadeIn = dna.fadeIn;
+  }
+  if (dna && dna.fadeOut && parseInt(dna.fadeOut) > 0) {
+    fadeOut.style.width = dna.fadeOut + 'px';
+    fadeOut.classList.add('has-fade');
+    clip.dataset.fadeOut = dna.fadeOut;
+  }
+  if (dna && (dna.fadeIn || dna.fadeOut)) updateFadeOverlay(clip);
 
   var resize = document.createElement('div');
   resize.className = 'clip-resize';
@@ -4762,6 +4782,24 @@ function generateRandom() {
   toast('Random workout generated at ' + bpm + ' BPM');
 }
 
+/* Fade overlay — draws gradient overlay showing fade in/out on clip */
+function updateFadeOverlay(clip) {
+  var existing = clip.querySelector('.clip-fade-overlay');
+  if (existing) existing.remove();
+  var fi = parseInt(clip.dataset.fadeIn) || 0;
+  var fo = parseInt(clip.dataset.fadeOut) || 0;
+  if (fi === 0 && fo === 0) return;
+  var ov = document.createElement('div');
+  ov.className = 'clip-fade-overlay';
+  ov.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:1';
+  var clipW = parseInt(clip.style.width) || 80;
+  var fiPct = Math.min(50, (fi / clipW) * 100);
+  var foPct = Math.min(50, (fo / clipW) * 100);
+  var grad = 'linear-gradient(90deg, rgba(5,7,17,0.6) 0%, transparent ' + fiPct + '%, transparent ' + (100 - foPct) + '%, rgba(5,7,17,0.6) 100%)';
+  ov.style.background = grad;
+  clip.appendChild(ov);
+}
+
 /* ===== CLEAR ===== */
 function clearTimeline() {
   pushUndo();
@@ -4806,7 +4844,9 @@ function _doSaveSession() {
         rest: clip.dataset.rest,
         rpe: clip.dataset.rpe,
         notes: clip.dataset.notes || '',
-        customColor: clip.dataset.customColor || ''
+        customColor: clip.dataset.customColor || '',
+        fadeIn: clip.dataset.fadeIn || '0',
+        fadeOut: clip.dataset.fadeOut || '0'
       });
     });
     document.querySelectorAll('[data-fader]').forEach(function(f) {
@@ -4842,7 +4882,8 @@ function loadSession() {
         var ex = getExercise(c.exerciseId);
         if (!track || !ex) return;
         var clip = createClipElement(ex, c.left, c.width, {
-          sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe
+          sets: c.sets, reps: c.reps, tempo: c.tempo, rest: c.rest, rpe: c.rpe,
+          fadeIn: c.fadeIn || '0', fadeOut: c.fadeOut || '0'
         });
         if (c.notes) clip.dataset.notes = c.notes;
         if (c.customColor) {
