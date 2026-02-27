@@ -8086,6 +8086,18 @@ var CMD_ACTIONS = [
   {label:'Share Template Link', key:'', icon:'\ud83d\udd17', action: function() { shareWorkoutTemplate(); }},
   {label:'Training Phases', key:'', icon:'\ud83d\udcc6', action: function() { showPhaseTracker(); }},
   {label:'Quick Timer', key:'', icon:'\u23f2', action: function() { showQuickTimer(); }},
+  {label:'Replay Speed', key:'', icon:'\u23e9', action: function() { showReplaySpeed(); }},
+  {label:'Exercise Streaks', key:'', icon:'\ud83d\udd25', action: function() { showExerciseStreak(); }},
+  {label:'Fatigue Index', key:'', icon:'\ud83e\udde0', action: function() { showFatigueIndex(); }},
+  {label:'Weekly Volume', key:'', icon:'\ud83d\udcca', action: function() { showVolumeTracker(); }},
+  {label:'Grip Demand', key:'', icon:'\u270a', action: function() { showGripTracker(); }},
+  {label:'Movement Planes', key:'', icon:'\ud83c\udf10', action: function() { showMovementPlanes(); }},
+  {label:'Bilateral Balance', key:'', icon:'\u2696', action: function() { showBilateralBalance(); }},
+  {label:'Workout Age', key:'', icon:'\ud83c\udf82', action: function() { showWorkoutAge(); }},
+  {label:'Session Chart', key:'', icon:'\ud83d\udcc8', action: function() { showSessionChart(); }},
+  {label:'Joint Stress', key:'', icon:'\ud83e\uddb4', action: function() { showJointStress(); }},
+  {label:'Common Pairings', key:'', icon:'\ud83e\uddf2', action: function() { showPairingHistory(); }},
+  {label:'Time Distribution', key:'', icon:'\u23f0', action: function() { showTimeDistribution(); }},
 ];
 
 function openCmdPalette() {
@@ -22207,6 +22219,440 @@ function startQuickTimer(seconds) {
     }
     updateDisplay();
   }, 1000);
+}
+
+// Batch 463: Session Replay Speed — control replay speed
+function showReplaySpeed() {
+  var speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  var current = parseFloat(localStorage.getItem('sms_replay_speed') || '1');
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Replay Speed</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  speeds.forEach(function(s) {
+    var active = s === current;
+    html += '<div onclick="setReplaySpeed(' + s + ');this.parentElement.parentElement.remove()" style="padding:12px 16px;margin-bottom:8px;background:' + (active ? 'rgba(6,182,212,0.2)' : 'rgba(30,41,59,0.5)') + ';border:1px solid ' + (active ? '#06b6d4' : '#1e293b') + ';border-radius:8px;cursor:pointer;color:' + (active ? '#22d3ee' : '#e2e8f0') + ';font-size:15px;">' + s + 'x' + (active ? ' (current)' : '') + '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function setReplaySpeed(speed) {
+  try { localStorage.setItem('sms_replay_speed', speed.toString()); } catch(e) {}
+  showToast('Replay speed: ' + speed + 'x');
+}
+
+// Batch 464: Exercise Streak — longest consecutive days per exercise
+function showExerciseStreak() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var dateExercises = {};
+  saved.forEach(function(w) {
+    if (!w.date) return;
+    var d = w.date.substring(0, 10);
+    if (!dateExercises[d]) dateExercises[d] = {};
+    (w.clips || []).forEach(function(c) { dateExercises[d][c.exercise] = true; });
+  });
+  var exercises = {};
+  Object.keys(dateExercises).sort().forEach(function(date) {
+    Object.keys(dateExercises[date]).forEach(function(ex) {
+      if (!exercises[ex]) exercises[ex] = { streak: 0, best: 0, lastDate: null };
+      var prev = exercises[ex].lastDate;
+      if (prev) {
+        var diff = (new Date(date) - new Date(prev)) / 86400000;
+        if (diff === 1) { exercises[ex].streak++; } else { exercises[ex].streak = 1; }
+      } else { exercises[ex].streak = 1; }
+      exercises[ex].lastDate = date;
+      if (exercises[ex].streak > exercises[ex].best) exercises[ex].best = exercises[ex].streak;
+    });
+  });
+  var sorted = Object.keys(exercises).sort(function(a, b) { return exercises[b].best - exercises[a].best; }).slice(0, 15);
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Exercise Streaks</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  if (sorted.length === 0) {
+    html += '<div style="color:#64748b;text-align:center;padding:20px;">Save workouts to track streaks</div>';
+  } else {
+    sorted.forEach(function(ex) {
+      var e = exercises[ex];
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1e293b;">';
+      html += '<span style="color:#e2e8f0;font-size:14px;">' + ex + '</span>';
+      html += '<span style="color:#f59e0b;font-size:14px;font-weight:600;">' + e.best + ' day' + (e.best !== 1 ? 's' : '') + '</span>';
+      html += '</div>';
+    });
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 465: Fatigue Index — compound fatigue from volume + RPE + frequency
+function showFatigueIndex() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var familyData = {};
+  clips.forEach(function(c) {
+    var fam = c.dataset.family || 'Other';
+    if (!familyData[fam]) familyData[fam] = { sets: 0, totalRPE: 0, exercises: {} };
+    familyData[fam].sets += parseInt(c.dataset.sets || '3');
+    familyData[fam].totalRPE += parseInt(c.dataset.rpe || '7');
+    familyData[fam].exercises[c.dataset.exercise || 'Unknown'] = true;
+  });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:500px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Fatigue Index</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var families = Object.keys(familyData).sort(function(a, b) {
+    var fA = familyData[a], fB = familyData[b];
+    var idxA = (fA.sets * (fA.totalRPE / Math.max(fA.sets, 1))) / 10;
+    var idxB = (fB.sets * (fB.totalRPE / Math.max(fB.sets, 1))) / 10;
+    return idxB - idxA;
+  });
+  families.forEach(function(fam) {
+    var d = familyData[fam];
+    var avgRPE = d.totalRPE / Math.max(d.sets, 1);
+    var fatigue = Math.round((d.sets * avgRPE) / 10);
+    var level = fatigue < 5 ? 'Low' : fatigue < 10 ? 'Moderate' : fatigue < 15 ? 'High' : 'Very High';
+    var color = fatigue < 5 ? '#4ade80' : fatigue < 10 ? '#facc15' : fatigue < 15 ? '#f97316' : '#ef4444';
+    var pct = Math.min(fatigue / 20 * 100, 100);
+    html += '<div style="margin-bottom:16px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + fam + '</span><span style="color:' + color + ';font-size:13px;">' + level + ' (' + fatigue + ')</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + color + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '<div style="color:#64748b;font-size:12px;margin-top:2px;">' + d.sets + ' sets, avg RPE ' + avgRPE.toFixed(1) + ', ' + Object.keys(d.exercises).length + ' exercises</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 466: Volume Tracker — total weekly volume per family from saved workouts
+function showVolumeTracker() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var now = Date.now();
+  var weekAgo = now - 7 * 86400000;
+  var familyVol = {};
+  saved.forEach(function(w) {
+    if (!w.date) return;
+    var t = new Date(w.date).getTime();
+    if (t < weekAgo) return;
+    (w.clips || []).forEach(function(c) {
+      var fam = c.family || 'Other';
+      if (!familyVol[fam]) familyVol[fam] = 0;
+      familyVol[fam] += parseInt(c.sets || '3') * parseInt(c.reps || '8');
+    });
+  });
+  var mav = { Push: 140, Pull: 140, Core: 80, Legs: 128, Skills: 96 };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:500px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Weekly Volume</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  if (Object.keys(familyVol).length === 0) {
+    html += '<div style="color:#64748b;text-align:center;padding:20px;">Save workouts this week to track volume</div>';
+  } else {
+    Object.keys(mav).forEach(function(fam) {
+      var vol = familyVol[fam] || 0;
+      var target = mav[fam];
+      var pct = Math.round(vol / target * 100);
+      var color = pct < 50 ? '#ef4444' : pct < 80 ? '#facc15' : pct <= 120 ? '#4ade80' : '#f97316';
+      html += '<div style="margin-bottom:16px;">';
+      html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + fam + '</span><span style="color:' + color + ';font-size:13px;">' + vol + ' / ' + target + ' reps (' + pct + '%)</span></div>';
+      html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + color + ';height:8px;border-radius:4px;width:' + Math.min(pct, 100) + '%;"></div></div>';
+      html += '</div>';
+    });
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 467: Grip Type Tracker — estimate grip demands per exercise
+function showGripTracker() {
+  var gripMap = {
+    'Horizontal Push': 'Closed', 'Downward Press': 'Open', 'Overhead Press': 'Closed',
+    'Horizontal Pull': 'Closed', 'Vertical Pull': 'Closed',
+    'Knee-Dominant': 'None', 'Hip-Dominant': 'None',
+    'Core': 'None', 'Mobility': 'None'
+  };
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var counts = { Closed: 0, Open: 0, None: 0 };
+  clips.forEach(function(c) {
+    var pat = c.dataset.pattern || '';
+    var grip = gripMap[pat] || 'None';
+    counts[grip]++;
+  });
+  var total = clips.length;
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Grip Demand</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var gripColors = { Closed: '#06b6d4', Open: '#a78bfa', None: '#64748b' };
+  ['Closed', 'Open', 'None'].forEach(function(g) {
+    var pct = Math.round(counts[g] / total * 100);
+    html += '<div style="margin-bottom:16px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + g + ' Grip</span><span style="color:' + gripColors[g] + ';font-size:13px;">' + counts[g] + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + gripColors[g] + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  if (counts.Closed > total * 0.6) {
+    html += '<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:12px;margin-top:8px;color:#fb923c;font-size:13px;">High grip demand — consider adding open-hand or grip-free exercises</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 468: Movement Plane Analyzer — sagittal/frontal/transverse distribution
+function showMovementPlanes() {
+  var planeMap = {
+    'Horizontal Push': 'Sagittal', 'Horizontal Pull': 'Sagittal',
+    'Downward Press': 'Sagittal', 'Vertical Pull': 'Sagittal',
+    'Overhead Press': 'Frontal', 'Knee-Dominant': 'Sagittal',
+    'Hip-Dominant': 'Sagittal', 'Core': 'Transverse', 'Mobility': 'Frontal'
+  };
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var counts = { Sagittal: 0, Frontal: 0, Transverse: 0 };
+  clips.forEach(function(c) {
+    var pat = c.dataset.pattern || '';
+    var plane = planeMap[pat] || 'Sagittal';
+    counts[plane]++;
+  });
+  var total = clips.length;
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:450px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Movement Planes</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var planeColors = { Sagittal: '#06b6d4', Frontal: '#a78bfa', Transverse: '#4ade80' };
+  var planeDesc = { Sagittal: 'Forward/backward movements', Frontal: 'Side-to-side movements', Transverse: 'Rotational movements' };
+  ['Sagittal', 'Frontal', 'Transverse'].forEach(function(p) {
+    var pct = Math.round(counts[p] / total * 100);
+    html += '<div style="margin-bottom:16px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + p + '</span><span style="color:' + planeColors[p] + ';font-size:13px;">' + counts[p] + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + planeColors[p] + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '<div style="color:#64748b;font-size:12px;margin-top:2px;">' + planeDesc[p] + '</div>';
+    html += '</div>';
+  });
+  var ideal = Math.round(total / 3);
+  var balance = Math.round(100 - (Math.abs(counts.Sagittal - ideal) + Math.abs(counts.Frontal - ideal) + Math.abs(counts.Transverse - ideal)) / total * 100);
+  var balColor = balance > 70 ? '#4ade80' : balance > 40 ? '#facc15' : '#ef4444';
+  html += '<div style="text-align:center;margin-top:16px;padding:12px;background:rgba(30,41,59,0.5);border-radius:8px;"><span style="color:#94a3b8;font-size:13px;">Plane Balance: </span><span style="color:' + balColor + ';font-size:18px;font-weight:700;">' + Math.max(balance, 0) + '%</span></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 469: Bilateral Balance — left/right distribution estimation
+function showBilateralBalance() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var bilateral = 0;
+  var unilateral = 0;
+  var uniExercises = ['pistol', 'single', 'one-arm', 'one arm', 'archer', 'shrimp', 'cossack', 'lunge', 'split squat'];
+  clips.forEach(function(c) {
+    var name = (c.dataset.exercise || '').toLowerCase();
+    var isUni = uniExercises.some(function(u) { return name.indexOf(u) !== -1; });
+    if (isUni) { unilateral++; } else { bilateral++; }
+  });
+  var total = clips.length;
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Bilateral Balance</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var biPct = Math.round(bilateral / total * 100);
+  var uniPct = Math.round(unilateral / total * 100);
+  html += '<div style="display:flex;height:24px;border-radius:6px;overflow:hidden;margin-bottom:16px;">';
+  html += '<div style="background:#06b6d4;width:' + biPct + '%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">' + (biPct > 10 ? biPct + '%' : '') + '</div>';
+  html += '<div style="background:#a78bfa;width:' + uniPct + '%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;">' + (uniPct > 10 ? uniPct + '%' : '') + '</div>';
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:20px;">';
+  html += '<span style="color:#06b6d4;font-size:14px;">Bilateral: ' + bilateral + '</span>';
+  html += '<span style="color:#a78bfa;font-size:14px;">Unilateral: ' + unilateral + '</span>';
+  html += '</div>';
+  if (unilateral === 0) {
+    html += '<div style="background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:12px;color:#fb923c;font-size:13px;">No unilateral exercises detected. Consider adding single-limb work for balance.</div>';
+  } else if (uniPct > 50) {
+    html += '<div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:8px;padding:12px;color:#4ade80;font-size:13px;">Great unilateral emphasis for balance and symmetry.</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 470: Workout Age — how long since first saved workout
+function showWorkoutAge() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var dates = [];
+  saved.forEach(function(w) { if (w.date) dates.push(new Date(w.date).getTime()); });
+  ratings.forEach(function(r) { if (r.date) dates.push(new Date(r.date).getTime()); });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Workout Age</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  if (dates.length === 0) {
+    html += '<div style="color:#64748b;text-align:center;padding:20px;">No workout history found</div>';
+  } else {
+    dates.sort();
+    var first = new Date(dates[0]);
+    var last = new Date(dates[dates.length - 1]);
+    var days = Math.floor((last - first) / 86400000) + 1;
+    var weeks = Math.floor(days / 7);
+    var months = Math.floor(days / 30);
+    html += '<div style="text-align:center;margin-bottom:24px;">';
+    html += '<div style="color:#22d3ee;font-size:48px;font-weight:700;">' + days + '</div>';
+    html += '<div style="color:#94a3b8;font-size:14px;">days since first workout</div>';
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+    html += '<div style="background:rgba(30,41,59,0.5);border-radius:8px;padding:12px;text-align:center;"><div style="color:#e2e8f0;font-size:20px;font-weight:600;">' + weeks + '</div><div style="color:#64748b;font-size:12px;">weeks</div></div>';
+    html += '<div style="background:rgba(30,41,59,0.5);border-radius:8px;padding:12px;text-align:center;"><div style="color:#e2e8f0;font-size:20px;font-weight:600;">' + months + '</div><div style="color:#64748b;font-size:12px;">months</div></div>';
+    html += '<div style="background:rgba(30,41,59,0.5);border-radius:8px;padding:12px;text-align:center;"><div style="color:#e2e8f0;font-size:20px;font-weight:600;">' + dates.length + '</div><div style="color:#64748b;font-size:12px;">total entries</div></div>';
+    html += '<div style="background:rgba(30,41,59,0.5);border-radius:8px;padding:12px;text-align:center;"><div style="color:#e2e8f0;font-size:20px;font-weight:600;">' + first.toLocaleDateString() + '</div><div style="color:#64748b;font-size:12px;">first recorded</div></div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 471: Session Comparison Chart — bar chart of last N sessions
+function showSessionChart() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var recent = saved.slice(-10);
+  if (recent.length < 2) { showToast('Need at least 2 saved workouts'); return; }
+  var maxClips = 1;
+  recent.forEach(function(w) { var c = (w.clips || []).length; if (c > maxClips) maxClips = c; });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:600px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Session Chart</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  html += '<div style="display:flex;align-items:flex-end;gap:6px;height:200px;padding:0 8px;">';
+  recent.forEach(function(w) {
+    var count = (w.clips || []).length;
+    var h = Math.round(count / maxClips * 180);
+    var label = w.name || (w.date ? w.date.substring(5, 10) : '?');
+    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;">';
+    html += '<div style="color:#94a3b8;font-size:11px;margin-bottom:4px;">' + count + '</div>';
+    html += '<div style="background:linear-gradient(to top,#06b6d4,#0891b2);width:100%;height:' + Math.max(h, 4) + 'px;border-radius:4px 4px 0 0;"></div>';
+    html += '<div style="color:#64748b;font-size:10px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60px;">' + label + '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 472: Joint Stress Monitor — estimate load on key joints
+function showJointStress() {
+  var jointMap = {
+    'Horizontal Push': ['Shoulder', 'Elbow', 'Wrist'],
+    'Downward Press': ['Shoulder', 'Elbow', 'Wrist'],
+    'Overhead Press': ['Shoulder', 'Elbow'],
+    'Horizontal Pull': ['Shoulder', 'Elbow'],
+    'Vertical Pull': ['Shoulder', 'Elbow', 'Wrist'],
+    'Knee-Dominant': ['Knee', 'Ankle'],
+    'Hip-Dominant': ['Hip', 'Knee'],
+    'Core': ['Spine'],
+    'Mobility': []
+  };
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('Add exercises first'); return; }
+  var joints = {};
+  clips.forEach(function(c) {
+    var pat = c.dataset.pattern || '';
+    var rpe = parseInt(c.dataset.rpe || '7');
+    var sets = parseInt(c.dataset.sets || '3');
+    var load = sets * (rpe / 10);
+    (jointMap[pat] || []).forEach(function(j) {
+      if (!joints[j]) joints[j] = 0;
+      joints[j] += load;
+    });
+  });
+  var maxLoad = 1;
+  Object.keys(joints).forEach(function(j) { if (joints[j] > maxLoad) maxLoad = joints[j]; });
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:450px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Joint Stress</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  var sorted = Object.keys(joints).sort(function(a, b) { return joints[b] - joints[a]; });
+  sorted.forEach(function(j) {
+    var load = joints[j];
+    var pct = Math.round(load / maxLoad * 100);
+    var level = pct < 33 ? 'Low' : pct < 66 ? 'Moderate' : 'High';
+    var color = pct < 33 ? '#4ade80' : pct < 66 ? '#facc15' : '#ef4444';
+    html += '<div style="margin-bottom:14px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + j + '</span><span style="color:' + color + ';font-size:13px;">' + level + '</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + color + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  if (sorted.length > 0 && joints[sorted[0]] > maxLoad * 0.8) {
+    html += '<div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px;margin-top:8px;color:#f87171;font-size:13px;">' + sorted[0] + ' is under heavy load. Consider variation or deload.</div>';
+  }
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 473: Exercise Pairing History — which exercises appear together most
+function showPairingHistory() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  if (saved.length === 0) { showToast('Save workouts to track pairings'); return; }
+  var pairs = {};
+  saved.forEach(function(w) {
+    var exs = [];
+    (w.clips || []).forEach(function(c) {
+      if (c.exercise && exs.indexOf(c.exercise) === -1) exs.push(c.exercise);
+    });
+    for (var i = 0; i < exs.length; i++) {
+      for (var j = i + 1; j < exs.length; j++) {
+        var key = [exs[i], exs[j]].sort().join(' + ');
+        if (!pairs[key]) pairs[key] = 0;
+        pairs[key]++;
+      }
+    }
+  });
+  var sorted = Object.keys(pairs).sort(function(a, b) { return pairs[b] - pairs[a]; }).slice(0, 15);
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:550px;width:90%;max-height:80vh;overflow-y:auto;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Common Pairings</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  sorted.forEach(function(pair, idx) {
+    var count = pairs[pair];
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1e293b;">';
+    html += '<span style="color:' + (idx < 3 ? '#22d3ee' : '#e2e8f0') + ';font-size:13px;">' + pair + '</span>';
+    html += '<span style="color:#94a3b8;font-size:13px;">' + count + 'x</span>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// Batch 474: Workout Time Distribution — when workouts are done (morning/afternoon/evening)
+function showTimeDistribution() {
+  var saved = [];
+  try { saved = JSON.parse(localStorage.getItem('sms_saved_workouts') || '[]'); } catch(e) {}
+  var ratings = [];
+  try { ratings = JSON.parse(localStorage.getItem('sms_workout_ratings') || '[]'); } catch(e) {}
+  var buckets = { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 };
+  function classify(dateStr) {
+    var d = new Date(dateStr);
+    var h = d.getHours();
+    if (h < 6) return 'Night';
+    if (h < 12) return 'Morning';
+    if (h < 17) return 'Afternoon';
+    if (h < 21) return 'Evening';
+    return 'Night';
+  }
+  saved.forEach(function(w) { if (w.date) buckets[classify(w.date)]++; });
+  ratings.forEach(function(r) { if (r.date) buckets[classify(r.date)]++; });
+  var total = Object.keys(buckets).reduce(function(s, k) { return s + buckets[k]; }, 0);
+  if (total === 0) { showToast('Save workouts to track timing'); return; }
+  var colors = { Morning: '#facc15', Afternoon: '#f97316', Evening: '#a78bfa', Night: '#475569' };
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif;" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:#0a0f1e;border:1px solid #1e293b;border-radius:12px;padding:32px;max-width:400px;width:90%;">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;"><span style="color:#e2e8f0;font-size:18px;font-weight:600;">Time Distribution</span><span onclick="this.parentElement.parentElement.parentElement.remove()" style="cursor:pointer;color:#94a3b8;">X</span></div>';
+  ['Morning', 'Afternoon', 'Evening', 'Night'].forEach(function(slot) {
+    var count = buckets[slot];
+    var pct = Math.round(count / total * 100);
+    var ranges = { Morning: '6am-12pm', Afternoon: '12pm-5pm', Evening: '5pm-9pm', Night: '9pm-6am' };
+    html += '<div style="margin-bottom:16px;">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:#e2e8f0;font-size:14px;">' + slot + ' <span style="color:#64748b;font-size:12px;">(' + ranges[slot] + ')</span></span><span style="color:' + colors[slot] + ';font-size:13px;">' + count + ' (' + pct + '%)</span></div>';
+    html += '<div style="background:#1e293b;border-radius:4px;height:8px;"><div style="background:' + colors[slot] + ';height:8px;border-radius:4px;width:' + pct + '%;"></div></div>';
+    html += '</div>';
+  });
+  var best = Object.keys(buckets).sort(function(a, b) { return buckets[b] - buckets[a]; })[0];
+  html += '<div style="text-align:center;margin-top:12px;color:#94a3b8;font-size:13px;">Preferred time: <span style="color:' + colors[best] + ';font-weight:600;">' + best + '</span></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function selectClipsByStage(stage) {
