@@ -7948,6 +7948,11 @@ var CMD_ACTIONS = [
   {label:'Sort Library: By Difficulty', key:'', icon:'\u2630', action: function() { sortLibrary('difficulty'); }},
   {label:'Sort Library: By Frequency', key:'', icon:'\u2630', action: function() { sortLibrary('frequency'); }},
   {label:'Session Debrief', key:'', icon:'\u2B50', action: function() { showSessionDebrief(); }},
+  {label:'Show Workout Changelog', key:'', icon:'\u270E', action: function() { showChangelog(); }},
+  {label:'Clear Changelog', key:'', icon:'\u2716', action: function() { clearChangelog(); }},
+  {label:'Training Week Planner', key:'', icon:'\u2630', action: function() { showWeekPlanner(); }},
+  {label:'Load Today\'s Workout', key:'', icon:'\u25B6', action: function() { loadTodaysWorkout(); }},
+  {label:'Complexity Radar Chart', key:'', icon:'\u25CE', action: function() { showComplexityRadar(); }},
 ];
 
 function openCmdPalette() {
@@ -15361,6 +15366,145 @@ function saveDebrief() {
   if (ov) ov.remove();
   _debriefData = {};
   showToast('Debrief saved!');
+}
+
+// Batch 349: Workout Changelog
+var _workoutChangelog = [];
+function logChange(action, detail) {
+  _workoutChangelog.push({
+    time: new Date().toLocaleTimeString(),
+    action: action,
+    detail: detail || ''
+  });
+  if (_workoutChangelog.length > 200) _workoutChangelog = _workoutChangelog.slice(-200);
+}
+function showChangelog() {
+  if (!_workoutChangelog.length) { showToast('No changes logged yet'); return; }
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:460px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Workout Changelog (' + _workoutChangelog.length + ')</span>';
+  _workoutChangelog.slice().reverse().forEach(function(entry) {
+    html += '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.02);font-size:10px">';
+    html += '<span style="color:#475569;font-variant-numeric:tabular-nums;flex-shrink:0;width:60px">' + entry.time + '</span>';
+    html += '<span style="color:#22d3ee;font-weight:600;flex-shrink:0;width:80px">' + entry.action + '</span>';
+    html += '<span style="color:#94a3b8">' + entry.detail + '</span></div>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function clearChangelog() {
+  _workoutChangelog = [];
+  showToast('Changelog cleared');
+}
+
+// Batch 350: Multi-Workout Week Planner
+function showWeekPlanner() {
+  var days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var plan = {};
+  try { var d = localStorage.getItem('sms_week_plan'); if (d) plan = JSON.parse(d); } catch(e) {}
+  var saved = [];
+  try { var s = localStorage.getItem('sms_saved_workouts'); if (s) saved = JSON.parse(s); } catch(e) {}
+  var html = '<div id="week-planner-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:flex-start;justify-content:center;padding-top:40px;font-family:Sora,sans-serif;overflow-y:auto">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:560px;width:95%">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#e2e8f0;font-size:14px;font-weight:600">Training Week Planner</span>';
+  html += '<button onclick="document.getElementById(\'week-planner-overlay\').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;font-family:Sora,sans-serif">X</button></div>';
+  days.forEach(function(day) {
+    var assigned = plan[day] || '';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+    html += '<span style="color:#64748b;font-size:10px;font-weight:600;width:80px;flex-shrink:0">' + day.slice(0, 3) + '</span>';
+    html += '<select class="week-day-select" data-day="' + day + '" style="flex:1;padding:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:#e2e8f0;font-family:Sora,sans-serif;font-size:10px">';
+    html += '<option value="">Rest Day</option>';
+    html += '<option value="__current__"' + (assigned === '__current__' ? ' selected' : '') + '>Current Workout</option>';
+    saved.forEach(function(s, idx) {
+      html += '<option value="' + idx + '"' + (assigned === '' + idx ? ' selected' : '') + '>' + (s.name || 'Untitled ' + (idx + 1)) + '</option>';
+    });
+    html += '</select></div>';
+  });
+  html += '<button onclick="saveWeekPlan()" style="width:100%;margin-top:12px;padding:10px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:8px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:11px;font-weight:600">Save Week Plan</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function saveWeekPlan() {
+  var plan = {};
+  document.querySelectorAll('.week-day-select').forEach(function(sel) {
+    plan[sel.dataset.day] = sel.value;
+  });
+  try { localStorage.setItem('sms_week_plan', JSON.stringify(plan)); } catch(e) {}
+  showToast('Week plan saved');
+}
+function loadTodaysWorkout() {
+  var plan = {};
+  try { var d = localStorage.getItem('sms_week_plan'); if (d) plan = JSON.parse(d); } catch(e) {}
+  var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var today = days[new Date().getDay()];
+  var assigned = plan[today];
+  if (!assigned) { showToast('Today (' + today + ') is a rest day!'); return; }
+  if (assigned === '__current__') { showToast('Today\'s workout is the current one'); return; }
+  var idx = parseInt(assigned);
+  if (!isNaN(idx) && typeof loadNamedWorkout === 'function') {
+    loadNamedWorkout(idx);
+    showToast('Loaded ' + today + '\'s workout');
+  }
+}
+
+// Batch 351: Workout Complexity Radar
+function showComplexityRadar() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips for radar'); return; }
+  var metrics = { volume: 0, intensity: 0, variety: 0, balance: 0, complexity: 0 };
+  var totalSets = 0, totalRPE = 0, rpeCount = 0;
+  var families = {}, patterns = {}, exercises = {};
+  clips.forEach(function(c) {
+    totalSets += parseInt(c.dataset.sets) || 3;
+    var rpe = parseInt(c.dataset.rpe);
+    if (rpe) { totalRPE += rpe; rpeCount++; }
+    families[c.dataset.family || 'core'] = true;
+    patterns[c.dataset.pattern || ''] = true;
+    exercises[c.dataset.exercise || ''] = true;
+  });
+  metrics.volume = Math.min(100, Math.round(totalSets / 0.4));
+  metrics.intensity = rpeCount > 0 ? Math.round((totalRPE / rpeCount) * 10) : 50;
+  metrics.variety = Math.min(100, Object.keys(exercises).length * 8);
+  metrics.balance = Math.min(100, Object.keys(families).length * 20);
+  metrics.complexity = Math.min(100, (Object.keys(patterns).length * 15 + Object.keys(exercises).length * 3));
+  var labels = ['Volume', 'Intensity', 'Variety', 'Balance', 'Complexity'];
+  var values = [metrics.volume, metrics.intensity, metrics.variety, metrics.balance, metrics.complexity];
+  var cx = 200, cy = 200, radius = 150;
+  var angleStep = (2 * Math.PI) / 5;
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" style="background:#050711">';
+  for (var ring = 1; ring <= 4; ring++) {
+    var r = radius * ring / 4;
+    var pts = [];
+    for (var i = 0; i < 5; i++) {
+      var angle = i * angleStep - Math.PI / 2;
+      pts.push((cx + Math.cos(angle) * r) + ',' + (cy + Math.sin(angle) * r));
+    }
+    svg += '<polygon points="' + pts.join(' ') + '" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>';
+  }
+  for (var i = 0; i < 5; i++) {
+    var angle = i * angleStep - Math.PI / 2;
+    var lx = cx + Math.cos(angle) * radius;
+    var ly = cy + Math.sin(angle) * radius;
+    svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + lx + '" y2="' + ly + '" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>';
+    var tlx = cx + Math.cos(angle) * (radius + 20);
+    var tly = cy + Math.sin(angle) * (radius + 20);
+    svg += '<text x="' + tlx + '" y="' + tly + '" text-anchor="middle" fill="#64748b" font-family="Sora,sans-serif" font-size="9">' + labels[i] + '</text>';
+    svg += '<text x="' + tlx + '" y="' + (tly + 12) + '" text-anchor="middle" fill="#22d3ee" font-family="Sora,sans-serif" font-size="10" font-weight="700">' + values[i] + '</text>';
+  }
+  var dataPts = [];
+  for (var i = 0; i < 5; i++) {
+    var angle = i * angleStep - Math.PI / 2;
+    var v = values[i] / 100 * radius;
+    dataPts.push((cx + Math.cos(angle) * v) + ',' + (cy + Math.sin(angle) * v));
+  }
+  svg += '<polygon points="' + dataPts.join(' ') + '" fill="rgba(34,211,238,0.15)" stroke="#22d3ee" stroke-width="2"/>';
+  dataPts.forEach(function(p) {
+    var parts = p.split(',');
+    svg += '<circle cx="' + parts[0] + '" cy="' + parts[1] + '" r="3" fill="#22d3ee"/>';
+  });
+  svg += '</svg>';
+  var tab = window.open('', '_blank');
+  if (tab) { tab.document.write('<html><head><title>Complexity Radar</title></head><body style="margin:0;background:#050711;display:flex;align-items:center;justify-content:center;min-height:100vh">' + svg + '</body></html>'); tab.document.close(); }
 }
 
 function selectClipsByStage(stage) {
