@@ -604,6 +604,53 @@ body {
   width: 3px; background: var(--accent-green);
   transition: height 0.08s;
   border-radius: 1px 1px 0 0;
+  position: relative;
+}
+.meter-bar .peak-hold {
+  position: absolute; top: -2px; left: 0; right: 0;
+  height: 1px; background: var(--text-bright);
+  opacity: 0.6;
+}
+
+/* Channel Meters — per track mini VU */
+.channel-meters {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  padding: 4px 0;
+}
+.channel-meter {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.channel-meter-bar {
+  width: 100%; height: 4px;
+  background: var(--bg-deep);
+  border: 1px solid rgba(30,41,59,0.4);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.channel-meter-fill {
+  height: 100%;
+  background: var(--accent-green);
+  transition: width 0.08s;
+}
+.channel-meter-label {
+  font-size: 6px; color: var(--micro);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* Clip playback progress overlay */
+.clip .clip-progress {
+  position: absolute; top: 0; left: 0; bottom: 0;
+  background: rgba(255,255,255,0.06);
+  pointer-events: none; width: 0;
+  border-right: 1px solid rgba(255,255,255,0.15);
+}
+
+/* Active track highlight */
+.track.track-active {
+  background: rgba(59, 130, 246, 0.04) !important;
+}
+.track.track-active .track-header {
+  border-right-color: rgba(59, 130, 246, 0.3);
 }
 
 /* Inspector — Properties Panel */
@@ -1156,6 +1203,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="mixer-section">
         <div class="mixer-title">Output</div>
         <div class="meter-group" id="meters"></div>
+        <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
       </div>
 
       <!-- Faders -->
@@ -1949,6 +1997,10 @@ function createClipElement(exercise, left, width, dna) {
   // Tooltip with exercise details
   clip.title = exercise.name + ' | ' + exercise.pattern + ' | S' + exercise.stage + ' | ' + exercise.discipline + ' | ' + clip.dataset.sets + 'x' + clip.dataset.reps;
 
+  var progress = document.createElement('div');
+  progress.className = 'clip-progress';
+  clip.appendChild(progress);
+
   var fadeIn = document.createElement('div');
   fadeIn.className = 'clip-fade clip-fade-in';
   clip.appendChild(fadeIn);
@@ -2361,6 +2413,22 @@ function updatePlayheadPosition() {
     if (pos > visibleRight - 60) {
       container.scrollLeft = pos - 200;
     }
+    // Update clip progress overlays
+    document.querySelectorAll('.clip').forEach(function(clip) {
+      var clipLeft = parseInt(clip.style.left) + 100;
+      var clipW = parseInt(clip.style.width);
+      var clipRight = clipLeft + clipW;
+      var progressEl = clip.querySelector('.clip-progress');
+      if (!progressEl) return;
+      if (pos >= clipLeft && pos <= clipRight) {
+        var pct = ((pos - clipLeft) / clipW) * 100;
+        progressEl.style.width = pct + '%';
+      } else if (pos > clipRight) {
+        progressEl.style.width = '100%';
+      } else {
+        progressEl.style.width = '0';
+      }
+    });
   }
 }
 
@@ -2555,18 +2623,36 @@ function buildMeters() {
   var container = document.getElementById('meters');
   var html = '';
   for (var i = 0; i < 12; i++) {
-    html += '<div class="meter-bar" style="height:' + (10 + Math.random() * 30) + 'px"></div>';
+    html += '<div class="meter-bar" style="height:' + (10 + Math.random() * 30) + 'px"><div class="peak-hold"></div></div>';
   }
   container.innerHTML = html;
+  // Build per-channel meters
+  var chContainer = document.getElementById('channel-meters');
+  var chHtml = '';
+  var trackColors = {push:'var(--accent-blue)',pull:'var(--accent-purple)',core:'var(--accent-orange)',legs:'var(--accent-green)',skills:'var(--accent-cyan)'};
+  var trackNames = {push:'P',pull:'PL',core:'C',legs:'L',skills:'SK'};
+  Object.keys(trackColors).forEach(function(tid) {
+    chHtml += '<div class="channel-meter"><div class="channel-meter-bar"><div class="channel-meter-fill" id="ch-meter-'+tid+'" style="width:0%;background:'+trackColors[tid]+'"></div></div><div class="channel-meter-label">'+trackNames[tid]+'</div></div>';
+  });
+  chContainer.innerHTML = chHtml;
 }
 
 function startMeters() {
   if (meterInterval) return;
   meterInterval = setInterval(function() {
     document.querySelectorAll('.meter-bar').forEach(function(bar) {
-      bar.style.height = (10 + Math.random() * 50) + 'px';
-      var h = parseInt(bar.style.height);
-      bar.style.background = h > 45 ? 'var(--accent-red)' : h > 30 ? 'var(--accent-orange)' : 'var(--accent-green)';
+      var newH = 10 + Math.random() * 50;
+      bar.style.height = newH + 'px';
+      bar.style.background = newH > 45 ? 'var(--accent-red)' : newH > 30 ? 'var(--accent-orange)' : 'var(--accent-green)';
+    });
+    // Animate channel meters
+    ['push','pull','core','legs','skills'].forEach(function(tid) {
+      var el = document.getElementById('ch-meter-' + tid);
+      if (el) {
+        var trackClips = document.querySelectorAll('.track-content[data-track="'+tid+'"] .clip');
+        var level = trackClips.length > 0 ? (30 + Math.random() * 70) : 0;
+        el.style.width = level + '%';
+      }
     });
   }, 100);
 }
@@ -3266,6 +3352,13 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTimeDisplay();
     updatePlayheadPosition();
     sfx('click');
+  });
+  /* Click track header to highlight active track */
+  document.querySelectorAll('.track-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      document.querySelectorAll('.track.track-active').forEach(function(t) { t.classList.remove('track-active'); });
+      header.closest('.track').classList.add('track-active');
+    });
   });
   /* Click on empty timeline area to seek */
   var tracks = document.getElementById('timeline-tracks');
