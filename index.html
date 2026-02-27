@@ -3980,10 +3980,14 @@ function selectClipEl(clip, addToSelection) {
   document.getElementById('insp-rest').value = clip.dataset.rest || 60;
   document.getElementById('insp-rpe').value = clip.dataset.rpe || 7;
   var fm = FAMILY_MAP[ex.family] || {};
-  document.getElementById('insp-tags').innerHTML =
+  var tagHtml =
     '<span class="inspector-tag" style="background:'+((FAMILY_MAP[ex.family]||{}).color||'#666')+'22;color:'+(FAMILY_MAP[ex.family]||{}).color+'">'+ex.family+'</span>' +
     '<span class="inspector-tag">'+(fm.instrument||'')+'</span>' +
     '<span class="inspector-tag">S'+ex.stage+'</span>';
+  if (clip.classList.contains('clip-locked')) {
+    tagHtml += '<span class="inspector-tag" style="background:rgba(239,68,68,0.12);color:#ef4444">LOCKED</span>';
+  }
+  document.getElementById('insp-tags').innerHTML = tagHtml;
   document.getElementById('insp-notes').value = clip.dataset.notes || '';
   updateInspectorTime();
   updateProgressionChain(ex);
@@ -5684,7 +5688,8 @@ function exportWorkout() {
       fadeIn: parseInt(clip.dataset.fadeIn) || 0,
       fadeOut: parseInt(clip.dataset.fadeOut) || 0,
       customColor: clip.dataset.customColor || '',
-      group: clip.dataset.group || ''
+      group: clip.dataset.group || '',
+      locked: clip.dataset.locked || ''
     });
   });
   workout.groupCounter = _groupCounter;
@@ -5846,6 +5851,10 @@ function importWorkout() {
             if (item.group) {
               clip.dataset.group = item.group;
               clip.style.outline = '1px dashed rgba(59,130,246,0.3)';
+            }
+            if (item.locked) {
+              clip.dataset.locked = '1';
+              clip.classList.add('clip-locked');
             }
             track.appendChild(clip);
           });
@@ -7352,13 +7361,14 @@ function duplicateTrackClips() {
 function reverseTrackClips() {
   var activeTrack = document.querySelector('.track.track-active .track-content');
   if (!activeTrack) { toast('Select a track first'); return; }
-  var clips = Array.from(activeTrack.querySelectorAll('.clip'));
-  if (clips.length < 2) { toast('Need 2+ clips to reverse'); return; }
+  var clips = Array.from(activeTrack.querySelectorAll('.clip')).filter(function(c) {
+    return !c.classList.contains('clip-locked');
+  });
+  if (clips.length < 2) { toast('Need 2+ unlocked clips to reverse'); return; }
   pushUndo();
   clips.sort(function(a, b) { return parseInt(a.style.left) - parseInt(b.style.left); });
   var positions = clips.map(function(c) { return parseInt(c.style.left); });
   var widths = clips.map(function(c) { return parseInt(c.style.width); });
-  // Reverse: last clip goes to first position, preserving gaps
   var reversed = clips.slice().reverse();
   var curLeft = positions[0];
   for (var ri = 0; ri < reversed.length; ri++) {
