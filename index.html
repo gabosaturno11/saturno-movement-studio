@@ -2473,10 +2473,20 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
           <span id="music-track-name">No track</span>
         </div>
         <div class="music-controls">
-          <button class="music-btn" onclick="musicPrev()" title="Previous">&#9198;</button>
-          <button class="music-btn" id="music-play-btn" onclick="musicToggle()" title="Play/Pause">&#9654;</button>
-          <button class="music-btn" onclick="musicNext()" title="Next">&#9197;</button>
+          <button class="music-btn" onclick="musicPrev()" data-tip="Previous">&#9198;</button>
+          <button class="music-btn" id="music-play-btn" onclick="musicToggle()" data-tip="Play/Pause">&#9654;</button>
+          <button class="music-btn" onclick="musicNext()" data-tip="Next">&#9197;</button>
           <input type="range" class="music-volume" min="0" max="100" value="50" oninput="musicVolume(this.value)">
+        </div>
+        <select id="music-track-select" onchange="musicSelectTrack(this.selectedIndex)" style="width:100%;margin-top:6px;padding:4px 6px;font-size:9px;font-family:Sora,sans-serif;background:var(--bg-deep);border:1px solid var(--border);color:var(--text-secondary);border-radius:var(--radius-sm)">
+          <option value="0">Celestial Reverie</option>
+          <option value="1">Blue Phoenix</option>
+          <option value="2">Veil of Truth</option>
+          <option value="3">Astral Shadows</option>
+        </select>
+        <div style="margin-top:6px;font-size:7px;color:var(--micro);display:flex;justify-content:space-between">
+          <span id="music-time">0:00</span>
+          <span>ASTRA Collection</span>
         </div>
       </div>
 
@@ -4577,6 +4587,8 @@ function musicNext() {
     if (musicPlaying) audioEl.play().catch(function() {});
   }
   document.getElementById('music-track-name').textContent = MUSIC_TRACKS[musicIndex].name;
+  var sel = document.getElementById('music-track-select');
+  if (sel) sel.selectedIndex = musicIndex;
 }
 
 function musicPrev() {
@@ -4586,11 +4598,33 @@ function musicPrev() {
     if (musicPlaying) audioEl.play().catch(function() {});
   }
   document.getElementById('music-track-name').textContent = MUSIC_TRACKS[musicIndex].name;
+  var sel = document.getElementById('music-track-select');
+  if (sel) sel.selectedIndex = musicIndex;
 }
 
 function musicVolume(val) {
   if (audioEl) audioEl.volume = val / 100;
 }
+
+function musicSelectTrack(index) {
+  musicIndex = index;
+  if (audioEl) {
+    audioEl.src = MUSIC_TRACKS[musicIndex].url;
+    if (musicPlaying) audioEl.play().catch(function() {});
+  }
+  document.getElementById('music-track-name').textContent = MUSIC_TRACKS[musicIndex].name;
+  drawMusicWaveform(MUSIC_TRACKS[musicIndex].name);
+}
+
+// Update music time display
+setInterval(function() {
+  if (!audioEl || !musicPlaying) return;
+  var t = audioEl.currentTime || 0;
+  var m = Math.floor(t / 60);
+  var s = Math.floor(t % 60);
+  var el = document.getElementById('music-time');
+  if (el) el.textContent = m + ':' + s.toString().padStart(2, '0');
+}, 500);
 
 /* Draw static waveform in music track when a song is selected */
 function drawMusicWaveform(trackName) {
