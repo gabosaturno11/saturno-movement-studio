@@ -383,25 +383,30 @@ body {
   user-select: none; overflow: hidden; white-space: nowrap;
   transition: box-shadow 0.1s;
   text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .clip::after {
   content: '';
-  position: absolute; bottom: 3px; left: 6px; right: 6px;
-  height: 18px;
-  background: repeating-linear-gradient(
-    90deg,
-    currentColor 0px, currentColor 1px,
-    transparent 1px, transparent 3px
-  );
-  opacity: 0.08;
-  mask-image: linear-gradient(0deg, transparent 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.3) 60%, transparent 100%);
-  -webkit-mask-image: linear-gradient(0deg, transparent 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0.3) 60%, transparent 100%);
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 8px;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.25) 100%);
+  pointer-events: none;
 }
 .clip canvas.clip-waveform {
   position: absolute; bottom: 2px; left: 4px; right: 4px;
   height: 20px; width: calc(100% - 8px);
   pointer-events: none;
 }
+.clip .beat-markers {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+.clip .beat-markers span {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: rgba(255,255,255,0.06);
+}
+/* Muted track clips */
+.track.track-muted .clip { opacity: 0.3; filter: grayscale(0.6); }
 .clip:hover {
   box-shadow: 0 0 0 1px rgba(255,255,255,0.15), var(--glow-subtle);
   border-color: rgba(255,255,255,0.15);
@@ -883,6 +888,26 @@ body {
   font-size: 10px; color: var(--muted);
 }
 
+/* ===== LOOP REGION ===== */
+.loop-region {
+  position: absolute; top: 0; bottom: 0;
+  background: rgba(59, 130, 246, 0.06);
+  border-left: 1px solid rgba(59, 130, 246, 0.4);
+  border-right: 1px solid rgba(59, 130, 246, 0.4);
+  z-index: 5; pointer-events: none;
+  display: none;
+}
+.loop-region.active { display: block; }
+.loop-region::before, .loop-region::after {
+  content: '';
+  position: absolute; top: 0;
+  width: 6px; height: 6px;
+  background: rgba(59, 130, 246, 0.6);
+  border-radius: 0 0 2px 2px;
+}
+.loop-region::before { left: -3px; }
+.loop-region::after { right: -3px; }
+
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1008,7 +1033,8 @@ a:focus-visible, button:focus-visible, input:focus-visible {
         </div>
         <div class="transport-sep"></div>
         <div class="transport-buttons">
-          <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px;width:auto;padding:0 8px">MET</button>
+          <button class="transport-btn" id="metro-btn" onclick="toggleMetronome()" title="Metronome" style="font-size:8px;letter-spacing:0.04em;border-radius:3px 0 0 3px;width:auto;padding:0 8px">MET</button>
+          <button class="transport-btn" id="loop-btn" onclick="toggleLoop()" title="Loop region (L)" style="font-size:8px;letter-spacing:0.04em;border-radius:0 3px 3px 0;width:auto;padding:0 8px;border-left:none">LOOP</button>
         </div>
         <div class="time-display" id="time-display">
           <span class="td-seg" id="td-min">00</span><span class="td-colon">:</span><span class="td-seg" id="td-sec">00</span><span class="td-colon">:</span><span class="td-seg td-ms" id="td-ms">00</span>
@@ -1041,6 +1067,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="timeline-container" id="timeline-container">
         <div class="timeline-ruler" id="timeline-ruler"></div>
         <div class="timeline-tracks" id="timeline-tracks">
+          <div class="loop-region" id="loop-region"></div>
           <div class="playhead" id="playhead"></div>
         </div>
       </div>
@@ -1188,6 +1215,7 @@ a:focus-visible, button:focus-visible, input:focus-visible {
       <div class="shortcut-item"><kbd>Cmd+D</kbd><span>Duplicate</span></div>
       <div class="shortcut-item"><kbd>Cmd++</kbd><span>Zoom In</span></div>
       <div class="shortcut-item"><kbd>Cmd+-</kbd><span>Zoom Out</span></div>
+      <div class="shortcut-item"><kbd>L</kbd><span>Toggle Loop</span></div>
       <div class="shortcut-item"><kbd>?</kbd><span>This Panel</span></div>
     </div>
     <div style="font-size:8px;color:var(--micro);text-align:center;margin-top:10px;text-transform:uppercase;letter-spacing:0.1em">Drag exercises from library to timeline</div>
@@ -1578,6 +1606,7 @@ var audioEl = null;
 var meterInterval = null;
 var undoStack = [], redoStack = [], maxUndo = 30;
 var metronomeEnabled = false, lastBeatTime = 0, beatCounter = 0;
+var loopEnabled = false, loopStart = 0, loopEnd = 60;
 
 /* Music tracks (from Vercel Blob CDN) */
 var MUSIC_TRACKS = [
@@ -1759,29 +1788,37 @@ function drawClipWaveform(canvas, color, width) {
   canvas.height = 20;
   var ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.4;
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.35;
   var mid = canvas.height / 2;
   var seed = w * 7 + canvas.width;
-  ctx.beginPath();
-  for (var x = 0; x < canvas.width; x++) {
+  for (var x = 0; x < canvas.width; x += 1) {
     var v = Math.sin(x * 0.15 + seed * 0.01) * 0.4 +
             Math.sin(x * 0.08 + seed * 0.02) * 0.3 +
-            Math.sin(x * 0.3 + seed * 0.005) * 0.2;
+            Math.sin(x * 0.3 + seed * 0.005) * 0.2 +
+            Math.sin(x * 0.5 + seed * 0.03) * 0.1;
     var amp = (mid - 2) * Math.abs(v);
-    if (x === 0) { ctx.moveTo(x, mid - amp); } else { ctx.lineTo(x, mid - amp); }
+    ctx.fillRect(x, mid - amp, 1, amp * 2);
   }
-  ctx.stroke();
-  ctx.beginPath();
-  for (var x = 0; x < canvas.width; x++) {
-    var v = Math.sin(x * 0.15 + seed * 0.01) * 0.4 +
-            Math.sin(x * 0.08 + seed * 0.02) * 0.3 +
-            Math.sin(x * 0.3 + seed * 0.005) * 0.2;
-    var amp = (mid - 2) * Math.abs(v);
-    if (x === 0) { ctx.moveTo(x, mid + amp); } else { ctx.lineTo(x, mid + amp); }
+}
+
+/* Add beat marker dividers inside clips based on BPM */
+function addBeatMarkers(clipEl, widthPx) {
+  var existing = clipEl.querySelector('.beat-markers');
+  if (existing) existing.remove();
+  var w = parseInt(widthPx) || parseInt(clipEl.style.width) || 80;
+  var pps = 80 / 15; // pixels per second
+  var beatSec = 60 / bpm;
+  var beatPx = beatSec * pps;
+  if (beatPx < 8) return; // Too dense to show
+  var container = document.createElement('div');
+  container.className = 'beat-markers';
+  for (var px = beatPx; px < w; px += beatPx) {
+    var marker = document.createElement('span');
+    marker.style.left = px + 'px';
+    container.appendChild(marker);
   }
-  ctx.stroke();
+  clipEl.appendChild(container);
 }
 
 function createClipElement(exercise, left, width, dna) {
@@ -1817,7 +1854,10 @@ function createClipElement(exercise, left, width, dna) {
   var canvas = document.createElement('canvas');
   canvas.className = 'clip-waveform';
   clip.appendChild(canvas);
-  setTimeout(function() { drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', clip.style.width); }, 10);
+  setTimeout(function() {
+    drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', clip.style.width);
+    addBeatMarkers(clip, clip.style.width);
+  }, 10);
 
   // Tooltip with exercise details
   clip.title = exercise.name + ' | ' + exercise.pattern + ' | S' + exercise.stage + ' | ' + exercise.discipline + ' | ' + clip.dataset.sets + 'x' + clip.dataset.reps;
@@ -1850,6 +1890,7 @@ function createClipElement(exercise, left, width, dna) {
       newW = snapEnabled ? Math.max(40, snapValue(newW)) : newW;
       clip.style.width = newW + 'px';
       drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', newW + 'px');
+      addBeatMarkers(clip, newW);
       var durSec = Math.round(newW / 80 * 15);
       var durM = Math.floor(durSec / 60);
       var durS = durSec % 60;
@@ -1891,6 +1932,7 @@ function createClipElement(exercise, left, width, dna) {
       var newW = Math.max(40, startW + e.touches[0].clientX - startX);
       clip.style.width = newW + 'px';
       drawClipWaveform(canvas, 'rgba(255,255,255,0.6)', newW + 'px');
+      addBeatMarkers(clip, newW);
       updateStats();
     }
     function onEnd() { resize.removeEventListener('touchmove', onMove); resize.removeEventListener('touchend', onEnd); saveSession(); updateStats(); }
@@ -2090,6 +2132,11 @@ function forward() { currentTime += 15; updateTimeDisplay(); updatePlayheadPosit
 
 function updatePlayhead() {
   currentTime += 0.05;
+  // Loop boundary check
+  if (loopEnabled && currentTime >= loopEnd) {
+    currentTime = loopStart;
+    beatCounter = Math.floor(currentTime / (60 / bpm));
+  }
   updateTimeDisplay();
   updatePlayheadPosition();
   // Metronome tick on the beat
@@ -2193,6 +2240,35 @@ function toggleMetronome() {
   if (btn) btn.classList.toggle('active', metronomeEnabled);
   sfx(metronomeEnabled ? 'metronome' : 'click');
   toast(metronomeEnabled ? 'Metronome ON' : 'Metronome OFF');
+}
+
+function toggleLoop() {
+  loopEnabled = !loopEnabled;
+  var btn = document.getElementById('loop-btn');
+  if (btn) btn.classList.toggle('active', loopEnabled);
+  var region = document.getElementById('loop-region');
+  region.classList.toggle('active', loopEnabled);
+  if (loopEnabled) {
+    updateLoopRegion();
+    sfx('click');
+    toast('Loop: ' + formatTime(loopStart) + ' - ' + formatTime(loopEnd));
+  } else {
+    sfx('click');
+    toast('Loop OFF');
+  }
+}
+
+function updateLoopRegion() {
+  var pps = 80 / 15;
+  var region = document.getElementById('loop-region');
+  region.style.left = (100 + loopStart * pps) + 'px';
+  region.style.width = ((loopEnd - loopStart) * pps) + 'px';
+}
+
+function formatTime(sec) {
+  var m = Math.floor(sec / 60);
+  var s = Math.floor(sec % 60);
+  return m + ':' + s.toString().padStart(2, '0');
 }
 
 /* ===== FADERS ===== */
@@ -2313,8 +2389,28 @@ function stopMeters() {
 }
 
 /* ===== TRACK CONTROLS ===== */
-function toggleMute(btn) { btn.classList.toggle('muted'); sfx('click'); }
-function toggleSolo(btn) { btn.classList.toggle('soloed'); sfx('click'); }
+function toggleMute(btn) {
+  btn.classList.toggle('muted');
+  var track = btn.closest('.track');
+  track.classList.toggle('track-muted', btn.classList.contains('muted'));
+  sfx('click');
+}
+function toggleSolo(btn) {
+  btn.classList.toggle('soloed');
+  sfx('click');
+  // Solo logic: if any track is soloed, mute all others visually
+  var anysoloed = document.querySelector('.track-btn.soloed');
+  document.querySelectorAll('.track').forEach(function(t) {
+    if (t.dataset.track === 'music') return;
+    var hasSolo = t.querySelector('.track-btn.soloed');
+    var hasMute = t.querySelector('.track-btn.muted');
+    if (anysoloed && !hasSolo && !hasMute) {
+      t.classList.add('track-muted');
+    } else if (!anysoloed && !hasMute) {
+      t.classList.remove('track-muted');
+    }
+  });
+}
 function toggleArm(btn) {
   btn.classList.toggle('armed');
   if (btn.classList.contains('armed')) {
@@ -2966,6 +3062,33 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+/* ===== CLICK-TO-SEEK ON RULER ===== */
+document.addEventListener('DOMContentLoaded', function() {
+  var ruler = document.getElementById('timeline-ruler');
+  ruler.style.cursor = 'pointer';
+  ruler.addEventListener('click', function(e) {
+    var rect = ruler.getBoundingClientRect();
+    var x = e.clientX - rect.left + document.getElementById('timeline-container').scrollLeft;
+    var pps = 80 / 15;
+    currentTime = Math.max(0, (x - 100) / pps);
+    updateTimeDisplay();
+    updatePlayheadPosition();
+    sfx('click');
+  });
+  /* Click on empty timeline area to seek */
+  var tracks = document.getElementById('timeline-tracks');
+  tracks.addEventListener('click', function(e) {
+    if (e.target.closest('.clip') || e.target.closest('.track-header')) return;
+    var rect = tracks.getBoundingClientRect();
+    var x = e.clientX - rect.left + document.getElementById('timeline-container').scrollLeft;
+    var pps = 80 / 15;
+    var scale = zoomLevel / 100;
+    currentTime = Math.max(0, (x / scale - 100) / pps);
+    updateTimeDisplay();
+    updatePlayheadPosition();
+  });
+});
+
 /* ===== PLAYHEAD ANIMATION ===== */
 function updatePlayheadClass() {
   var ph = document.getElementById('playhead');
@@ -3004,6 +3127,9 @@ document.addEventListener('keydown', function(e) {
   }
   if (e.code === 'KeyS' && !e.metaKey && !e.ctrlKey) {
     toggleSnap();
+  }
+  if (e.code === 'KeyL' && !e.metaKey && !e.ctrlKey) {
+    toggleLoop();
   }
   if (e.code === 'Equal' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault(); zoomIn(); return;
