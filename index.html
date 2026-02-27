@@ -8009,6 +8009,10 @@ var CMD_ACTIONS = [
   {label:'Show Blueprints', key:'', icon:'\u2692', action: function() { showBlueprintList(); }},
   {label:'Auto-Suggest RPE', key:'', icon:'\u2195', action: function() { autoSuggestRPE(); }},
   {label:'Analyze Movement Patterns', key:'', icon:'\u2690', action: function() { analyzeMovementPatterns(); }},
+  {label:'Quick-Build Presets', key:'', icon:'\u2699', action: function() { showQuickBuildPanel(); }},
+  {label:'Log Session', key:'', icon:'\u2611', action: function() { logSessionHistory(); }},
+  {label:'Session History', key:'', icon:'\u2611', action: function() { showSessionHistory(); }},
+  {label:'Export PDF-Ready Worksheet', key:'', icon:'\u2399', action: function() { exportPDFReady(); }},
 ];
 
 function openCmdPalette() {
@@ -18089,6 +18093,206 @@ function addPatternExercise(pattern) {
   initClipDrag(clip);
   document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
   showToast('Added: ' + ex.name + ' (' + pattern + ')');
+}
+
+// Batch 388: Quick-Build Presets Panel
+function showQuickBuildPanel() {
+  var categories = {
+    'Strength': [
+      { name: 'Heavy Compound', desc: '4x5 @ RPE 8-9, 3 exercises', sets: 4, reps: 5, rpe: 8.5, count: 3, families: ['Push','Pull','Legs'] },
+      { name: 'Volume Block', desc: '4x10 @ RPE 7, 5 exercises', sets: 4, reps: 10, rpe: 7, count: 5, families: ['Push','Pull','Core','Legs','Skills'] },
+      { name: 'Strength Endurance', desc: '3x15 @ RPE 6, 4 exercises', sets: 3, reps: 15, rpe: 6, count: 4, families: ['Push','Pull','Core','Legs'] }
+    ],
+    'Skills': [
+      { name: 'Skill Practice', desc: '5x3 @ RPE 6, focused', sets: 5, reps: 3, rpe: 6, count: 3, families: ['Skills','Core'] },
+      { name: 'Handstand Session', desc: '6x5 @ RPE 7, press focus', sets: 6, reps: 5, rpe: 7, count: 2, families: ['Skills'] }
+    ],
+    'Recovery': [
+      { name: 'Active Recovery', desc: '2x12 @ RPE 4, light', sets: 2, reps: 12, rpe: 4, count: 4, families: ['Mobility','Core'] },
+      { name: 'Mobility Flow', desc: '2x8 @ RPE 3, all families', sets: 2, reps: 8, rpe: 3, count: 5, families: ['Mobility','Core','Legs'] }
+    ],
+    'HIIT': [
+      { name: 'Tabata Style', desc: '8x4 @ RPE 9, explosive', sets: 8, reps: 4, rpe: 9, count: 4, families: ['Push','Pull','Legs','Core'] },
+      { name: 'Circuit Burner', desc: '3x12 @ RPE 8, 6 exercises', sets: 3, reps: 12, rpe: 8, count: 6, families: ['Push','Pull','Core','Legs','Skills'] }
+    ]
+  };
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:500px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:16px">Quick-Build Presets</div>';
+  Object.keys(categories).forEach(function(cat) {
+    html += '<div style="color:#22d3ee;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px">' + cat + '</div>';
+    categories[cat].forEach(function(preset) {
+      html += '<button onclick=\'applyQuickBuild(' + JSON.stringify(preset).replace(/'/g, "&#39;") + ')\' style="display:block;width:100%;padding:10px 12px;margin-bottom:4px;background:rgba(34,211,238,0.03);color:#e2e8f0;border:1px solid rgba(34,211,238,0.1);border-radius:6px;cursor:pointer;font-family:Sora,sans-serif;text-align:left">';
+      html += '<div style="font-size:13px;font-weight:600">' + preset.name + '</div>';
+      html += '<div style="font-size:11px;color:#94a3b8">' + preset.desc + '</div>';
+      html += '</button>';
+    });
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+function applyQuickBuild(preset) {
+  captureUndo();
+  var trackMap = {Push:'push',Pull:'pull',Core:'core',Legs:'legs',Skills:'skills',Mobility:'core'};
+  var pool = [];
+  EXERCISES.forEach(function(e) {
+    if (preset.families.indexOf(e.family) >= 0) pool.push(e);
+  });
+  for (var i = pool.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  }
+  var selected = pool.slice(0, preset.count);
+  var trackOffsets = {};
+  selected.forEach(function(ex) {
+    var trackId = trackMap[ex.family] || 'push';
+    var track = document.querySelector('.track[data-family="' + trackId + '"] .track-clips');
+    if (!track) return;
+    if (!trackOffsets[trackId]) trackOffsets[trackId] = 10;
+    var clip = document.createElement('div');
+    clip.className = 'clip';
+    clip.dataset.exercise = ex.name;
+    clip.dataset.family = ex.family;
+    clip.dataset.pattern = ex.pattern || '';
+    clip.dataset.stage = ex.stage || 'S1';
+    clip.dataset.discipline = ex.discipline || '';
+    clip.dataset.sets = preset.sets;
+    clip.dataset.reps = preset.reps;
+    clip.dataset.tempo = ex.tempo || 3;
+    clip.dataset.rest = 60;
+    clip.dataset.rpe = preset.rpe;
+    var w = preset.sets * 40;
+    clip.style.width = w + 'px';
+    clip.style.left = trackOffsets[trackId] + 'px';
+    clip.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--' + trackId + '-color') || '#22d3ee';
+    clip.innerHTML = '<div class="clip-name">' + ex.name + '</div><div class="clip-params">' + preset.sets + 'x' + preset.reps + '</div>';
+    track.appendChild(clip);
+    initClipDrag(clip);
+    trackOffsets[trackId] += w + 10;
+  });
+  document.querySelectorAll('div[style*="fixed"][style*="9999"]').forEach(function(o) { o.remove(); });
+  showToast('Applied: ' + preset.name + ' (' + selected.length + ' exercises)');
+}
+
+// Batch 389: Session History Log
+function logSessionHistory() {
+  var clips = document.querySelectorAll('.clip');
+  var clipCount = 0;
+  clips.forEach(function(c) { if (!c.closest('.track[data-family="music"]')) clipCount++; });
+  if (clipCount === 0) { showToast('Nothing to log'); return; }
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Untitled';
+  var entry = {
+    date: new Date().toISOString(),
+    name: workoutName,
+    clips: clipCount,
+    exercises: 0,
+    duration: 0,
+    bpm: typeof bpm !== 'undefined' ? bpm : 100
+  };
+  var names = {};
+  clips.forEach(function(c) {
+    if (c.closest('.track[data-family="music"]')) return;
+    names[c.dataset.exercise || ''] = 1;
+    var sets = parseInt(c.dataset.sets) || 3;
+    var reps = parseInt(c.dataset.reps) || 10;
+    var tempo = parseInt(c.dataset.tempo) || 3;
+    var rest = parseInt(c.dataset.rest) || 60;
+    entry.duration += sets * reps * tempo + (sets - 1) * rest;
+  });
+  entry.exercises = Object.keys(names).length;
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('sms_session_history') || '[]'); } catch(e) {}
+  history.push(entry);
+  if (history.length > 100) history = history.slice(-100);
+  try { localStorage.setItem('sms_session_history', JSON.stringify(history)); } catch(e) {}
+  showToast('Session logged: ' + workoutName + ' (' + clipCount + ' clips)');
+}
+function showSessionHistory() {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('sms_session_history') || '[]'); } catch(e) {}
+  if (history.length === 0) { showToast('No session history yet (use Log Session to start)'); return; }
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+  var html = '<div style="background:#0a0f1e;border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:24px;width:550px;max-height:85vh;overflow-y:auto">';
+  html += '<div style="color:#e2e8f0;font-size:16px;font-weight:700;margin-bottom:4px">Session History</div>';
+  html += '<div style="color:#94a3b8;font-size:12px;margin-bottom:16px">' + history.length + ' sessions logged</div>';
+  history.slice().reverse().forEach(function(entry) {
+    var date = new Date(entry.date);
+    var dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    var durMin = Math.round(entry.duration / 60);
+    html += '<div style="padding:10px 12px;background:rgba(34,211,238,0.03);border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">';
+    html += '<div>';
+    html += '<div style="color:#e2e8f0;font-size:13px;font-weight:600">' + (entry.name || 'Untitled') + '</div>';
+    html += '<div style="color:#64748b;font-size:10px">' + dateStr + '</div>';
+    html += '</div>';
+    html += '<div style="text-align:right">';
+    html += '<div style="color:#22d3ee;font-size:12px">' + entry.clips + ' clips | ' + entry.exercises + ' exercises</div>';
+    html += '<div style="color:#94a3b8;font-size:10px">~' + durMin + ' min | ' + entry.bpm + ' BPM</div>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+// Batch 390: Workout Export as PDF-ready HTML
+function exportPDFReady() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { showToast('No clips to export'); return; }
+  var workoutName = document.getElementById('workout-name') ? document.getElementById('workout-name').textContent : 'Workout';
+  var tracks = {};
+  clips.forEach(function(c) {
+    var trackFamily = c.closest('.track') ? c.closest('.track').dataset.family : 'other';
+    if (trackFamily === 'music') return;
+    if (!tracks[trackFamily]) tracks[trackFamily] = [];
+    tracks[trackFamily].push({
+      name: c.dataset.exercise || '',
+      sets: parseInt(c.dataset.sets) || 3,
+      reps: parseInt(c.dataset.reps) || 10,
+      rpe: parseFloat(c.dataset.rpe) || 7,
+      rest: parseInt(c.dataset.rest) || 60,
+      tempo: parseInt(c.dataset.tempo) || 3,
+      stage: c.dataset.stage || 'S1',
+      pattern: c.dataset.pattern || ''
+    });
+  });
+  var famLabels = {push:'Push',pull:'Pull',core:'Core',legs:'Legs',skills:'Skills'};
+  var htmlStr = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + workoutName + '</title>';
+  htmlStr += '<style>@page{size:A4;margin:20mm}*{margin:0;padding:0;box-sizing:border-box}';
+  htmlStr += 'body{font-family:Sora,Helvetica,Arial,sans-serif;color:#1a1a2e;background:#fff;padding:20px}';
+  htmlStr += 'h1{font-size:22px;margin-bottom:4px}h2{font-size:14px;color:#1a1a2e;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid #e0e0e0}';
+  htmlStr += 'table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}';
+  htmlStr += 'th{background:#f5f5f5;padding:6px 8px;text-align:left;border-bottom:1px solid #ddd;font-weight:600}';
+  htmlStr += 'td{padding:6px 8px;border-bottom:1px solid #eee}.meta{color:#666;font-size:11px;margin-bottom:16px}';
+  htmlStr += '.notes-box{border:1px dashed #ccc;padding:12px;min-height:60px;margin:16px 0;font-size:11px;color:#999}';
+  htmlStr += '.footer{text-align:center;color:#aaa;font-size:10px;margin-top:24px;padding-top:8px;border-top:1px solid #eee}';
+  htmlStr += '</style></head><body>';
+  htmlStr += '<h1>' + workoutName + '</h1>';
+  htmlStr += '<div class="meta">Generated ' + new Date().toLocaleDateString() + ' | Saturno Movement Studio</div>';
+  Object.keys(tracks).forEach(function(trackId) {
+    htmlStr += '<h2>' + (famLabels[trackId] || trackId) + ' (' + tracks[trackId].length + ' exercises)</h2>';
+    htmlStr += '<table><tr><th>#</th><th>Exercise</th><th>Sets x Reps</th><th>Tempo</th><th>Rest</th><th>RPE</th><th>Stage</th></tr>';
+    tracks[trackId].forEach(function(ex, i) {
+      htmlStr += '<tr><td>' + (i+1) + '</td><td>' + ex.name + '</td><td>' + ex.sets + ' x ' + ex.reps + '</td>';
+      htmlStr += '<td>' + ex.tempo + 's</td><td>' + ex.rest + 's</td><td>' + ex.rpe + '</td><td>' + ex.stage + '</td></tr>';
+    });
+    htmlStr += '</table>';
+  });
+  htmlStr += '<div class="notes-box">Session Notes:<br><br><br></div>';
+  htmlStr += '<div class="footer">Saturno Movement Studio | The Ableton of Movement | saturnomovement.com</div>';
+  htmlStr += '</body></html>';
+  var blob = new Blob([htmlStr], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (workoutName.replace(/[^a-zA-Z0-9]/g,'-') || 'workout') + '-printable.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('PDF-ready HTML downloaded');
 }
 
 function selectClipsByStage(stage) {
