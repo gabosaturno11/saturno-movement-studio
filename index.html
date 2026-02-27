@@ -441,6 +441,10 @@ body {
 }
 .ruler-mark:first-child { flex: 0 0 100px; }
 .ruler-mark:nth-child(4n+1) { color: var(--muted); }
+.ruler-downbeat {
+  border-right-color: rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+}
 .timeline-tracks { min-height: 200px; position: relative; }
 .track {
   height: 60px;
@@ -2290,6 +2294,9 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
   <div class="ctx-item" data-action="snap-start">Snap to Start</div>
   <div class="ctx-item" data-action="snap-next">Snap After Previous</div>
   <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="rpe-up">RPE + 1<span class="ctx-key">&#9650;</span></div>
+  <div class="ctx-item" data-action="rpe-down">RPE - 1<span class="ctx-key">&#9660;</span></div>
+  <div class="ctx-sep"></div>
   <div class="ctx-item" data-action="move-push" style="font-size:8px;color:var(--accent-blue)">Move to Push</div>
   <div class="ctx-item" data-action="move-pull" style="font-size:8px;color:var(--accent-purple)">Move to Pull</div>
   <div class="ctx-item" data-action="move-core" style="font-size:8px;color:var(--accent-orange)">Move to Core</div>
@@ -2926,7 +2933,10 @@ function buildRuler() {
     var m = Math.floor(i / 60);
     var s = i % 60;
     var barNum = Math.floor(i / barDuration) + 1;
-    html += '<div class="ruler-mark">'+m+':'+s.toString().padStart(2,'0')+' <span style="color:var(--micro);font-size:7px">|'+barNum+'</span></div>';
+    var isDownbeat = barNum % 4 === 1;
+    var barColor = isDownbeat ? 'var(--text-secondary)' : 'var(--micro)';
+    var barWeight = isDownbeat ? 'font-weight:600' : '';
+    html += '<div class="ruler-mark'+(isDownbeat?' ruler-downbeat':'')+'">'+m+':'+s.toString().padStart(2,'0')+' <span style="color:'+barColor+';font-size:7px;'+barWeight+'">|'+barNum+'</span></div>';
   }
   ruler.innerHTML = html;
 }
@@ -4921,6 +4931,13 @@ document.addEventListener('DOMContentLoaded', function() {
       ctxClip.style.left = (maxRight + 2) + 'px';
       saveSession(); updateStats();
       toast('Snapped after previous');
+    } else if (action === 'rpe-up' || action === 'rpe-down') {
+      var rpe = parseInt(ctxClip.dataset.rpe) || 7;
+      rpe = action === 'rpe-up' ? Math.min(10, rpe + 1) : Math.max(1, rpe - 1);
+      ctxClip.dataset.rpe = rpe;
+      if (typeof updateClipVisuals === 'function') updateClipVisuals(ctxClip, rpe);
+      saveSession();
+      toast('RPE: ' + rpe);
     } else if (action.indexOf('move-') === 0) {
       var targetTrackId = action.replace('move-', '');
       var targetTrack = document.querySelector('.track-content[data-track="'+targetTrackId+'"]');
@@ -5439,6 +5456,16 @@ document.getElementById('track-ctx').addEventListener('click', function(e) {
   }
   hideTrackCtx();
 });
+
+/* RPE visual updater — updates velocity strip when RPE changes via context menu */
+function updateClipVisuals(clip, rpe) {
+  var velocity = clip.querySelector('.clip-velocity');
+  if (velocity) {
+    var velColor = rpe >= 9 ? '#ef4444' : rpe >= 7 ? '#f97316' : rpe >= 5 ? '#eab308' : '#22c55e';
+    var velAlpha = 0.3 + (rpe / 10) * 0.5;
+    velocity.style.background = 'linear-gradient(90deg, ' + velColor + Math.round(velAlpha * 255).toString(16).padStart(2,'0') + ', transparent)';
+  }
+}
 
 /* ===== RIGHT PANEL TABS ===== */
 function switchPanelTab(tabId) {
