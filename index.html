@@ -1192,7 +1192,44 @@ body {
   box-shadow: 0 0 6px rgba(239,68,68,0.4);
   animation: recPulse 1s ease-in-out infinite;
 }
-.footer-quote { font-style: italic; opacity: 0.3; letter-spacing: 0.05em; font-size: 8px; }
+.footer-quote {
+  font-style: italic; opacity: 0.3; letter-spacing: 0.05em; font-size: 8px;
+  min-width: 160px; text-align: center;
+  transition: opacity 0.3s;
+}
+.footer-quote.fade { opacity: 0; }
+
+/* Mixer section collapse toggle */
+.mixer-collapse {
+  position: absolute; top: 10px; right: 10px;
+  width: 14px; height: 14px;
+  background: transparent; border: none;
+  color: var(--micro); cursor: pointer;
+  font-size: 7px; font-family: 'Sora', sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, transform 0.15s;
+  border-radius: 2px;
+}
+.mixer-collapse:hover { color: var(--text-secondary); }
+.mixer-collapse.collapsed { transform: rotate(-90deg); }
+.mixer-section-body { transition: max-height 0.2s ease, opacity 0.15s; overflow: hidden; }
+.mixer-section-body.hidden { max-height: 0 !important; opacity: 0; padding: 0; margin: 0; }
+
+/* Selection count badge — floating indicator when multiple clips selected */
+.selection-badge {
+  position: fixed; bottom: 36px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px; font-weight: 600;
+  color: var(--text); background: rgba(59,130,246,0.15);
+  border: 1px solid rgba(59,130,246,0.3);
+  padding: 3px 12px; z-index: 100;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  pointer-events: none;
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  opacity: 0; transition: opacity 0.15s;
+}
+.selection-badge.show { opacity: 1; }
 
 /* Global Range Inputs — Pro DAW sliders */
 input[type="range"] {
@@ -2043,22 +2080,31 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
         <!-- Meter -->
         <div class="mixer-section">
           <div class="mixer-title">Output</div>
-          <div class="meter-group" id="meters"></div>
-          <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
+          <button class="mixer-collapse" onclick="toggleMixerSection(this)" title="Collapse section">&#9660;</button>
+          <div class="mixer-section-body" style="max-height:200px">
+            <div class="meter-group" id="meters"></div>
+            <div class="channel-meters" id="channel-meters" style="margin-top:6px"></div>
+          </div>
         </div>
         <div class="panel-divider"></div>
 
         <!-- Faders -->
         <div class="mixer-section">
           <div class="mixer-title">Master Faders</div>
-          <div class="fader-group" id="fader-group"></div>
+          <button class="mixer-collapse" onclick="toggleMixerSection(this)" title="Collapse section">&#9660;</button>
+          <div class="mixer-section-body" style="max-height:200px">
+            <div class="fader-group" id="fader-group"></div>
+          </div>
         </div>
         <div class="panel-divider"></div>
 
         <!-- Knobs -->
         <div class="mixer-section">
           <div class="mixer-title">Blend Controls</div>
-          <div class="knob-group" id="knob-group"></div>
+          <button class="mixer-collapse" onclick="toggleMixerSection(this)" title="Collapse section">&#9660;</button>
+          <div class="mixer-section-body" style="max-height:200px">
+            <div class="knob-group" id="knob-group"></div>
+          </div>
         </div>
       </div>
 
@@ -2214,7 +2260,7 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
       <span id="save-indicator" style="color:var(--accent-green);opacity:0;transition:opacity 0.3s;font-size:7px;text-transform:uppercase;letter-spacing:0.1em">Saved</span>
       <span id="workout-name" style="font-size:8px;color:var(--text-secondary);font-weight:500;letter-spacing:0.03em;cursor:pointer" onclick="renameWorkout()" title="Click to rename">Untitled</span>
       <span style="color:var(--border)">|</span>
-      <div class="footer-quote">Saturno Movement Studio</div>
+      <div class="footer-quote" id="footer-hint">Saturno Movement Studio</div>
       <input type="range" id="zoom-slider" min="0" max="5" value="2" style="width:60px;height:2px;margin:0 4px" oninput="setZoomFromSlider(this.value)" title="Zoom level">
       <span id="zoom-pct" style="font-size:7px;color:var(--micro);opacity:0.5;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
       <span style="font-size:7px;color:var(--micro);opacity:0.5;letter-spacing:0.06em;font-variant-numeric:tabular-nums">v2.0</span>
@@ -2222,6 +2268,8 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
     </div>
   </footer>
 </div>
+
+<div class="selection-badge" id="selection-badge"></div>
 
 <div class="saved-modal" id="saved-modal">
   <div class="saved-modal-content">
@@ -3295,6 +3343,7 @@ function selectClipEl(clip, addToSelection) {
   }
   clip.classList.add('selected');
   selectedClip = clip;
+  if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
   var ex = getExercise(clip.dataset.exerciseId);
   if (!ex) return;
   var insp = document.getElementById('inspector');
@@ -5659,6 +5708,7 @@ document.addEventListener('keydown', function(e) {
       document.getElementById('inspector').style.display = 'none';
       updateStats(); saveSession();
       sfx('delete');
+      if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
       toast(count + ' clip' + (count > 1 ? 's' : '') + ' deleted');
     }
   }
@@ -5666,6 +5716,7 @@ document.addEventListener('keydown', function(e) {
   if ((e.metaKey || e.ctrlKey) && e.code === 'KeyA') {
     e.preventDefault();
     document.querySelectorAll('.clip').forEach(function(c) { c.classList.add('selected'); });
+    if (typeof updateSelectionBadge === 'function') updateSelectionBadge();
     toast('All clips selected');
   }
   // Number keys 1-6 to select track
@@ -5698,6 +5749,64 @@ setInterval(function() {
   var clips = document.querySelectorAll('.clip');
   if (clips.length > 0) saveSession();
 }, 30000);
+
+/* Footer shortcut hints rotation — like Ableton's status bar tips */
+var HINT_LIST = [
+  'Space = Play/Stop',
+  'Cmd+K = Command Palette',
+  'R = Toggle Record',
+  'S = Toggle Snap',
+  'T = Tap Tempo',
+  'F = Focus Mode',
+  'L = Loop Region',
+  '1-6 = Select Track',
+  'Tab = Next Clip',
+  'Cmd+Z = Undo',
+  'Cmd+S = Quick Save',
+  'Cmd+E = Export',
+  'Drag exercises from the library',
+  '? = Keyboard Shortcuts',
+  'M = Toggle Metronome',
+  'G = Generate Random',
+  'P = Load Preset',
+  'Scroll wheel = Zoom timeline',
+  'Backspace = Delete selected',
+  'Cmd+A = Select all clips'
+];
+var hintIndex = 0;
+function rotateHint() {
+  var el = document.getElementById('footer-hint');
+  if (!el) return;
+  el.classList.add('fade');
+  setTimeout(function() {
+    hintIndex = (hintIndex + 1) % HINT_LIST.length;
+    el.textContent = HINT_LIST[hintIndex];
+    el.classList.remove('fade');
+  }, 300);
+}
+setInterval(rotateHint, 8000);
+
+/* Selection badge — show count when multiple clips selected */
+function updateSelectionBadge() {
+  var count = document.querySelectorAll('.clip.selected').length;
+  var badge = document.getElementById('selection-badge');
+  if (!badge) return;
+  if (count > 1) {
+    badge.textContent = count + ' clips selected';
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+/* Mixer section collapse toggle */
+function toggleMixerSection(btn) {
+  var body = btn.parentElement.querySelector('.mixer-section-body');
+  if (!body) return;
+  btn.classList.toggle('collapsed');
+  body.classList.toggle('hidden');
+  sfx('click');
+}
 </script>
 </body>
 </html>
