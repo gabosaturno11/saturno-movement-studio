@@ -7906,6 +7906,10 @@ var CMD_ACTIONS = [
   {label:'Intent Summary', key:'', icon:'\u2691', action: function() { showIntentSummary(); }},
   {label:'Log Personal Record', key:'', icon:'\u2B50', action: function() { showPRLogger(); }},
   {label:'View PR History', key:'', icon:'\u2B50', action: function() { showPRHistory(); }},
+  {label:'Periodization Planner', key:'', icon:'\u2630', action: function() { showPeriodization(); }},
+  {label:'Timer Presets (Tabata/EMOM/AMRAP)', key:'', icon:'\u23F1', action: function() { showTimerPresets(); }},
+  {label:'Stop Timer', key:'', icon:'\u25A0', action: function() { stopTimerPresetOverlay(); }},
+  {label:'Export to Calendar (.ics)', key:'', icon:'\u2709', action: function() { exportToCalendar(); }},
 ];
 
 function openCmdPalette() {
@@ -13869,6 +13873,233 @@ function showPRHistory() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 loadPRs();
+
+// Batch 325: Workout Periodization Planner
+function showPeriodization() {
+  var weeks = 4;
+  var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var plan = {};
+  try { var d = localStorage.getItem('sms_periodization'); if (d) plan = JSON.parse(d); } catch(e) {}
+  var html = '<div id="periodization-overlay" style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:flex-start;justify-content:center;padding-top:40px;font-family:Sora,sans-serif;overflow-y:auto">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:700px;width:95%">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="color:#e2e8f0;font-size:14px;font-weight:600">Periodization Planner (4 Weeks)</span>';
+  html += '<button onclick="document.getElementById(\'periodization-overlay\').remove()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;font-family:Sora,sans-serif">X</button></div>';
+  html += '<div style="display:grid;grid-template-columns:40px repeat(7,1fr);gap:2px;font-size:9px">';
+  html += '<div></div>';
+  days.forEach(function(d) { html += '<div style="text-align:center;color:#64748b;font-weight:600;padding:4px 0">' + d + '</div>'; });
+  var focusTypes = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full', 'Rest', 'Skills', 'Core'];
+  for (var w = 0; w < weeks; w++) {
+    html += '<div style="color:#64748b;font-weight:600;display:flex;align-items:center;justify-content:center">W' + (w + 1) + '</div>';
+    for (var d = 0; d < 7; d++) {
+      var key = 'w' + w + 'd' + d;
+      var val = plan[key] || '';
+      var bgColor = val === 'Rest' ? 'rgba(255,255,255,0.02)' : (val ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.02)');
+      html += '<div style="background:' + bgColor + ';border:1px solid rgba(255,255,255,0.05);border-radius:4px;padding:6px 2px;text-align:center;min-height:32px;cursor:pointer" onclick="cyclePeriodDay(\'' + key + '\',this)">';
+      html += '<span style="color:' + (val === 'Rest' ? '#475569' : '#22d3ee') + ';font-size:8px;font-weight:600">' + (val || '-') + '</span></div>';
+    }
+  }
+  html += '</div>';
+  html += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:12px">';
+  focusTypes.forEach(function(f) {
+    html += '<span style="color:#475569;font-size:7px;padding:2px 6px;border:1px solid rgba(255,255,255,0.05);border-radius:4px">' + f + '</span>';
+  });
+  html += '</div>';
+  html += '<button onclick="savePeriodization()" style="width:100%;margin-top:12px;padding:8px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);border-radius:6px;color:#22d3ee;cursor:pointer;font-family:Sora,sans-serif;font-size:10px;font-weight:600">Save Plan</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+var _periodFocusTypes = ['', 'Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full', 'Rest', 'Skills', 'Core'];
+function cyclePeriodDay(key, el) {
+  var plan = {};
+  try { var d = localStorage.getItem('sms_periodization'); if (d) plan = JSON.parse(d); } catch(e) {}
+  var current = plan[key] || '';
+  var idx = _periodFocusTypes.indexOf(current);
+  idx = (idx + 1) % _periodFocusTypes.length;
+  plan[key] = _periodFocusTypes[idx];
+  try { localStorage.setItem('sms_periodization', JSON.stringify(plan)); } catch(e) {}
+  var val = plan[key];
+  var span = el.querySelector('span');
+  if (span) { span.textContent = val || '-'; span.style.color = val === 'Rest' ? '#475569' : (val ? '#22d3ee' : '#475569'); }
+  el.style.background = val === 'Rest' ? 'rgba(255,255,255,0.02)' : (val ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.02)');
+}
+function savePeriodization() {
+  showToast('Periodization plan saved');
+}
+
+// Batch 326: Exercise Timer Presets (Tabata, EMOM, AMRAP)
+function showTimerPresets() {
+  var presets = [
+    { name: 'Tabata', work: 20, rest: 10, rounds: 8, description: '20s work / 10s rest x 8' },
+    { name: 'EMOM 10', work: 40, rest: 20, rounds: 10, description: 'Every minute on the minute x 10' },
+    { name: 'EMOM 20', work: 40, rest: 20, rounds: 20, description: 'Every minute on the minute x 20' },
+    { name: 'AMRAP 10', work: 600, rest: 0, rounds: 1, description: 'As many reps as possible in 10 min' },
+    { name: 'AMRAP 20', work: 1200, rest: 0, rounds: 1, description: '20-minute AMRAP' },
+    { name: '30/30', work: 30, rest: 30, rounds: 10, description: '30s on / 30s off x 10' },
+    { name: '45/15', work: 45, rest: 15, rounds: 10, description: '45s work / 15s rest x 10' },
+    { name: 'Pyramid', work: 0, rest: 0, rounds: 0, description: '10-20-30-40-50-40-30-20-10s' }
+  ];
+  var html = '<div style="position:fixed;inset:0;z-index:9999;background:rgba(5,7,17,0.95);display:flex;align-items:center;justify-content:center;font-family:Sora,sans-serif" onclick="if(event.target===this)this.remove()">';
+  html += '<div style="background:var(--surface,#0a0f1e);border:1px solid rgba(34,211,238,0.15);border-radius:12px;padding:24px;max-width:420px;width:90%;max-height:80vh;overflow-y:auto">';
+  html += '<span style="color:#e2e8f0;font-size:14px;font-weight:600;display:block;margin-bottom:16px">Timer Presets</span>';
+  presets.forEach(function(p, idx) {
+    html += '<button onclick="startTimerPreset(' + idx + ');this.closest(\'div[style*=fixed]\').remove()" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:12px;margin-bottom:6px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:#e2e8f0;cursor:pointer;font-family:Sora,sans-serif;text-align:left">';
+    html += '<div><span style="font-size:12px;font-weight:600">' + p.name + '</span>';
+    html += '<div style="color:#64748b;font-size:9px;margin-top:2px">' + p.description + '</div></div>';
+    html += '<span style="color:#22d3ee;font-size:10px;flex-shrink:0;margin-left:12px">Start</span></button>';
+  });
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+var _timerPresetData = [
+  { name: 'Tabata', work: 20, rest: 10, rounds: 8 },
+  { name: 'EMOM 10', work: 40, rest: 20, rounds: 10 },
+  { name: 'EMOM 20', work: 40, rest: 20, rounds: 20 },
+  { name: 'AMRAP 10', work: 600, rest: 0, rounds: 1 },
+  { name: 'AMRAP 20', work: 1200, rest: 0, rounds: 1 },
+  { name: '30/30', work: 30, rest: 30, rounds: 10 },
+  { name: '45/15', work: 45, rest: 15, rounds: 10 },
+  { name: 'Pyramid', work: 0, rest: 0, rounds: 0 }
+];
+var _timerInterval = null;
+var _timerOverlay = null;
+function startTimerPreset(idx) {
+  var p = _timerPresetData[idx];
+  if (!p) return;
+  if (p.name === 'Pyramid') { startPyramidTimer(); return; }
+  if (p.rounds === 1) { startCountdownTimer(p.work, p.name); return; }
+  startIntervalTimer(p.work, p.rest, p.rounds, p.name);
+}
+function startIntervalTimer(workSec, restSec, rounds, name) {
+  if (_timerInterval) clearInterval(_timerInterval);
+  if (_timerOverlay) _timerOverlay.remove();
+  var currentRound = 1;
+  var phase = 'work';
+  var timeLeft = workSec;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(5,7,17,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  ov.innerHTML = '<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px" id="timer-name">' + name + '</div><div id="timer-phase" style="color:#4ade80;font-size:16px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.1em">WORK</div><div id="timer-display" style="color:#e2e8f0;font-size:72px;font-weight:300;letter-spacing:0.05em;font-variant-numeric:tabular-nums">' + formatTimerSec(timeLeft) + '</div><div id="timer-round" style="color:#64748b;font-size:11px;margin-top:12px">Round ' + currentRound + ' / ' + rounds + '</div><button onclick="stopTimerPresetOverlay()" style="margin-top:24px;padding:8px 24px;background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:10px">Stop (ESC)</button>';
+  document.body.appendChild(ov);
+  _timerOverlay = ov;
+  var phaseEl = ov.querySelector('#timer-phase');
+  var displayEl = ov.querySelector('#timer-display');
+  var roundEl = ov.querySelector('#timer-round');
+  _timerInterval = setInterval(function() {
+    timeLeft--;
+    if (timeLeft < 0) {
+      if (phase === 'work' && restSec > 0) {
+        phase = 'rest';
+        timeLeft = restSec;
+        phaseEl.textContent = 'REST';
+        phaseEl.style.color = '#f87171';
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      } else {
+        currentRound++;
+        if (currentRound > rounds) { stopTimerPresetOverlay(); showToast(name + ' complete!'); return; }
+        phase = 'work';
+        timeLeft = workSec;
+        phaseEl.textContent = 'WORK';
+        phaseEl.style.color = '#4ade80';
+        roundEl.textContent = 'Round ' + currentRound + ' / ' + rounds;
+        if (navigator.vibrate) navigator.vibrate(100);
+      }
+    }
+    displayEl.textContent = formatTimerSec(timeLeft);
+  }, 1000);
+  var escHandler = function(e) { if (e.key === 'Escape') { stopTimerPresetOverlay(); document.removeEventListener('keydown', escHandler); } };
+  document.addEventListener('keydown', escHandler);
+}
+function startCountdownTimer(totalSec, name) {
+  if (_timerInterval) clearInterval(_timerInterval);
+  if (_timerOverlay) _timerOverlay.remove();
+  var timeLeft = totalSec;
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(5,7,17,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  ov.innerHTML = '<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px">' + name + '</div><div style="color:#fbbf24;font-size:16px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.1em">GO</div><div id="timer-display" style="color:#e2e8f0;font-size:72px;font-weight:300;letter-spacing:0.05em;font-variant-numeric:tabular-nums">' + formatTimerSec(timeLeft) + '</div><button onclick="stopTimerPresetOverlay()" style="margin-top:24px;padding:8px 24px;background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:10px">Stop (ESC)</button>';
+  document.body.appendChild(ov);
+  _timerOverlay = ov;
+  var displayEl = ov.querySelector('#timer-display');
+  _timerInterval = setInterval(function() {
+    timeLeft--;
+    if (timeLeft < 0) { stopTimerPresetOverlay(); showToast(name + ' complete!'); return; }
+    displayEl.textContent = formatTimerSec(timeLeft);
+  }, 1000);
+  var escHandler = function(e) { if (e.key === 'Escape') { stopTimerPresetOverlay(); document.removeEventListener('keydown', escHandler); } };
+  document.addEventListener('keydown', escHandler);
+}
+function startPyramidTimer() {
+  var steps = [10, 20, 30, 40, 50, 40, 30, 20, 10];
+  var stepIdx = 0;
+  if (_timerInterval) clearInterval(_timerInterval);
+  if (_timerOverlay) _timerOverlay.remove();
+  var timeLeft = steps[0];
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(5,7,17,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Sora,sans-serif';
+  ov.innerHTML = '<div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px">Pyramid</div><div id="timer-step" style="color:#c084fc;font-size:14px;font-weight:600;margin-bottom:12px">' + steps[0] + 's interval (1/' + steps.length + ')</div><div id="timer-display" style="color:#e2e8f0;font-size:72px;font-weight:300;letter-spacing:0.05em;font-variant-numeric:tabular-nums">' + formatTimerSec(timeLeft) + '</div><button onclick="stopTimerPresetOverlay()" style="margin-top:24px;padding:8px 24px;background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#64748b;cursor:pointer;font-family:Sora,sans-serif;font-size:10px">Stop (ESC)</button>';
+  document.body.appendChild(ov);
+  _timerOverlay = ov;
+  var stepEl = ov.querySelector('#timer-step');
+  var displayEl = ov.querySelector('#timer-display');
+  _timerInterval = setInterval(function() {
+    timeLeft--;
+    if (timeLeft < 0) {
+      stepIdx++;
+      if (stepIdx >= steps.length) { stopTimerPresetOverlay(); showToast('Pyramid complete!'); return; }
+      timeLeft = steps[stepIdx];
+      stepEl.textContent = steps[stepIdx] + 's interval (' + (stepIdx + 1) + '/' + steps.length + ')';
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    }
+    displayEl.textContent = formatTimerSec(timeLeft);
+  }, 1000);
+  var escHandler = function(e) { if (e.key === 'Escape') { stopTimerPresetOverlay(); document.removeEventListener('keydown', escHandler); } };
+  document.addEventListener('keydown', escHandler);
+}
+function formatTimerSec(s) {
+  var m = Math.floor(s / 60);
+  var sec = s % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+function stopTimerPresetOverlay() {
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+  if (_timerOverlay) { _timerOverlay.remove(); _timerOverlay = null; }
+}
+
+// Batch 327: Export Workout to Calendar (.ics)
+function exportToCalendar() {
+  var clips = document.querySelectorAll('.clip');
+  if (!clips.length) { showToast('No clips to export'); return; }
+  var workoutName = 'Workout';
+  var nameEl = document.getElementById('workout-name') || document.querySelector('.breadcrumb-name');
+  if (nameEl) workoutName = nameEl.textContent || workoutName;
+  var exercises = [];
+  clips.forEach(function(c) {
+    var name = c.dataset.exercise || c.textContent.trim().split('\n')[0];
+    var sets = c.dataset.sets || '3';
+    var reps = c.dataset.reps || '8';
+    exercises.push(name + ' ' + sets + 'x' + reps);
+  });
+  var now = new Date();
+  var tomorrow = new Date(now.getTime() + 86400000);
+  tomorrow.setHours(8, 0, 0, 0);
+  var endTime = new Date(tomorrow.getTime() + 3600000);
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function icsDate(d) {
+    return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + 'T' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+  }
+  var uid = 'sms-' + Date.now() + '@saturnomovement';
+  var description = exercises.join('\\n');
+  if (description.length > 500) description = description.slice(0, 500) + '\\n...';
+  var ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Saturno Movement Studio//EN\r\nBEGIN:VEVENT\r\nUID:' + uid + '\r\nDTSTAMP:' + icsDate(now) + '\r\nDTSTART:' + icsDate(tomorrow) + '\r\nDTEND:' + icsDate(endTime) + '\r\nSUMMARY:' + workoutName + '\r\nDESCRIPTION:' + description + '\r\nEND:VEVENT\r\nEND:VCALENDAR';
+  var blob = new Blob([ics], { type: 'text/calendar' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = workoutName.replace(/[^a-zA-Z0-9]/g, '_') + '.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Calendar event downloaded');
+}
 
 function selectClipsByStage(stage) {
   document.querySelectorAll('.clip.selected').forEach(function(c) { c.classList.remove('selected'); });
