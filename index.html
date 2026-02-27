@@ -7390,6 +7390,8 @@ var CMD_ACTIONS = [
   {label:'Clone Track to Core', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('core'); }},
   {label:'Clone Track to Legs', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('legs'); }},
   {label:'Clone Track to Skills', key:'', icon:'\u2398', action: function() { cloneTrackToTarget('skills'); }},
+  {label:'Export Session Stats', key:'', icon:'\u2139', action: function() { exportSessionStats(); }},
+  {label:'Toggle RPE Color Mode', key:'', icon:'\u25A0', action: function() { toggleRpeColorMode(); }},
 ];
 
 function openCmdPalette() {
@@ -8788,6 +8790,61 @@ function getSessionElapsed() {
   var m = Math.floor((elapsed % 3600) / 60);
   if (h > 0) return h + 'h ' + m + 'm';
   return m + ' min';
+}
+
+function exportSessionStats() {
+  var clips = document.querySelectorAll('.clip');
+  if (clips.length === 0) { toast('No clips'); return; }
+  var name = document.getElementById('workout-name').textContent || 'Untitled';
+  var lines = [];
+  lines.push('=== ' + name + ' ===');
+  lines.push('BPM: ' + bpm + ' | Mode: ' + (document.getElementById('bpm-mode').textContent || ''));
+  lines.push('Clips: ' + clips.length);
+  var totalSets = 0, totalReps = 0, totalRpe = 0;
+  var families = {}, exercises = {}, disciplines = {};
+  clips.forEach(function(c) {
+    totalSets += parseInt(c.dataset.sets) || 3;
+    totalReps += (parseInt(c.dataset.sets) || 3) * (parseInt(c.dataset.reps) || 8);
+    totalRpe += parseInt(c.dataset.rpe) || 7;
+    var ex = getExercise(c.dataset.exerciseId);
+    if (ex) {
+      families[ex.family] = (families[ex.family] || 0) + 1;
+      exercises[ex.name] = (exercises[ex.name] || 0) + 1;
+      if (ex.discipline) disciplines[ex.discipline] = true;
+    }
+  });
+  lines.push('Total Sets: ' + totalSets + ' | Total Reps: ' + totalReps);
+  lines.push('Avg RPE: ' + (totalRpe / clips.length).toFixed(1));
+  lines.push('Disciplines: ' + Object.keys(disciplines).join(', '));
+  lines.push('Families: ' + Object.keys(families).map(function(f) { return f + ' (' + families[f] + ')'; }).join(', '));
+  lines.push('Session: ' + getSessionElapsed());
+  if (workoutNotes) lines.push('Notes: ' + workoutNotes);
+  navigator.clipboard.writeText(lines.join('\n')).then(function() { toast('Session stats copied'); });
+}
+
+var rpeColorMode = false;
+function toggleRpeColorMode() {
+  rpeColorMode = !rpeColorMode;
+  var rpeColors = ['#22c55e','#22c55e','#84cc16','#a3e635','#eab308','#f59e0b','#f97316','#ef4444','#dc2626','#991b1b'];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    if (rpeColorMode) {
+      var rpe = parseInt(c.dataset.rpe) || 7;
+      var color = rpeColors[rpe - 1] || '#eab308';
+      c.style.borderTopColor = color + '88';
+      c.style.background = 'linear-gradient(180deg, ' + color + '22 0%, ' + color + '11 100%)';
+    } else {
+      if (c.dataset.customColor) {
+        c.style.background = 'linear-gradient(180deg, ' + c.dataset.customColor + '44 0%, ' + c.dataset.customColor + '22 100%)';
+        c.style.borderTopColor = c.dataset.customColor;
+      } else {
+        var ex = getExercise(c.dataset.exerciseId);
+        var fc = (ex && FAMILY_MAP[ex.family]) ? FAMILY_MAP[ex.family].color : '#666';
+        c.style.background = 'linear-gradient(180deg, ' + fc + '22 0%, ' + fc + '11 100%)';
+        c.style.borderTopColor = fc + '44';
+      }
+    }
+  });
+  toast('RPE Color Mode: ' + (rpeColorMode ? 'ON' : 'OFF'));
 }
 
 function selectClipsByStage(stage) {
