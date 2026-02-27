@@ -10,7 +10,7 @@
 - Ship deadline: Tuesday March 4, 2026
 
 ## Architecture
-Single-file HTML app (index.html, ~8,780 lines). No build step. No framework.
+Single-file HTML app (index.html, ~9,415 lines). No build step. No framework.
 
 ### Structure
 ```
@@ -62,7 +62,7 @@ saturno-movement-studio/
 - **Text hierarchy** over box styling: color + weight + size = visual structure
 - **Gradient lock**: --gradient-cosmic, --gradient-titan, --glow-cyan CSS vars
 
-### Features (Batches 1-204)
+### Features (Batches 1-231)
 - Multi-track timeline (Push, Pull, Core, Legs, Skills, Music)
 - 58 exercises with drag-and-drop from library to timeline
 - Solo/Mute tracks, clip resize, clip drag, multi-select
@@ -232,7 +232,34 @@ saturno-movement-studio/
 - **Global workout notes** (persists all 6 state paths, inline prompt edit)
 - **Print workout notes** (notes section in print worksheet output)
 - **Summary workout notes** (notes in summary panel + copy text output)
-- **Command palette** (Cmd+K, 100+ commands)
+- **Track mute/solo footer indicator** (yellow solo, red muted counts in footer)
+- **Duplicate to next bar** (precise bar-aligned clip duplication)
+- **Fill track with exercise** (fill from selected clip to end of timeline)
+- **Mirror workout** (reverse all clip positions within timeline)
+- **Swap two clips** (swap positions of exactly 2 selected clips)
+- **Align clips to playhead** (sequential placement at playhead position)
+- **Trim clip to loop region** (crop clip to loop boundaries)
+- **Apply inspector to selected** (batch-set params on all selected clips)
+- **Collect to active track** (move selected clips to active track)
+- **Stagger clips** (2-beat offset cascade for selected clips)
+- **Random exercise swap** (replace clip with random same-family exercise)
+- **Randomize all exercises** (randomize all clips within their families)
+- **Quick add exercise** (add exercise at playhead on active/family track)
+- **Consolidate adjacent clips** (merge touching clips on active track)
+- **Exercise frequency** (top 5 exercises by clip count report)
+- **Balance report** (family set percentages + Push/Pull ratio)
+- **Scale clip durations** (0.5x/2x multiplier for all clips)
+- **Quantize selected clips** (snap only selected to grid)
+- **Remaining time display** (shows -M:SS during playback in transport)
+- **Export as Markdown** (formatted tables per track, clipboard)
+- **Compare with saved session** (clip count diff report)
+- **Select clips in loop range** (select clips within loop boundaries)
+- **Sort track alphabetically** (sort active track clips by exercise name)
+- **Compact track** (remove gaps between clips, lock-aware)
+- **Distribute across tracks** (spread selected clips round-robin)
+- **Cycle exercise in pattern** (cycle through progression stages)
+- **Compact all tracks** (remove gaps on all tracks at once)
+- **Command palette** (Cmd+K, 135+ commands)
 - **Keyboard shortcuts panel** (?, 60+ shortcuts)
 
 ## Source References
