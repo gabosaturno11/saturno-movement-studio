@@ -2327,6 +2327,13 @@ setTimeout(function(){var s=document.getElementById('splash');if(s){s.style.opac
     <aside class="panel-left">
       <div class="panel-header"><span>Movement Library</span><span id="lib-count">0</span></div>
       <input type="text" class="lib-search" id="lib-search" placeholder="Search movements... (Enter to add)" oninput="filterLibrary()" onkeydown="if(event.key==='Enter')addFirstMatch()">
+      <div style="display:flex;gap:3px;padding:4px 10px;align-items:center">
+        <span style="font-size:7px;color:var(--micro);text-transform:uppercase;letter-spacing:0.1em;margin-right:2px">Stage</span>
+        <button class="lib-stage-btn active" data-stage="all" onclick="filterByStage('all')" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.06);color:var(--text-secondary);font-family:Sora,sans-serif" data-tip="Show all stages">All</button>
+        <button class="lib-stage-btn" data-stage="1" onclick="filterByStage(1)" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif" data-tip="Beginner exercises">S1</button>
+        <button class="lib-stage-btn" data-stage="2" onclick="filterByStage(2)" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif" data-tip="Intermediate exercises">S2</button>
+        <button class="lib-stage-btn" data-stage="3" onclick="filterByStage(3)" style="font-size:7px;padding:1px 6px;border:none;border-radius:2px;cursor:pointer;background:rgba(255,255,255,0.03);color:var(--muted);font-family:Sora,sans-serif" data-tip="Advanced exercises">S3</button>
+      </div>
       <div class="movement-category" style="display:none">
         <div class="category-header" style="font-size:8px;color:var(--accent-cyan);padding:5px 12px"><span>Recent</span></div>
         <div class="movement-list" id="recent-exercises"></div>
@@ -3284,18 +3291,30 @@ function restoreCategoryState() {
   } catch(e) {}
 }
 
+var _libStageFilter = 'all';
+function filterByStage(stage) {
+  _libStageFilter = stage;
+  document.querySelectorAll('.lib-stage-btn').forEach(function(btn) {
+    var isActive = btn.dataset.stage === String(stage);
+    btn.style.background = isActive ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)';
+    btn.style.color = isActive ? 'var(--text-secondary)' : 'var(--muted)';
+  });
+  filterLibrary();
+}
 function filterLibrary() {
   var q = document.getElementById('lib-search').value.toLowerCase();
   var items = document.querySelectorAll('.movement-item');
   var count = 0;
   items.forEach(function(item) {
-    var show = item.textContent.toLowerCase().indexOf(q) !== -1;
+    var ex = getExercise(item.dataset.id);
+    var matchText = item.textContent.toLowerCase().indexOf(q) !== -1;
+    var matchStage = _libStageFilter === 'all' || (ex && ex.stage === _libStageFilter);
+    var show = matchText && matchStage;
     item.style.display = show ? '' : 'none';
     if (show) count++;
   });
   document.getElementById('lib-count').textContent = count;
-  // Show all categories when searching
-  if (q) {
+  if (q || _libStageFilter !== 'all') {
     document.querySelectorAll('.movement-list').forEach(function(l) { l.classList.remove('hidden'); });
     document.querySelectorAll('.category-header').forEach(function(h) { h.classList.remove('collapsed'); });
   }
@@ -6761,6 +6780,7 @@ function setWorkoutName(name) {
   document.getElementById('workout-name').textContent = name;
   var headerName = document.getElementById('header-workout-name');
   if (headerName) headerName.textContent = name;
+  document.title = (name || 'Untitled') + ' - Saturno Movement Studio';
 }
 function renameWorkout() {
   showInlinePrompt('Workout name', workoutName, function(name) {
