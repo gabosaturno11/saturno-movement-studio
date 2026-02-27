@@ -7418,6 +7418,9 @@ var CMD_ACTIONS = [
   {label:'Suggest Harder Exercise', key:'', icon:'\u2191', action: function() { suggestProgression('up'); }},
   {label:'Suggest Easier Exercise', key:'', icon:'\u2193', action: function() { suggestProgression('down'); }},
   {label:'Insert Rest Between Clips', key:'', icon:'\u23F8', action: function() { insertRestBetweenClips(); }},
+  {label:'Workout Diff vs Saved', key:'', icon:'\u2260', action: function() { workoutDiff(); }},
+  {label:'Generate Warmup', key:'', icon:'\u2600', action: function() { generateWarmup(); }},
+  {label:'Generate Cooldown', key:'', icon:'\u2744', action: function() { generateCooldown(); }},
 ];
 
 function openCmdPalette() {
@@ -9230,6 +9233,124 @@ function insertRestBetweenClips() {
   });
   updateStats(); saveSession(); sfx('click');
   toast('Rest gaps inserted (' + count + ' clips shifted)');
+}
+
+/* ===== BATCH 256: WORKOUT COMPARISON DIFF ===== */
+function workoutDiff() {
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem('sms_session')); } catch(e) {}
+  if (!saved || !saved.clips) { toast('No saved state to compare'); return; }
+  var currentClips = [];
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var ex = getExercise(c.dataset.exerciseId);
+    currentClips.push({
+      name: ex ? ex.name : '?',
+      track: c.parentElement.dataset.track,
+      sets: c.dataset.sets, reps: c.dataset.reps,
+      rpe: c.dataset.rpe
+    });
+  });
+  var savedExNames = {};
+  saved.clips.forEach(function(c) {
+    var ex = getExercise(c.exerciseId);
+    var key = (ex ? ex.name : '?') + ':' + c.track;
+    savedExNames[key] = (savedExNames[key] || 0) + 1;
+  });
+  var currentExNames = {};
+  currentClips.forEach(function(c) {
+    var key = c.name + ':' + c.track;
+    currentExNames[key] = (currentExNames[key] || 0) + 1;
+  });
+  var added = [];
+  var removed = [];
+  Object.keys(currentExNames).forEach(function(k) {
+    var diff = currentExNames[k] - (savedExNames[k] || 0);
+    if (diff > 0) added.push(k.split(':')[0] + ' x' + diff);
+  });
+  Object.keys(savedExNames).forEach(function(k) {
+    var diff = savedExNames[k] - (currentExNames[k] || 0);
+    if (diff > 0) removed.push(k.split(':')[0] + ' x' + diff);
+  });
+  var msg = 'Diff vs saved:\n';
+  if (added.length) msg += 'Added: ' + added.join(', ') + '\n';
+  if (removed.length) msg += 'Removed: ' + removed.join(', ') + '\n';
+  if (!added.length && !removed.length) msg += 'No differences';
+  msg += '\nClips: ' + saved.clips.length + ' -> ' + currentClips.length;
+  toast(msg);
+}
+
+/* ===== BATCH 257: AUTO-GENERATE WARMUP ===== */
+function generateWarmup() {
+  var mobilityExercises = EXERCISES.filter(function(e) { return e.discipline === 'Mobility'; });
+  if (mobilityExercises.length === 0) { toast('No mobility exercises available'); return; }
+  pushUndo();
+  var ho = 100;
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var clipW = beatPx * 4;
+  var gap = 4;
+  var shuffled = mobilityExercises.slice().sort(function() { return Math.random() - 0.5; });
+  var warmupCount = Math.min(4, shuffled.length);
+  var targetTrack = document.querySelector('.track-content[data-track="skills"]');
+  if (!targetTrack) { toast('No skills track'); return; }
+  var minLeft = Infinity;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var l = parseInt(c.style.left);
+    if (l < minLeft) minLeft = l;
+  });
+  if (minLeft === Infinity) minLeft = ho + clipW * warmupCount + gap * warmupCount + beatPx * 2;
+  var warmupStart = ho;
+  if (minLeft > ho) {
+    var neededSpace = warmupCount * (clipW + gap) + beatPx * 2;
+    if (minLeft - ho < neededSpace) {
+      var shift = neededSpace - (minLeft - ho);
+      document.querySelectorAll('.clip').forEach(function(c) {
+        if (c.classList.contains('clip-locked')) return;
+        c.style.left = (parseInt(c.style.left) + shift) + 'px';
+      });
+    }
+  }
+  var xPos = warmupStart;
+  for (var i = 0; i < warmupCount; i++) {
+    var ex = shuffled[i];
+    var clip = createClipElement(ex, xPos, clipW, {
+      sets: '2', reps: '10', tempo: '3', rest: '30', rpe: '3'
+    });
+    targetTrack.appendChild(clip);
+    xPos += clipW + gap;
+  }
+  updateStats(); saveSession(); sfx('drop');
+  toast(warmupCount + ' warmup exercises added to Skills track');
+}
+
+/* ===== BATCH 258: AUTO-GENERATE COOLDOWN ===== */
+function generateCooldown() {
+  var mobilityExercises = EXERCISES.filter(function(e) { return e.discipline === 'Mobility'; });
+  if (mobilityExercises.length === 0) { toast('No mobility exercises available'); return; }
+  pushUndo();
+  var beatPx = Math.round((60 / bpm) * (80 / 15));
+  var clipW = beatPx * 6;
+  var gap = 4;
+  var shuffled = mobilityExercises.slice().sort(function() { return Math.random() - 0.5; });
+  var cooldownCount = Math.min(4, shuffled.length);
+  var targetTrack = document.querySelector('.track-content[data-track="skills"]');
+  if (!targetTrack) { toast('No skills track'); return; }
+  var maxRight = 0;
+  document.querySelectorAll('.clip').forEach(function(c) {
+    var r = parseInt(c.style.left) + parseInt(c.style.width);
+    if (r > maxRight) maxRight = r;
+  });
+  var cooldownStart = maxRight + beatPx * 2;
+  var xPos = cooldownStart;
+  for (var i = 0; i < cooldownCount; i++) {
+    var ex = shuffled[i];
+    var clip = createClipElement(ex, xPos, clipW, {
+      sets: '1', reps: '1', tempo: '30', rest: '10', rpe: '2'
+    });
+    targetTrack.appendChild(clip);
+    xPos += clipW + gap;
+  }
+  updateStats(); saveSession(); sfx('drop');
+  toast(cooldownCount + ' cooldown stretches added after workout');
 }
 
 function selectClipsByStage(stage) {
